@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Go build outputs
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*~
+
+# Dependency directories
+vendor/
+
+# Logs and temp files
+*.log
+*.tmp
+*.cache
+
+# Generated files
+*.out
+
+# Coverage reports
+coverage.out
