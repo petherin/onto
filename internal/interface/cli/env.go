@@ -21,6 +21,7 @@ const (
 	cmdTravel = "travel"
 	cmdCost   = "cost"
 	cmdShift  = "shift"
+	cmdJump   = "jump"
 	cmdExit   = "exit"
 	argBack   = "back"
 )

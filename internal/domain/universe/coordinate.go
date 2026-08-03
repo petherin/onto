@@ -32,6 +32,18 @@ func (c Coordinate) QuantumLevel() int {
 	return n
 }
 
+// TimelineLevel returns the numeric timeline level ("Prime" → 0, "T1" → 1, "T2" → 2, …).
+func (c Coordinate) TimelineLevel() int {
+	if c.Timeline == "Prime" || c.Timeline == "" {
+		return 0
+	}
+	n := 0
+	if len(c.Timeline) > 1 && c.Timeline[0] == 'T' {
+		fmt.Sscanf(c.Timeline[1:], "%d", &n)
+	}
+	return n
+}
+
 func NewCoordinate() Coordinate {
 	return Coordinate{
 		Meta:        "Origin",

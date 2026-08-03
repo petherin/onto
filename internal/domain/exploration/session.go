@@ -46,3 +46,21 @@ func (s *Session) QuantumLevel() int {
 func (s *Session) NextQuantumID() string {
 	return fmt.Sprintf("%s-q%d", s.CurrentLocation, s.QuantumLevel()+1)
 }
+
+// JumpTo updates position for a timeline shift and records it in travel history.
+func (s *Session) JumpTo(loc universe.Location) {
+	prev := s.CurrentLocation
+	s.CurrentLocation = loc.ID
+	s.CurrentCoordinate = loc.Coordinate
+	s.TravelHistory = append(s.TravelHistory, fmt.Sprintf("%s -> %s (timeline shift)", prev, loc.ID))
+}
+
+// TimelineLevel returns the numeric timeline level of the current position ("Prime" → 0, "T1" → 1, …).
+func (s *Session) TimelineLevel() int {
+	return s.CurrentCoordinate.TimelineLevel()
+}
+
+// NextTimelineID returns the location ID that 'jump' would shift to from the current position.
+func (s *Session) NextTimelineID() string {
+	return fmt.Sprintf("%s-t%d", s.CurrentLocation, s.TimelineLevel()+1)
+}

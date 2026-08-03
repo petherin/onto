@@ -16,6 +16,7 @@ const (
 
 type TravelResult struct {
 	Location       universe.Location
+	Path           []universe.Edge // edges traversed to reach the destination
 	Edges          []universe.Edge
 	History        []string
 	DeadEndHandled bool
@@ -58,6 +59,7 @@ func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 
 	result := &TravelResult{
 		Location:       loc,
+		Path:           path,
 		Edges:          c.Universe.EdgesFrom(norm),
 		History:        c.Session.TravelHistory,
 		DeadEndHandled: deadEndHandled,

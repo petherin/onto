@@ -1,37 +1,15 @@
 {
   "locations": [
     {
-      "ID": "home",
-      "Name": "Home",
-      "Description": "A quiet residential location.",
-      "Coordinate": {
-        "Meta": "Origin",
-        "Mathematics": "",
-        "Universe": "Origin",
-        "Timeline": "Prime",
-        "Quantum": "Q0",
-        "Simulation": 0,
-        "Galaxy": "Milky Way",
-        "System": "Solar System",
-        "Planet": "Earth",
-        "Country": "United Kingdom",
-        "Region": "Yorkshire",
-        "City": "Leeds",
-        "Location": "Home",
-        "Observer": "Human",
-        "Time": "0001-01-01T00:00:00Z"
-      }
-    },
-    {
-      "ID": "station",
-      "Name": "Station",
-      "Description": "Leeds Station.",
+      "ID": "station-q1-t1",
+      "Name": "Station (Q1) (T1)",
+      "Description": "An alternate timeline branch of Station (Q1). History diverged at some point — the differences may be subtle or catastrophic.",
       "Coordinate": {
         "Meta": "",
         "Mathematics": "",
         "Universe": "",
-        "Timeline": "",
-        "Quantum": "",
+        "Timeline": "T1",
+        "Quantum": "Q0",
         "Simulation": 0,
         "Galaxy": "",
         "System": "",
@@ -45,15 +23,15 @@
       }
     },
     {
-      "ID": "park",
-      "Name": "Park",
-      "Description": "A green public park.",
+      "ID": "station-q1",
+      "Name": "Station (Q1)",
+      "Description": "A neighbouring quantum branch of Station. The surroundings are almost identical, but something is subtly different.",
       "Coordinate": {
         "Meta": "",
         "Mathematics": "",
         "Universe": "",
         "Timeline": "",
-        "Quantum": "",
+        "Quantum": "Q1",
         "Simulation": 0,
         "Galaxy": "",
         "System": "",
@@ -61,7 +39,7 @@
         "Country": "",
         "Region": "",
         "City": "Leeds",
-        "Location": "Park",
+        "Location": "Station",
         "Observer": "",
         "Time": "0001-01-01T00:00:00Z"
       }
@@ -89,6 +67,28 @@
       }
     },
     {
+      "ID": "station",
+      "Name": "Station",
+      "Description": "Leeds Station.",
+      "Coordinate": {
+        "Meta": "",
+        "Mathematics": "",
+        "Universe": "",
+        "Timeline": "",
+        "Quantum": "",
+        "Simulation": 0,
+        "Galaxy": "",
+        "System": "",
+        "Planet": "",
+        "Country": "",
+        "Region": "",
+        "City": "Leeds",
+        "Location": "Station",
+        "Observer": "",
+        "Time": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
       "ID": "home-q1",
       "Name": "Home (Q1)",
       "Description": "A neighbouring quantum branch of Home. The surroundings are almost identical, but something is subtly different.",
@@ -109,9 +109,129 @@
         "Observer": "Human",
         "Time": "0001-01-01T00:00:00Z"
       }
+    },
+    {
+      "ID": "home",
+      "Name": "Home",
+      "Description": "A quiet residential location.",
+      "Coordinate": {
+        "Meta": "Origin",
+        "Mathematics": "",
+        "Universe": "Origin",
+        "Timeline": "Prime",
+        "Quantum": "Q0",
+        "Simulation": 0,
+        "Galaxy": "Milky Way",
+        "System": "Solar System",
+        "Planet": "Earth",
+        "Country": "United Kingdom",
+        "Region": "Yorkshire",
+        "City": "Leeds",
+        "Location": "Home",
+        "Observer": "Human",
+        "Time": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "ID": "home-q1-t1",
+      "Name": "Home (Q1) (T1)",
+      "Description": "An alternate timeline branch of Home (Q1). History diverged at some point — the differences may be subtle or catastrophic.",
+      "Coordinate": {
+        "Meta": "Origin",
+        "Mathematics": "",
+        "Universe": "Origin",
+        "Timeline": "T1",
+        "Quantum": "Q0",
+        "Simulation": 0,
+        "Galaxy": "Milky Way",
+        "System": "Solar System",
+        "Planet": "Earth",
+        "Country": "United Kingdom",
+        "Region": "Yorkshire",
+        "City": "Leeds",
+        "Location": "Home",
+        "Observer": "Human",
+        "Time": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "ID": "home-q1-t1-q1",
+      "Name": "Home (Q1) (T1) (Q1)",
+      "Description": "A neighbouring quantum branch of Home (Q1) (T1). The surroundings are almost identical, but something is subtly different.",
+      "Coordinate": {
+        "Meta": "Origin",
+        "Mathematics": "",
+        "Universe": "Origin",
+        "Timeline": "T1",
+        "Quantum": "Q1",
+        "Simulation": 0,
+        "Galaxy": "Milky Way",
+        "System": "Solar System",
+        "Planet": "Earth",
+        "Country": "United Kingdom",
+        "Region": "Yorkshire",
+        "City": "Leeds",
+        "Location": "Home",
+        "Observer": "Human",
+        "Time": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "ID": "park",
+      "Name": "Park",
+      "Description": "A green public park.",
+      "Coordinate": {
+        "Meta": "",
+        "Mathematics": "",
+        "Universe": "",
+        "Timeline": "",
+        "Quantum": "",
+        "Simulation": 0,
+        "Galaxy": "",
+        "System": "",
+        "Planet": "",
+        "Country": "",
+        "Region": "",
+        "City": "Leeds",
+        "Location": "Park",
+        "Observer": "",
+        "Time": "0001-01-01T00:00:00Z"
+      }
     }
   ],
   "edges": [
+    {
+      "From": "home-q1",
+      "To": "home",
+      "Mode": "quantum",
+      "Distance": 0,
+      "Cost": 20,
+      "Description": "Quantum shift back to Q0"
+    },
+    {
+      "From": "home-q1",
+      "To": "home-q1-t1",
+      "Mode": "timeline",
+      "Distance": 0,
+      "Cost": 800,
+      "Description": "Timeline shift to T1"
+    },
+    {
+      "From": "station-q1",
+      "To": "station",
+      "Mode": "quantum",
+      "Distance": 0,
+      "Cost": 20,
+      "Description": "Quantum shift back to "
+    },
+    {
+      "From": "station-q1",
+      "To": "station-q1-t1",
+      "Mode": "timeline",
+      "Distance": 0,
+      "Cost": 800,
+      "Description": "Timeline shift to T1"
+    },
     {
       "From": "home",
       "To": "station",
@@ -137,12 +257,44 @@
       "Description": "Quantum shift to Q1"
     },
     {
+      "From": "station-q1-t1",
+      "To": "station-q1",
+      "Mode": "timeline",
+      "Distance": 0,
+      "Cost": 800,
+      "Description": "Timeline shift back to "
+    },
+    {
       "From": "station",
       "To": "city-centre",
       "Mode": "rail",
       "Distance": 2,
       "Cost": 3,
       "Description": "Take the rail line"
+    },
+    {
+      "From": "station",
+      "To": "station-q1",
+      "Mode": "quantum",
+      "Distance": 0,
+      "Cost": 20,
+      "Description": "Quantum shift to Q1"
+    },
+    {
+      "From": "home-q1-t1",
+      "To": "home-q1",
+      "Mode": "timeline",
+      "Distance": 0,
+      "Cost": 800,
+      "Description": "Timeline shift back to Prime"
+    },
+    {
+      "From": "home-q1-t1",
+      "To": "home-q1-t1-q1",
+      "Mode": "quantum",
+      "Distance": 0,
+      "Cost": 20,
+      "Description": "Quantum shift to Q1"
     },
     {
       "From": "city-centre",
@@ -153,8 +305,8 @@
       "Description": "Walk home"
     },
     {
-      "From": "home-q1",
-      "To": "home",
+      "From": "home-q1-t1-q1",
+      "To": "home-q1-t1",
       "Mode": "quantum",
       "Distance": 0,
       "Cost": 20,

@@ -14,6 +14,7 @@ func (a *App) Commands() []Command {
 		{Name: cmdTravel, Description: "Travel to a destination"},
 		{Name: cmdCost, Description: "Show travel cost information"},
 		{Name: cmdShift, Description: "Jump to the nearest quantum branch of your current location"},
+		{Name: cmdJump, Description: "Jump to the next timeline branch of your current location"},
 		{Name: cmdExit, Description: "Exit the CLI"},
 	}
 }

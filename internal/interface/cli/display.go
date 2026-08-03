@@ -17,7 +17,7 @@ func (a *App) Where() string {
 		"Reality Coordinate\nUniverse : %s\nTimeline : %s\nQuantum  : %s\nPlanet   : %s\nCountry  : %s\nRegion   : %s\nCity     : %s\nLocation : %s\nObserver : %s\n\nPossible journeys\n%s\n\nRecent travel history\n%s",
 		coord.Universe, coord.Timeline, coord.Quantum,
 		coord.Planet, coord.Country, coord.Region, coord.City, coord.Location, coord.Observer,
-		a.formatEdges(r.Edges, r.NextQuantum),
+		a.formatEdges(r.Edges),
 		a.formatHistory(r.History),
 	)
 }
@@ -34,13 +34,14 @@ func (a *App) Look() string {
 func (a *App) List() string {
 	q := &queries.LookupQuery{Universe: a.universe, Session: a.session}
 	r := q.List()
-	return a.formatEdges(r.Edges, r.NextQuantum)
+	return a.formatEdges(r.Edges)
 }
 
 func (a *App) formatTravelResult(r *commands.TravelResult, target string) string {
-	base := fmt.Sprintf("Walking...\n\nArrived.\n\nCurrent Location\n%s\n\nPossible journeys\n%s\n\nTravel history\n%s",
+	base := fmt.Sprintf("%s\n\nArrived.\n\nCurrent Location\n%s\n\nPossible journeys\n%s\n\nTravel history\n%s",
+		travelVerb(r.Path),
 		r.Location.Name,
-		a.formatEdges(r.Edges, a.session.NextQuantumID()),
+		a.formatEdges(r.Edges),
 		a.formatHistory(r.History),
 	)
 	if r.DeadEndHandled {
@@ -59,7 +60,23 @@ func (a *App) formatShiftResult(r *commands.ShiftResult) string {
 	}
 	base := fmt.Sprintf("Shifting...\n\n%s: %s\n\nCurrent Location\n%s\n\n%s\n\nPossible journeys\n%s\n\nTravel history\n%s",
 		verb, r.NextQuantum, r.Location.Name, r.Location.Description,
-		a.formatEdges(r.Edges, a.session.NextQuantumID()),
+		a.formatEdges(r.Edges),
+		a.formatHistory(r.History),
+	)
+	if r.SaveErr != nil {
+		return base + fmt.Sprintf(fmtSaveWarning, r.SaveErr)
+	}
+	return base + fmt.Sprintf("\n\nPersisted to %s", dataFile())
+}
+
+func (a *App) formatJumpResult(r *commands.JumpResult) string {
+	verb := "Timeline branch entered"
+	if r.Reversed {
+		verb = "Timeline branch exited"
+	}
+	base := fmt.Sprintf("Jumping...\n\n%s: %s\n\nCurrent Location\n%s\n\n%s\n\nPossible journeys\n%s\n\nTravel history\n%s",
+		verb, r.NextTimeline, r.Location.Name, r.Location.Description,
+		a.formatEdges(r.Edges),
 		a.formatHistory(r.History),
 	)
 	if r.SaveErr != nil {
@@ -77,28 +94,75 @@ func (a *App) formatRouteResult(r *queries.RouteResult) string {
 		strings.Join(steps, "\n"), r.Distance, r.Cost)
 }
 
-func (a *App) formatEdges(edges []universe.Edge, nextQuantum string) string {
+func (a *App) formatEdges(edges []universe.Edge) string {
 	var lines []string
 	hasReverseQuantum := false
+	hasReverseTimeline := false
 
 	for _, edge := range edges {
-		if edge.Mode == universe.QuantumShift {
+		switch edge.Mode {
+		case universe.QuantumShift:
 			// Don't list quantum edges as regular journeys — they need 'shift' or 'shift back'.
 			if dest, ok := a.universe.GetLocation(edge.To); ok {
 				if dest.Coordinate.QuantumLevel() < a.session.QuantumLevel() {
 					hasReverseQuantum = true
 				}
 			}
-			continue
+		case universe.TimelineShift:
+			// Don't list timeline edges as regular journeys — they need 'jump' or 'jump back'.
+			if dest, ok := a.universe.GetLocation(edge.To); ok {
+				if dest.Coordinate.TimelineLevel() < a.session.TimelineLevel() {
+					hasReverseTimeline = true
+				}
+			}
+		default:
+			lines = append(lines, fmt.Sprintf("- %s (%s, %.0f cost)", a.locationName(edge.To), string(edge.Mode), edge.Cost))
 		}
-		lines = append(lines, fmt.Sprintf("- %s (%s, %.0f cost)", a.locationName(edge.To), string(edge.Mode), edge.Cost))
 	}
 
-	lines = append(lines, fmt.Sprintf("- %s (quantum, %.0f cost — use 'shift')", nextQuantum, universe.QuantumShiftCost))
+	lines = append(lines, fmt.Sprintf("- %s (quantum, %.0f cost — use 'shift')", a.session.NextQuantumID(), universe.QuantumShiftCost))
 	if hasReverseQuantum {
-		lines = append(lines, fmt.Sprintf("  (use 'shift back' to return to the previous quantum branch)"))
+		lines = append(lines, "  (use 'shift back' to return to the previous quantum branch)")
+	}
+	lines = append(lines, fmt.Sprintf("- %s (timeline, %.0f cost — use 'jump')", a.session.NextTimelineID(), universe.TimelineShiftCost))
+	if hasReverseTimeline {
+		lines = append(lines, "  (use 'jump back' to return to the previous timeline branch)")
 	}
 	return strings.Join(lines, "\n")
+}
+
+// travelVerb picks a human-readable progress line based on the dominant mode in the path.
+// It uses the most "exotic" (highest-cost) mode across all edges.
+func travelVerb(path []universe.Edge) string {
+	order := []universe.TravelMode{
+		universe.Warp, universe.Orbit, universe.Flight,
+		universe.Rail, universe.Drive, universe.Cycle, universe.Walk,
+	}
+	modes := make(map[universe.TravelMode]bool, len(path))
+	for _, e := range path {
+		modes[e.Mode] = true
+	}
+	for _, m := range order {
+		if modes[m] {
+			switch m {
+			case universe.Walk:
+				return "Walking..."
+			case universe.Cycle:
+				return "Cycling..."
+			case universe.Drive:
+				return "Driving..."
+			case universe.Rail:
+				return "Taking the train..."
+			case universe.Flight:
+				return "Flying..."
+			case universe.Orbit:
+				return "Entering orbit..."
+			case universe.Warp:
+				return "Warping..."
+			}
+		}
+	}
+	return "Travelling..."
 }
 
 func (a *App) formatHistory(history []string) string {

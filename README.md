@@ -109,10 +109,11 @@ These commands are intended to grow from a simple local-navigation prototype int
 The app is functional. It includes:
 
 - a command entrypoint in `cmd/onto`
-- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `cost`, `shift`, `shift back`, and `exit` commands
+- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `cost`, `shift`, `shift back`, `jump`, `jump back`, and `exit` commands
 - BFS-based graph routing across locations with travel modes (walk, rail, etc.)
-- quantum branch navigation: `shift` jumps forward to the next branch; `shift back` returns to the previous one
-- `travel` rejects routes that cross quantum boundaries — physical and non-physical travel are kept separate
+- quantum branch navigation: `shift` jumps forward to the next branch (cost 20); `shift back` returns to the previous one
+- timeline branch navigation: `jump` jumps forward to the next alternate history (cost 800); `jump back` returns to the previous one
+- `travel` rejects routes that cross quantum or timeline boundaries — physical and non-physical travel are kept separate
 - a full coordinate model covering universe, timeline, quantum, planet, country, region, city, and location
 - location and edge data loaded from `data/locations.json`, with a built-in fallback map
 - interactive prompting to create new locations when arriving at a dead-end node
@@ -175,7 +176,7 @@ internal/
 - **Aggregate root** — `Universe` owns all `Location` entities and `Edge` value objects. The internal maps are unexported; all access goes through methods (`GetLocation`, `EdgesFrom`, `AllLocations`, `AllEdgesFlat`, etc.) so invariants are enforced by the struct itself.
 - **Repository interface** — defined in `domain/universe`, implemented in `infrastructure/persistence`. The domain never references a file or database.
 - **LocationGenerator interface** — also defined in the domain. Two implementations exist: `NearbyGenerator` (auto) and `InteractiveHandler` (prompts user). The `TravelCommand` accepts either without knowing which it has.
-- **BranchQuantum domain service** — quantum branch creation logic lives in `domain/universe/quantum.go`, not in the application command. `ShiftCommand` calls it rather than building locations and edges itself.
+- **BranchQuantum / BranchTimeline domain services** — branch creation logic lives in `domain/universe/quantum.go` and `timeline.go`, not in the application commands. `ShiftCommand` and `JumpCommand` call these services rather than building locations and edges themselves.
 - **Commands vs Queries (CQRS)** — commands (`Travel`, `Shift`) mutate session and universe state and persist the result. Queries (`Where`, `Look`, `List`, `Route`) are pure reads with no side effects.
 
 ## Getting started
@@ -232,7 +233,8 @@ make mocks
 3. Introduce full cost calculations (currently a stub).
 4. Expand the coordinate model with more layers.
 5. ~~Support quantum transitions.~~ ✓ (`shift` / `shift back` implemented)
-6. Support timeline and universe transitions (higher-cost exotic modes).
+6. ~~Support timeline transitions.~~ ✓ (`jump` / `jump back` implemented)
+7. Support universe transitions (higher-cost exotic modes).
 7. Evolve the CLI into a true reality navigator.
 
 ## Notes

@@ -92,6 +92,11 @@ func (a *App) Execute(input string) string {
 			return a.ShiftBack()
 		}
 		return a.Shift()
+	case cmdJump:
+		if args == argBack {
+			return a.JumpBack()
+		}
+		return a.Jump()
 	case cmdExit:
 		return msgGoodbye
 	default:
@@ -114,6 +119,8 @@ func (a *App) Help() string {
 		"cost                   Show travel cost information",
 		"shift                  Jump forward to the next quantum branch",
 		"shift back             Return to the previous quantum branch",
+		"jump                   Jump forward to the next timeline branch",
+		"jump back              Return to the previous timeline branch",
 		"exit                   Leave the CLI",
 		"",
 		"Example destinations:",
@@ -144,10 +151,16 @@ func (a *App) Travel(target string) string {
 
 	result, err := cmd.Execute(target)
 	if err != nil {
-		if suggestion := a.suggestDestination(target); suggestion != "" {
-			return fmt.Sprintf(fmtUnknownDestSuggest, target, suggestion)
+		norm := strings.ToLower(strings.ReplaceAll(target, " ", "-"))
+		if _, known := a.universe.GetLocation(norm); !known {
+			// Destination not found — try a fuzzy suggestion.
+			if suggestion := a.suggestDestination(target); suggestion != "" {
+				return fmt.Sprintf(fmtUnknownDestSuggest, target, suggestion)
+			}
+			return a.routeUnavailableDiagnostics(target)
 		}
-		return a.routeUnavailableDiagnostics(target)
+		// Destination exists but is unreachable — surface the real reason.
+		return err.Error()
 	}
 
 	return a.formatTravelResult(result, target)
@@ -169,6 +182,24 @@ func (a *App) ShiftBack() string {
 		return fmt.Sprintf("Cannot shift back: %v", err)
 	}
 	return a.formatShiftResult(result)
+}
+
+func (a *App) Jump() string {
+	cmd := &commands.JumpCommand{Universe: a.universe, Session: a.session, Repo: a.repo}
+	result, err := cmd.Execute()
+	if err != nil {
+		return fmt.Sprintf("Jump failed: %v", err)
+	}
+	return a.formatJumpResult(result)
+}
+
+func (a *App) JumpBack() string {
+	cmd := &commands.JumpCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
+	result, err := cmd.Execute()
+	if err != nil {
+		return fmt.Sprintf("Cannot jump back: %v", err)
+	}
+	return a.formatJumpResult(result)
 }
 
 func (a *App) Route(target string) string {
@@ -200,7 +231,7 @@ func (a *App) Run() {
 	reader := bufio.NewReader(os.Stdin)
 	a.interactiveReader = reader
 	for {
-		fmt.Print(Prompt())
+		fmt.Print(a.Prompt())
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			break
