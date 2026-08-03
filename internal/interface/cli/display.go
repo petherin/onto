@@ -40,7 +40,7 @@ func (a *App) List() string {
 	return a.formatEdges(r.Edges)
 }
 
-func (a *App) formatTravelResult(r *commands.TravelResult, target string) string {
+func (a *App) formatTravelResult(r *commands.TravelResult) string {
 	base := fmt.Sprintf("%s\n\nArrived.\n\nCurrent Location\n%s\n\nPossible journeys\n%s\n\nTravel history\n%s",
 		travelVerb(r.Path),
 		r.Location.Name,
@@ -97,7 +97,7 @@ func (a *App) formatRouteResult(r *queries.RouteResult) string {
 		strings.Join(steps, "\n"), r.Distance, r.Cost)
 }
 
-func (a *App) formatEdges(edges []universe.Edge) string {
+func (a *App) formatEdges(edges []universe.EdgeVO) string {
 	var lines []string
 	hasReverseQuantum := false
 	hasReverseTimeline := false
@@ -137,12 +137,12 @@ func (a *App) formatEdges(edges []universe.Edge) string {
 // travelVerb picks a human-readable progress line based on the dominant mode in the path.
 // It uses the most "exotic" mode, defined by the priority order in the order slice
 // (Warp > Orbit > Flight > Rail > Drive > Cycle > Walk).
-func travelVerb(path []universe.Edge) string {
-	order := []universe.TravelMode{
+func travelVerb(path []universe.EdgeVO) string {
+	order := []universe.TravelModeVO{
 		universe.Warp, universe.Orbit, universe.Flight,
 		universe.Rail, universe.Drive, universe.Cycle, universe.Walk,
 	}
-	modes := make(map[universe.TravelMode]bool, len(path))
+	modes := make(map[universe.TravelModeVO]bool, len(path))
 	for _, e := range path {
 		modes[e.Mode] = true
 	}

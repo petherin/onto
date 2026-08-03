@@ -2,10 +2,10 @@ package universe
 
 import "fmt"
 
-// BranchQuantum creates a new quantum branch from the given location into the universe,
-// adding bidirectional QuantumShift edges. It is idempotent — if destID already exists
-// in the universe, it does nothing.
-func BranchQuantum(u *Universe, fromID string, fromCoord Coordinate, fromName, destID, nextQ string) {
+// BranchQuantumService creates a new quantum branch from the given location
+// into the aggregate, adding bidirectional QuantumShift edges. It is
+// idempotent — if destID already exists in the aggregate, it does nothing.
+func BranchQuantumService(u *UniverseAggregate, fromID string, fromCoord CoordinateVO, fromName, destID, nextQ string) {
 	if _, exists := u.GetLocation(destID); exists {
 		return
 	}
@@ -13,20 +13,20 @@ func BranchQuantum(u *Universe, fromID string, fromCoord Coordinate, fromName, d
 	coord := fromCoord
 	coord.Quantum = nextQ
 
-	u.AddLocation(Location{
+	u.AddLocation(LocationEntity{
 		ID:          destID,
 		Name:        fmt.Sprintf("%s (%s)", fromName, nextQ),
 		Description: fmt.Sprintf("A neighbouring quantum branch of %s. The surroundings are almost identical, but something is subtly different.", fromName),
 		Coordinate:  coord,
 	})
-	u.AddEdge(Edge{
+	u.AddEdge(EdgeVO{
 		From:        fromID,
 		To:          destID,
 		Mode:        QuantumShift,
 		Cost:        QuantumShiftCost,
 		Description: fmt.Sprintf("Quantum shift to %s", nextQ),
 	})
-	u.AddEdge(Edge{
+	u.AddEdge(EdgeVO{
 		From:        destID,
 		To:          fromID,
 		Mode:        QuantumShift,

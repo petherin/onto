@@ -1,27 +1,27 @@
-// Package navigation defines the Pathfinder interface and the pure graph
+// Package navigation defines the PathfinderService interface and the pure graph
 // functions (FindRoute, PathDistance, PathCost) used to plan routes through a
-// Universe. Concrete algorithm implementations live in
+// UniverseAggregate. Concrete algorithm implementations live in
 // internal/infrastructure/navigation so that the domain stays free of
 // technical dependencies.
 package navigation
 
 import "github.com/petherin/onto/internal/domain/universe"
 
-// Pathfinder finds a route between two locations in a universe.
-// Implementations are free to use any graph algorithm.
-type Pathfinder interface {
-	FindRoute(u *universe.Universe, from, to string) ([]universe.Edge, bool)
+// PathfinderService is a domain service interface that finds a route between
+// two locations in a universe. Implementations are free to use any graph algorithm.
+type PathfinderService interface {
+	FindRoute(u *universe.UniverseAggregate, from, to string) ([]universe.EdgeVO, bool)
 }
 
 // FindRoute runs BFS from the `from` location to the `to` location across the universe graph.
-func FindRoute(u *universe.Universe, from, to string) ([]universe.Edge, bool) {
+func FindRoute(u *universe.UniverseAggregate, from, to string) ([]universe.EdgeVO, bool) {
 	if from == to {
 		return nil, true
 	}
 
 	visited := map[string]bool{from: true}
 	parents := map[string]string{}
-	parentEdges := map[string]universe.Edge{}
+	parentEdges := map[string]universe.EdgeVO{}
 	queue := []string{from}
 
 	for len(queue) > 0 {
@@ -46,8 +46,8 @@ func FindRoute(u *universe.Universe, from, to string) ([]universe.Edge, bool) {
 	return nil, false
 }
 
-// PathDistance sums the distance of each edge in a path.
-func PathDistance(path []universe.Edge) float64 {
+// PathDistance sums the distance of each EdgeVO in a path.
+func PathDistance(path []universe.EdgeVO) float64 {
 	total := 0.0
 	for _, e := range path {
 		total += e.Distance
@@ -55,8 +55,8 @@ func PathDistance(path []universe.Edge) float64 {
 	return total
 }
 
-// PathCost sums the cost of each edge in a path.
-func PathCost(path []universe.Edge) float64 {
+// PathCost sums the cost of each EdgeVO in a path.
+func PathCost(path []universe.EdgeVO) float64 {
 	total := 0.0
 	for _, e := range path {
 		total += e.Cost
@@ -64,8 +64,8 @@ func PathCost(path []universe.Edge) float64 {
 	return total
 }
 
-func reconstructRoute(parents map[string]string, parentEdges map[string]universe.Edge, from, to string) []universe.Edge {
-	var result []universe.Edge
+func reconstructRoute(parents map[string]string, parentEdges map[string]universe.EdgeVO, from, to string) []universe.EdgeVO {
+	var result []universe.EdgeVO
 	current := to
 	for current != from {
 		edge, ok := parentEdges[current]

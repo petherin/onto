@@ -24,10 +24,10 @@ import (
 // App is the top-level CLI object. It holds the wired-up universe, session,
 // repository, and pathfinder and exposes one method per user command.
 type App struct {
-	universe          *universe.Universe
-	session           *exploration.Session
-	repo              universe.Repository
-	pathfinder        navigation.Pathfinder
+	universe          *universe.UniverseAggregate
+	session           *exploration.ExplorationEntity
+	repo              universe.UniverseRepository
+	pathfinder        navigation.PathfinderService
 	interactiveReader *bufio.Reader
 }
 
@@ -41,8 +41,8 @@ func NewApp() *App {
 
 	sl := startLocation()
 	if _, ok := u.GetLocation(sl); !ok {
-		base := universe.NewCoordinate()
-		u.AddLocation(universe.Location{ID: sl, Name: sl, Description: "Start location (auto-added)", Coordinate: base})
+		base := universe.DefaultCoordinateVO()
+		u.AddLocation(universe.LocationEntity{ID: sl, Name: sl, Description: "Start location (auto-added)", Coordinate: base})
 	}
 
 	start := sl
@@ -55,7 +55,7 @@ func NewApp() *App {
 	loc, _ := u.GetLocation(start)
 	return &App{
 		universe:   u,
-		session:    exploration.NewSession(start, loc.Coordinate),
+		session:    exploration.NewExplorationEntity(start, loc.Coordinate),
 		repo:       repo,
 		pathfinder: infranav.NewBFSPathfinder(),
 	}
@@ -147,7 +147,7 @@ func (a *App) Help() string {
 // Travel attempts physical movement to target, reporting the specific reason if
 // the destination exists but cannot be reached (e.g. across a quantum boundary).
 func (a *App) Travel(target string) string {
-	var handler universe.LocationGenerator
+	var handler universe.LocationGeneratorService
 	if a.interactiveReader != nil {
 		handler = &InteractiveHandler{reader: a.interactiveReader, gen: generator.New()}
 	} else {
@@ -176,7 +176,7 @@ func (a *App) Travel(target string) string {
 		return err.Error()
 	}
 
-	return a.formatTravelResult(result, target)
+	return a.formatTravelResult(result)
 }
 
 // Shift jumps the session forward to the next quantum branch of the current location.

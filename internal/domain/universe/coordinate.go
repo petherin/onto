@@ -5,11 +5,11 @@ import (
 	"time"
 )
 
-// Coordinate is a full reality position vector. Each field narrows scope from
-// the widest (Meta, Universe) down to the most local (Location, Observer).
-// Zero values are valid — a Coordinate with only Planet and City set still
-// describes a meaningful position within a physical world.
-type Coordinate struct {
+// CoordinateVO is a value object representing a full reality position vector.
+// Each field narrows scope from the widest (Meta, Universe) down to the most
+// local (Location, Observer). Zero values are valid — a CoordinateVO with only
+// Planet and City set still describes a meaningful position within a physical world.
+type CoordinateVO struct {
 	Meta        string
 	Mathematics string
 	Universe    string
@@ -28,30 +28,30 @@ type Coordinate struct {
 }
 
 // QuantumLevel returns the numeric quantum level encoded in the Quantum field (Q0 → 0, Q1 → 1, …).
-func (c Coordinate) QuantumLevel() int {
+func (c CoordinateVO) QuantumLevel() int {
 	n := 0
 	if len(c.Quantum) > 1 && c.Quantum[0] == 'Q' {
-		fmt.Sscanf(c.Quantum[1:], "%d", &n)
+		_, _ = fmt.Sscanf(c.Quantum[1:], "%d", &n)
 	}
 	return n
 }
 
 // TimelineLevel returns the numeric timeline level ("Prime" → 0, "T1" → 1, "T2" → 2, …).
-func (c Coordinate) TimelineLevel() int {
+func (c CoordinateVO) TimelineLevel() int {
 	if c.Timeline == "Prime" || c.Timeline == "" {
 		return 0
 	}
 	n := 0
 	if len(c.Timeline) > 1 && c.Timeline[0] == 'T' {
-		fmt.Sscanf(c.Timeline[1:], "%d", &n)
+		_, _ = fmt.Sscanf(c.Timeline[1:], "%d", &n)
 	}
 	return n
 }
 
-// NewCoordinate returns the default starting coordinate: Earth, United Kingdom,
-// Yorkshire, Leeds, Home, Observer: Human, at the Prime timeline and Q0 quantum level.
-func NewCoordinate() Coordinate {
-	return Coordinate{
+// DefaultCoordinateVO returns the default starting CoordinateVO: Earth, United
+// Kingdom, Yorkshire, Leeds, Home, Observer: Human, Prime timeline, Q0 quantum level.
+func DefaultCoordinateVO() CoordinateVO {
+	return CoordinateVO{
 		Meta:        "Origin",
 		Mathematics: "Classical",
 		Universe:    "Origin",

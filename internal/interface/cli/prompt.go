@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+// Prompt returns the context-aware CLI prompt string, showing the current
+// physical location and appending non-default Quantum and Timeline levels.
 func (a *App) Prompt() string {
 	c := a.session.CurrentCoordinate
 	parts := []string{}

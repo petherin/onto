@@ -1,59 +1,60 @@
 // Package universe is the core domain model. It defines the aggregate root
-// (Universe), entities (Location), value objects (Coordinate, Edge,
-// TravelMode), domain interfaces (Repository, LocationGenerator), and domain
-// services (BranchQuantum, BranchTimeline) that encode the rules of reality
-// navigation. Nothing in this package may import other internal packages.
+// (UniverseAggregate), entities (LocationEntity), value objects (CoordinateVO,
+// EdgeVO, TravelModeVO), domain interfaces (UniverseRepository,
+// LocationGeneratorService), and domain services (BranchQuantumService,
+// BranchTimelineService) that encode the rules of reality navigation.
+// Nothing in this package may import other internal packages.
 package universe
 
-// Universe is the aggregate root of the domain. It owns all Locations and
-// directed Edges and exposes them only through its methods, keeping the
-// internal maps unexported to preserve encapsulation.
-type Universe struct {
-	locations map[string]Location
-	edges     map[string][]Edge
+// UniverseAggregate is the aggregate root of the domain. It owns all
+// LocationEntity values and directed EdgeVO values, exposing them only through
+// its methods so that internal invariants are enforced by the struct itself.
+type UniverseAggregate struct {
+	locations map[string]LocationEntity
+	edges     map[string][]EdgeVO
 }
 
-// NewUniverse returns an empty, ready-to-use Universe.
-func NewUniverse() *Universe {
-	return &Universe{
-		locations: make(map[string]Location),
-		edges:     make(map[string][]Edge),
+// NewUniverseAggregate returns an empty, ready-to-use UniverseAggregate.
+func NewUniverseAggregate() *UniverseAggregate {
+	return &UniverseAggregate{
+		locations: make(map[string]LocationEntity),
+		edges:     make(map[string][]EdgeVO),
 	}
 }
 
-// AddLocation inserts or replaces a location in the universe.
-func (u *Universe) AddLocation(location Location) {
+// AddLocation inserts or replaces a LocationEntity in the aggregate.
+func (u *UniverseAggregate) AddLocation(location LocationEntity) {
 	u.locations[location.ID] = location
 }
 
-// AddEdge appends a directed edge to the universe graph.
-func (u *Universe) AddEdge(edge Edge) {
+// AddEdge appends a directed EdgeVO to the aggregate graph.
+func (u *UniverseAggregate) AddEdge(edge EdgeVO) {
 	u.edges[edge.From] = append(u.edges[edge.From], edge)
 }
 
-// GetLocation looks up a location by its ID, returning the location and a
+// GetLocation looks up a LocationEntity by its ID, returning the entity and a
 // boolean indicating whether it was found.
-func (u *Universe) GetLocation(id string) (Location, bool) {
+func (u *UniverseAggregate) GetLocation(id string) (LocationEntity, bool) {
 	location, ok := u.locations[id]
 	return location, ok
 }
 
-// EdgesFrom returns all edges originating from the given location ID.
-func (u *Universe) EdgesFrom(id string) []Edge {
+// EdgesFrom returns all EdgeVO values originating from the given location ID.
+func (u *UniverseAggregate) EdgesFrom(id string) []EdgeVO {
 	return u.edges[id]
 }
 
-// AllLocations returns all locations in the universe as a slice.
-func (u *Universe) AllLocations() []Location {
-	locs := make([]Location, 0, len(u.locations))
+// AllLocations returns all LocationEntity values in the aggregate as a slice.
+func (u *UniverseAggregate) AllLocations() []LocationEntity {
+	locs := make([]LocationEntity, 0, len(u.locations))
 	for _, l := range u.locations {
 		locs = append(locs, l)
 	}
 	return locs
 }
 
-// AllLocationIDs returns every location ID in the universe.
-func (u *Universe) AllLocationIDs() []string {
+// AllLocationIDs returns every location ID in the aggregate.
+func (u *UniverseAggregate) AllLocationIDs() []string {
 	ids := make([]string, 0, len(u.locations))
 	for id := range u.locations {
 		ids = append(ids, id)
@@ -61,9 +62,9 @@ func (u *Universe) AllLocationIDs() []string {
 	return ids
 }
 
-// AllEdgesFlat returns every edge in the universe as a flat slice.
-func (u *Universe) AllEdgesFlat() []Edge {
-	var result []Edge
+// AllEdgesFlat returns every EdgeVO in the aggregate as a flat slice.
+func (u *UniverseAggregate) AllEdgesFlat() []EdgeVO {
+	var result []EdgeVO
 	for _, list := range u.edges {
 		result = append(result, list...)
 	}

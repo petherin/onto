@@ -10,8 +10,8 @@ import (
 
 // WhereResult holds the data returned by a Where query.
 type WhereResult struct {
-	Coordinate  universe.Coordinate
-	Edges       []universe.Edge
+	Coordinate  universe.CoordinateVO
+	Edges       []universe.EdgeVO
 	NextQuantum string
 	History     []string
 }
@@ -24,14 +24,14 @@ type LookResult struct {
 
 // ListResult holds the data returned by a List query.
 type ListResult struct {
-	Edges       []universe.Edge
+	Edges       []universe.EdgeVO
 	NextQuantum string
 }
 
 // LookupQuery handles Where, Look, and List reads against the universe and session.
 type LookupQuery struct {
-	Universe *universe.Universe
-	Session  *exploration.Session
+	Universe *universe.UniverseAggregate
+	Session  *exploration.ExplorationEntity
 }
 
 // Where returns the current reality coordinate, outgoing edges, and travel history.

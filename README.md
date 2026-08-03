@@ -23,19 +23,35 @@ This project begins small, but it is designed to grow into a reality navigator r
 
 ## Vision
 
-Instead of treating reality as a single fixed map, Onto models existence as layered coordinates:
+Instead of treating reality as a single fixed map, Onto models existence as layered coordinates. Each layer is a distinct axis of reality that you can navigate along — from the mundane to the deeply abstract.
 
-- Meta / ontological layer
-- Mathematical layer
-- Physical universe layer
-- Historical / timeline layer
-- Quantum branch layer
-- Simulation layer
-- Perceptual / observer layer
-- Spatial layer
-- Temporal layer
+### Spatial layer
+The baseline. Walking to a station, taking a train, flying to another continent, reaching orbit, warping between stars. All of these are the same operation: physical movement through space at different scales. The coordinate tracks planet, country, region, city, and location. At the largest scales this includes regions beyond our observable horizon — cosmologically distant but still the same universe, with the same physical laws and constants. No new axis is needed; it is just a very long journey. _(Tegmark Level I applies to this extreme end only — regions beyond the observable horizon — not to local travel.)_
 
-The CLI does not need to understand every layer immediately. It can start with local physical navigation and later expand into more exotic modes.
+### Physical universe layer _(Tegmark Level II)_
+Beyond our own bubble, inflationary cosmology suggests other universes exist with different physical constants — a different speed of light, a different gravitational constant, or entirely different fundamental forces. These are not quantum branches of our universe; they are separate universes produced by the same inflationary process. A `universe` shift crosses into one of these.
+
+### Quantum branch layer _(Tegmark Level III)_
+Every quantum event that could have gone differently spawns a parallel branch of the universe — the many-worlds interpretation of quantum mechanics. In Onto, `shift` steps you sideways into an adjacent branch. The physics are identical, but small differences have accumulated from that branching point forward. The further you shift, the more things diverge.
+
+### Mathematical layer _(Tegmark Level IV)_
+The most abstract navigable space. The mathematical multiverse hypothesis holds that every self-consistent mathematical structure exists as its own reality — not just our physics, but any set of axioms that doesn't contradict itself. A mathematical reality might have different numbers of spatial dimensions, different rules of logic, or laws of nature that bear no resemblance to ours. Crossing into a mathematical reality is not a physical journey; it is a transition into a different formal system.
+
+### Historical / timeline layer
+A coarser kind of branching than quantum. A timeline represents a history where a significant event went differently — a war that ended another way, a technology that was never invented, a civilization that collapsed or didn't. Timeline branches are more expensive to cross (cost 800 vs 20 for quantum) because the differences are larger and the distance harder to bridge. `jump` moves you forward into a new alternate history; `jump back` returns you to the one you came from.
+
+### Simulation layer
+If a reality can be computed, it can be nested. This layer tracks depth within a simulation stack — whether you are in the base reality, inside a computed world running on top of it, or deeper still. `simulation` entry moves you down into the next layer; the return path leads back out.
+
+### Perceptual / observer layer
+Some differences in reality are not about where or when you are, but about the perspective from which you observe. An `observer` shift changes whose frame of reference you occupy — a different conscious viewpoint, a different measuring apparatus, or a different relationship to the events around you.
+
+### Meta / ontological layer
+The outermost coordinate. Above all specific models of physics, mathematics, or consciousness lies the question of what kind of existence something has at all — whether it is concrete, abstract, fictional, potential, or something with no name yet. The meta layer is a placeholder for transitions that don't fit any other axis.
+
+---
+
+The CLI does not need to understand every layer immediately. It starts with physical navigation and expands into more exotic modes as commands are implemented.
 
 ## Core idea
 
@@ -121,63 +137,16 @@ The app is functional. It includes:
 
 ## Architecture
 
-The codebase follows **Domain-Driven Design (DDD)** with a strict layered structure. Each layer may only import inward — never outward.
+Four layers, each importing only inward:
 
-```
-cmd/onto/               Entry point — wires everything together and calls Run()
-
-internal/
-  domain/               The heart of the software. No imports from other internal layers.
-    universe/           Core domain: Location (entity), Coordinate, Edge, TravelMode
-                        (value objects), Universe (aggregate root with unexported maps
-                        and public accessor methods), Repository + LocationGenerator
-                        interfaces, and the BranchQuantum domain service.
-    navigation/         Pathfinder interface + pure BFS functions (FindRoute,
-                        PathDistance, PathCost). No concrete struct here.
-    exploration/        Session entity — tracks current position, travel history,
-                        and quantum state. Owned by the user, not the universe.
-
-  application/          Orchestrates use cases. Imports domain only.
-    commands/           Write operations that change state:
-                          TravelCommand — moves the session to a destination.
-                          ShiftCommand  — jumps forward or back through quantum branches.
-    queries/            Read operations that never change state:
-                          LookupQuery   — Where, Look, List.
-                          RouteQuery    — plans a route without travelling it.
-
-  infrastructure/       Technical implementations of domain interfaces.
-    persistence/        JSONRepository — loads and saves Universe to a JSON file.
-    generator/          NearbyGenerator — auto-creates locations at dead ends.
-    navigation/         BFSPathfinder — concrete implementation of navigation.Pathfinder.
-
-  interface/
-    cli/                Delivery mechanism. Knows about the terminal; the domain
-                        does not know the CLI exists.
-                          App             — command dispatcher and run loop.
-                          display.go      — formats application results as strings.
-                          interactive.go  — InteractiveHandler (prompts user at dead ends).
-                          fuzzy.go        — Levenshtein-based command/destination suggestions.
-
-  mocks/                Generated test doubles (mockery). Never edit by hand.
-                          fixtures.go     — NewTestUniverse() shared test helper.
-```
-
-### Layer rules
-
-| Layer | May import | Must not import |
+| Layer | Package path | Role |
 |---|---|---|
-| `domain` | standard library only | anything in `internal/` |
-| `application` | `domain` | `infrastructure`, `interface` |
-| `infrastructure` | `domain` | `application`, `interface` |
-| `interface/cli` | `domain`, `application`, `infrastructure` | — |
+| Domain | `internal/domain/` | Business rules, no I/O |
+| Application | `internal/application/` | Use-case orchestration |
+| Infrastructure | `internal/infrastructure/` | File I/O, graph algorithms |
+| Interface | `internal/interface/cli/` | Terminal delivery |
 
-### Key patterns
-
-- **Aggregate root** — `Universe` owns all `Location` entities and `Edge` value objects. The internal maps are unexported; all access goes through methods (`GetLocation`, `EdgesFrom`, `AllLocations`, `AllEdgesFlat`, etc.) so invariants are enforced by the struct itself.
-- **Repository interface** — defined in `domain/universe`, implemented in `infrastructure/persistence`. The domain never references a file or database.
-- **LocationGenerator interface** — also defined in the domain. Two implementations exist: `NearbyGenerator` (auto) and `InteractiveHandler` (prompts user). The `TravelCommand` accepts either without knowing which it has.
-- **BranchQuantum / BranchTimeline domain services** — branch creation logic lives in `domain/universe/quantum.go` and `timeline.go`, not in the application commands. `ShiftCommand` and `JumpCommand` call these services rather than building locations and edges themselves.
-- **Commands vs Queries (CQRS)** — commands (`Travel`, `Shift`) mutate session and universe state and persist the result. Queries (`Where`, `Look`, `List`, `Route`) are pure reads with no side effects.
+The domain defines the types and interfaces; every other layer depends on it, never the reverse. See [docs/DDD.md](docs/DDD.md) for how DDD patterns are applied here.
 
 ## Getting started
 

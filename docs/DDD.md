@@ -1,0 +1,84 @@
+# Domain-Driven Design in Onto
+
+## What DDD is
+
+Domain-Driven Design is an approach to software where the structure of the code mirrors the structure of the problem it solves. The core idea is that the business rules — in this case, the rules of reality navigation — should live in one place, expressed in the language of the domain, free from technical concerns like databases, HTTP, or file formats.
+
+A few terms come up constantly.
+
+**Ubiquitous language.** Everyone working on the code uses the same words for the same things. If the domain says "quantum shift", the code says `QuantumShift`, not `modeType4` or `kind == 7`.
+
+**Bounded context.** A boundary around a coherent set of concepts where the ubiquitous language is consistent. Inside this project there is one bounded context: reality navigation. If the project grew to include user accounts or billing, those would be separate contexts with their own models.
+
+**Aggregate.** A cluster of objects treated as a single unit for the purpose of data changes. One object is the aggregate root — all access to the cluster goes through it. This keeps invariants easy to enforce.
+
+**Entity.** An object with a stable identity over time. Two entities with the same data are still different objects if they have different IDs.
+
+**Value object.** An object with no identity — it is defined entirely by its data. Two value objects with the same data are interchangeable. They should be immutable.
+
+**Domain service.** Logic that doesn't naturally belong on a single entity or value object. Usually operates on multiple aggregates or encodes a process.
+
+**Repository.** An interface, defined in the domain, that abstracts persistence. The domain says "I need to load and save a universe" without knowing or caring whether that means a JSON file, a database, or anything else.
+
+**Application service / use case.** Sits outside the domain. Receives a request, calls domain objects to do the work, and hands the result back. It orchestrates; it does not contain business logic itself.
+
+---
+
+## How DDD is applied here
+
+### The aggregate root — `UniverseAggregate`
+
+`UniverseAggregate` in `internal/domain/universe/universe.go` is the aggregate root. It owns every `LocationEntity` and `EdgeVO` in the graph. Both internal maps are unexported, so nothing outside the struct can add, remove, or corrupt a location or edge directly. All mutations go through `AddLocation` and `AddEdge`; all reads go through `GetLocation`, `EdgesFrom`, `AllLocations`, and `AllEdgesFlat`.
+
+This means the graph can never be left in a half-constructed state by a caller that forgets a step.
+
+### Entities — `LocationEntity`, `ExplorationEntity`
+
+`LocationEntity` has a stable ID (lowercase-hyphenated, e.g. `home`, `home-q1`). Two locations with the same coordinates but different IDs are different places. The ID is the identity.
+
+`ExplorationEntity` in `internal/domain/exploration/session.go` tracks where the user is right now — current location ID, current coordinate, and travel history. It is an entity because it has a clear identity (it is *this* user's session) and its state changes over time as the user moves.
+
+### Value objects — `CoordinateVO`, `EdgeVO`, `TravelModeVO`
+
+`CoordinateVO` is a full reality position vector. It has no identity of its own — two coordinates with the same field values describe the same position. It is copied freely, never mutated in place.
+
+`EdgeVO` is a directed connection between two location IDs. It is defined by its data (from, to, mode, cost, distance); there is no "edge #42". Replacing one `EdgeVO` with another that has the same fields is a no-op.
+
+`TravelModeVO` is a string type (`walk`, `quantum`, `timeline`, etc.) — a value object by nature, since two `walk` values are identical.
+
+### Domain services — `BranchQuantumService`, `BranchTimelineService`
+
+Creating a quantum branch is not something a `LocationEntity` does to itself, and it is not something `UniverseAggregate` should know the details of. It is a process: create the destination location, add bidirectional edges, enforce idempotency. That logic lives in `BranchQuantumService` and `BranchTimelineService` in `quantum.go` and `timeline.go`.
+
+`PathfinderService` in `internal/domain/navigation/pathfinder.go` is a domain service interface — finding a route is a domain concern, but the algorithm (BFS, Dijkstra, A*) is an infrastructure detail. The interface lives in the domain; the implementation lives in `internal/infrastructure/navigation`.
+
+`LocationGeneratorService` is a domain service interface that handles dead ends. The domain defines what it means to handle a dead end; the infrastructure and interface layers provide the two concrete behaviours (auto-generate nearby, or ask the user).
+
+### Repository — `UniverseRepository`
+
+The interface is defined in `internal/domain/universe/repository.go`. It has two methods: `Load` and `Save`. The domain knows it can persist and retrieve a `UniverseAggregate`; it does not know that the current implementation serialises to JSON.
+
+`JSONRepository` in `internal/infrastructure/persistence/json_repository.go` is the only implementation. Swapping it for a database implementation would not touch a single line of domain code.
+
+### Application layer — commands and queries (CQRS)
+
+The application layer in `internal/application/` contains use cases, not business rules.
+
+**Commands** (in `commands/`) mutate state and persist the result:
+- `TravelCommand` — validates a physical route, moves the session, handles dead ends, saves.
+- `ShiftCommand` — calls `BranchQuantumService`, moves the session, saves.
+- `JumpCommand` — calls `BranchTimelineService`, moves the session, saves.
+
+**Queries** (in `queries/`) are pure reads with no side effects:
+- `LookupQuery` — `Where`, `Look`, `List`.
+- `RouteQuery` — plans a route without moving the session.
+
+Commands and queries each return a result struct. The interface layer formats that struct for the terminal; the application layer never touches a string.
+
+### Interface layer — `cli`
+
+`internal/interface/cli/` is the delivery mechanism. It knows about `bufio`, `fmt`, and the terminal. The domain has no knowledge that a CLI exists. Replacing the CLI with an HTTP API or a TUI would mean writing a new `interface/` package and leaving everything else untouched.
+
+### Type-name suffixes
+
+Every exported type carries its DDD role as a suffix — `Aggregate`, `Entity`, `VO`, `Service`, `Repository`. This makes the role visible at the call site without needing to look up the definition. When you see `universe.CoordinateVO` in application code, you know immediately that it is a value object defined in the domain.

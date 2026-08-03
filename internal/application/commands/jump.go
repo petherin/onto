@@ -10,8 +10,8 @@ import (
 // JumpResult is the value returned by a successful JumpCommand execution.
 type JumpResult struct {
 	NextTimeline string
-	Location     universe.Location
-	Edges        []universe.Edge
+	Location     universe.LocationEntity
+	Edges        []universe.EdgeVO
 	History      []string
 	Persisted    bool
 	Reversed     bool // true when jumping back to a lower timeline level
@@ -21,9 +21,9 @@ type JumpResult struct {
 // JumpCommand moves the session to the next (or previous) timeline branch of
 // the current location, creating the branch if it does not yet exist.
 type JumpCommand struct {
-	Universe *universe.Universe
-	Session  *exploration.Session
-	Repo     universe.Repository
+	Universe *universe.UniverseAggregate
+	Session  *exploration.ExplorationEntity
+	Repo     universe.UniverseRepository
 	Back     bool // if true, traverse the reverse timeline edge instead of creating a new branch
 }
 
@@ -40,7 +40,7 @@ func (c *JumpCommand) jumpForward() (*JumpResult, error) {
 	nextT := fmt.Sprintf("T%d", c.Session.TimelineLevel()+1)
 	destID := c.Session.NextTimelineID()
 	currentName := locationName(c.Universe, c.Session.CurrentLocation)
-	universe.BranchTimeline(c.Universe, c.Session.CurrentLocation, c.Session.CurrentCoordinate, currentName, destID, nextT)
+	universe.BranchTimelineService(c.Universe, c.Session.CurrentLocation, c.Session.CurrentCoordinate, currentName, destID, nextT)
 	return c.completeJump(destID, nextT, false)
 }
 

@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newJumpFixture(t *testing.T) (*universe.Universe, *exploration.Session, *mocks.MockRepository) {
+func newJumpFixture(t *testing.T) (*universe.UniverseAggregate, *exploration.ExplorationEntity, *mocks.MockRepository) {
 	u := mocks.NewTestUniverse()
 	loc, _ := u.GetLocation("home")
-	sess := exploration.NewSession("home", loc.Coordinate)
+	sess := exploration.NewExplorationEntity("home", loc.Coordinate)
 	repo := mocks.NewMockRepository(t)
 	return u, sess, repo
 }
@@ -68,11 +68,11 @@ func TestJumpCommand_JumpsToExistingTimelineLocation(t *testing.T) {
 	u, sess, repo := newJumpFixture(t)
 
 	// pre-populate T1 location
-	t1Coord := universe.NewCoordinate()
+	t1Coord := universe.DefaultCoordinateVO()
 	t1Coord.Timeline = "T1"
-	u.AddLocation(universe.Location{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
-	u.AddEdge(universe.Edge{From: "home", To: "home-t1", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost})
-	u.AddEdge(universe.Edge{From: "home-t1", To: "home", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost})
+	u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
+	u.AddEdge(universe.EdgeVO{From: "home", To: "home-t1", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost})
+	u.AddEdge(universe.EdgeVO{From: "home-t1", To: "home", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost})
 
 	initialEdgeCount := len(u.EdgesFrom("home"))
 	repo.EXPECT().Save(u).Return(nil)
@@ -89,10 +89,10 @@ func TestJumpCommand_TimelineIncrements(t *testing.T) {
 	u, _, repo := newJumpFixture(t)
 
 	// simulate already being in T1
-	t1Coord := universe.NewCoordinate()
+	t1Coord := universe.DefaultCoordinateVO()
 	t1Coord.Timeline = "T1"
-	u.AddLocation(universe.Location{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
-	sess := exploration.NewSession("home-t1", t1Coord)
+	u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
+	sess := exploration.NewExplorationEntity("home-t1", t1Coord)
 
 	repo.EXPECT().Save(u).Return(nil)
 
@@ -146,11 +146,11 @@ func TestJumpBack_ReturnsToLowerBranch(t *testing.T) {
 	u, _, repo := newJumpFixture(t)
 
 	// Place session in T1
-	t1Coord := universe.NewCoordinate()
+	t1Coord := universe.DefaultCoordinateVO()
 	t1Coord.Timeline = "T1"
-	u.AddLocation(universe.Location{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
-	u.AddEdge(universe.Edge{From: "home-t1", To: "home", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost})
-	sess := exploration.NewSession("home-t1", t1Coord)
+	u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
+	u.AddEdge(universe.EdgeVO{From: "home-t1", To: "home", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost})
+	sess := exploration.NewExplorationEntity("home-t1", t1Coord)
 
 	repo.EXPECT().Save(u).Return(nil)
 
@@ -179,10 +179,10 @@ func TestJumpBack_NoReverseEdge_ReturnsError(t *testing.T) {
 	u, _, repo := newJumpFixture(t)
 
 	// T1 session but no reverse timeline edge in the graph
-	t1Coord := universe.NewCoordinate()
+	t1Coord := universe.DefaultCoordinateVO()
 	t1Coord.Timeline = "T1"
-	u.AddLocation(universe.Location{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
-	sess := exploration.NewSession("home-t1", t1Coord)
+	u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
+	sess := exploration.NewExplorationEntity("home-t1", t1Coord)
 
 	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo, Back: true}
 	_, err := cmd.Execute()

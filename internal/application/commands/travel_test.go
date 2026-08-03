@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTravelFixture(t *testing.T) (*universe.Universe, *exploration.Session, *mocks.MockRepository, *mocks.MockPathfinder) {
+func newTravelFixture(t *testing.T) (*universe.UniverseAggregate, *exploration.ExplorationEntity, *mocks.MockRepository, *mocks.MockPathfinder) {
 	u := mocks.NewTestUniverse()
 	loc, _ := u.GetLocation("home")
-	sess := exploration.NewSession("home", loc.Coordinate)
+	sess := exploration.NewExplorationEntity("home", loc.Coordinate)
 	repo := mocks.NewMockRepository(t)
 	pf := mocks.NewMockPathfinder(t)
 	return u, sess, repo, pf
@@ -24,7 +24,7 @@ func newTravelFixture(t *testing.T) (*universe.Universe, *exploration.Session, *
 func TestTravelCommand_Success(t *testing.T) {
 	u, sess, repo, pf := newTravelFixture(t)
 
-	route := []universe.Edge{{From: "home", To: "station", Mode: universe.Walk, Cost: 1}}
+	route := []universe.EdgeVO{{From: "home", To: "station", Mode: universe.Walk, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "station").Return(route, true)
 
 	cmd := &commands.TravelCommand{Universe: u, Session: sess, Repo: repo, Pathfinder: pf}
@@ -50,7 +50,7 @@ func TestTravelCommand_NoRoute(t *testing.T) {
 	u, sess, repo, pf := newTravelFixture(t)
 
 	// island is reachable by name but has no graph path from home
-	u.AddLocation(universe.Location{ID: "island", Name: "Island", Coordinate: universe.NewCoordinate()})
+	u.AddLocation(universe.LocationEntity{ID: "island", Name: "Island", Coordinate: universe.DefaultCoordinateVO()})
 	pf.EXPECT().FindRoute(u, "home", "island").Return(nil, false)
 
 	cmd := &commands.TravelCommand{Universe: u, Session: sess, Repo: repo, Pathfinder: pf}
@@ -64,12 +64,12 @@ func TestTravelCommand_QuantumEdge_Rejected(t *testing.T) {
 	u, sess, repo, pf := newTravelFixture(t)
 
 	// home-q1 is connected only via a quantum edge — travel must not allow it
-	q1Coord := universe.NewCoordinate()
+	q1Coord := universe.DefaultCoordinateVO()
 	q1Coord.Quantum = "Q1"
-	u.AddLocation(universe.Location{ID: "home-q1", Name: "Home (Q1)", Coordinate: q1Coord})
-	u.AddEdge(universe.Edge{From: "home", To: "home-q1", Mode: universe.QuantumShift, Cost: universe.QuantumShiftCost})
+	u.AddLocation(universe.LocationEntity{ID: "home-q1", Name: "Home (Q1)", Coordinate: q1Coord})
+	u.AddEdge(universe.EdgeVO{From: "home", To: "home-q1", Mode: universe.QuantumShift, Cost: universe.QuantumShiftCost})
 
-	quantumRoute := []universe.Edge{{From: "home", To: "home-q1", Mode: universe.QuantumShift, Cost: universe.QuantumShiftCost}}
+	quantumRoute := []universe.EdgeVO{{From: "home", To: "home-q1", Mode: universe.QuantumShift, Cost: universe.QuantumShiftCost}}
 	pf.EXPECT().FindRoute(u, "home", "home-q1").Return(quantumRoute, true)
 
 	cmd := &commands.TravelCommand{Universe: u, Session: sess, Repo: repo, Pathfinder: pf}
@@ -83,12 +83,12 @@ func TestTravelCommand_DeadEnd_HandlerCalled_RepoSaved(t *testing.T) {
 	u, sess, repo, pf := newTravelFixture(t)
 
 	// deadend has only a return edge back to home (no onward edges)
-	deadCoord := universe.NewCoordinate()
-	u.AddLocation(universe.Location{ID: "deadend", Name: "Dead End", Coordinate: deadCoord})
-	u.AddEdge(universe.Edge{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1})
-	u.AddEdge(universe.Edge{From: "deadend", To: "home", Mode: universe.Walk, Cost: 1})
+	deadCoord := universe.DefaultCoordinateVO()
+	u.AddLocation(universe.LocationEntity{ID: "deadend", Name: "Dead End", Coordinate: deadCoord})
+	u.AddEdge(universe.EdgeVO{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1})
+	u.AddEdge(universe.EdgeVO{From: "deadend", To: "home", Mode: universe.Walk, Cost: 1})
 
-	route := []universe.Edge{{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}}
+	route := []universe.EdgeVO{{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "deadend").Return(route, true)
 
 	gen := mocks.NewMockLocationGenerator(t)
@@ -107,12 +107,12 @@ func TestTravelCommand_DeadEnd_HandlerCalled_RepoSaved(t *testing.T) {
 func TestTravelCommand_DeadEnd_SaveError(t *testing.T) {
 	u, sess, repo, pf := newTravelFixture(t)
 
-	deadCoord := universe.NewCoordinate()
-	u.AddLocation(universe.Location{ID: "deadend", Name: "Dead End", Coordinate: deadCoord})
-	u.AddEdge(universe.Edge{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1})
-	u.AddEdge(universe.Edge{From: "deadend", To: "home", Mode: universe.Walk, Cost: 1})
+	deadCoord := universe.DefaultCoordinateVO()
+	u.AddLocation(universe.LocationEntity{ID: "deadend", Name: "Dead End", Coordinate: deadCoord})
+	u.AddEdge(universe.EdgeVO{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1})
+	u.AddEdge(universe.EdgeVO{From: "deadend", To: "home", Mode: universe.Walk, Cost: 1})
 
-	route := []universe.Edge{{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}}
+	route := []universe.EdgeVO{{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "deadend").Return(route, true)
 
 	gen := mocks.NewMockLocationGenerator(t)
@@ -133,10 +133,10 @@ func TestTravelCommand_NonDeadEnd_RepoNotCalled(t *testing.T) {
 
 	// station has home→station and station→home already; add station→park so
 	// ensureOutgoing finds a non-home outgoing edge and skips the handler.
-	u.AddLocation(universe.Location{ID: "park", Name: "Park", Coordinate: universe.NewCoordinate()})
-	u.AddEdge(universe.Edge{From: "station", To: "park", Mode: universe.Walk, Cost: 1})
+	u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: universe.DefaultCoordinateVO()})
+	u.AddEdge(universe.EdgeVO{From: "station", To: "park", Mode: universe.Walk, Cost: 1})
 
-	route := []universe.Edge{{From: "home", To: "station", Mode: universe.Walk, Cost: 1}}
+	route := []universe.EdgeVO{{From: "home", To: "station", Mode: universe.Walk, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "station").Return(route, true)
 
 	// No gen or repo expectations set — any call to Handle/Save would fail the test

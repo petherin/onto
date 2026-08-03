@@ -1,3 +1,5 @@
+PKGSITE_BIN := $(shell go env GOPATH)/bin/pkgsite
+
 ## ── Run ──────────────────────────────────────────────────────────────────────
 
 .PHONY: run
@@ -28,6 +30,15 @@ docker-clean:          ## Stop and remove any leftover containers, anonymous vol
 test:                  ## Run all tests
 	go test ./...
 
+.PHONY: lint
+lint:                  ## Run golangci-lint (requires: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
+	golangci-lint run ./...
+
+.PHONY: fmt
+fmt:                   ## Format all Go source files with gofmt
+	gofmt -w .
+	golangci-lint run --fix ./...
+
 .PHONY: mocks
 mocks:                 ## Regenerate testify mocks from domain interfaces (requires: go install github.com/vektra/mockery/v2@latest)
 	mockery
@@ -41,3 +52,13 @@ toc:                   ## Regenerate the README table of contents
 .PHONY: help
 help:                  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*##' Makefile | awk 'BEGIN {FS = ":.*##"}; {printf "  %-16s %s\n", $$1, $$2}'
+
+.PHONY: docs
+docs:                  ## Start local documentation server (installs pkgsite if needed)
+	@echo "Starting documentation server on http://localhost:8080..."
+	@if [ ! -f "$(PKGSITE_BIN)" ]; then \
+		echo "Installing pkgsite..."; \
+		go install golang.org/x/pkgsite/cmd/pkgsite@v0.1.0; \
+	fi
+	@echo "Press Ctrl+C to stop"
+	@$(PKGSITE_BIN) -http=:8080

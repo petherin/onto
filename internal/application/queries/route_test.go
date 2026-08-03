@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newRouteFixture(t *testing.T) (*universe.Universe, *exploration.Session, *mocks.MockPathfinder) {
+func newRouteFixture(t *testing.T) (*universe.UniverseAggregate, *exploration.ExplorationEntity, *mocks.MockPathfinder) {
 	u := mocks.NewTestUniverse()
 	loc, _ := u.GetLocation("home")
-	sess := exploration.NewSession("home", loc.Coordinate)
+	sess := exploration.NewExplorationEntity("home", loc.Coordinate)
 	pf := mocks.NewMockPathfinder(t)
 	return u, sess, pf
 }
@@ -22,7 +22,7 @@ func newRouteFixture(t *testing.T) (*universe.Universe, *exploration.Session, *m
 func TestRouteQuery_Success_ReturnsSteps(t *testing.T) {
 	u, sess, pf := newRouteFixture(t)
 
-	route := []universe.Edge{{From: "home", To: "station", Mode: universe.Walk, Distance: 1.6, Cost: 1}}
+	route := []universe.EdgeVO{{From: "home", To: "station", Mode: universe.Walk, Distance: 1.6, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "station").Return(route, true)
 
 	q := &queries.RouteQuery{Universe: u, Session: sess, Pathfinder: pf}
@@ -35,11 +35,11 @@ func TestRouteQuery_Success_ReturnsSteps(t *testing.T) {
 func TestRouteQuery_Success_CalculatesDistanceAndCost(t *testing.T) {
 	u, sess, pf := newRouteFixture(t)
 
-	route := []universe.Edge{
+	route := []universe.EdgeVO{
 		{From: "home", To: "station", Mode: universe.Walk, Distance: 1.6, Cost: 1},
 		{From: "station", To: "city", Mode: universe.Rail, Distance: 3.0, Cost: 3},
 	}
-	u.AddLocation(universe.Location{ID: "city", Name: "City", Coordinate: universe.NewCoordinate()})
+	u.AddLocation(universe.LocationEntity{ID: "city", Name: "City", Coordinate: universe.DefaultCoordinateVO()})
 	pf.EXPECT().FindRoute(u, "home", "city").Return(route, true)
 
 	q := &queries.RouteQuery{Universe: u, Session: sess, Pathfinder: pf}
@@ -65,7 +65,7 @@ func TestRouteQuery_NoPath(t *testing.T) {
 	u, sess, pf := newRouteFixture(t)
 
 	// island exists in universe but pathfinder finds no route
-	u.AddLocation(universe.Location{ID: "island", Name: "Island", Coordinate: universe.NewCoordinate()})
+	u.AddLocation(universe.LocationEntity{ID: "island", Name: "Island", Coordinate: universe.DefaultCoordinateVO()})
 	pf.EXPECT().FindRoute(u, "home", "island").Return(nil, false)
 
 	q := &queries.RouteQuery{Universe: u, Session: sess, Pathfinder: pf}
@@ -78,7 +78,7 @@ func TestRouteQuery_NoPath(t *testing.T) {
 func TestRouteQuery_CaseNormalised(t *testing.T) {
 	u, sess, pf := newRouteFixture(t)
 
-	route := []universe.Edge{{From: "home", To: "station", Mode: universe.Walk, Distance: 1.6, Cost: 1}}
+	route := []universe.EdgeVO{{From: "home", To: "station", Mode: universe.Walk, Distance: 1.6, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "station").Return(route, true)
 
 	q := &queries.RouteQuery{Universe: u, Session: sess, Pathfinder: pf}

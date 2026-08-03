@@ -1,8 +1,8 @@
 package universe
 
-// Repository defines persistence operations for a Universe.
+// UniverseRepository defines persistence operations for a UniverseAggregate.
 // Implementations live in the infrastructure layer.
-type Repository interface {
-	Load() (*Universe, error)
-	Save(u *Universe) error
+type UniverseRepository interface {
+	Load() (*UniverseAggregate, error)
+	Save(u *UniverseAggregate) error
 }

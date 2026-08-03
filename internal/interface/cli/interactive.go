@@ -10,14 +10,16 @@ import (
 	"github.com/petherin/onto/internal/infrastructure/generator"
 )
 
-// InteractiveHandler implements universe.LocationGenerator by prompting the user
-// to auto-generate, skip, or manually create a new outgoing location.
+// InteractiveHandler implements universe.LocationGeneratorService by prompting
+// the user to auto-generate, skip, or manually create a new outgoing location.
 type InteractiveHandler struct {
 	reader *bufio.Reader
 	gen    *generator.NearbyGenerator
 }
 
-func (h *InteractiveHandler) Handle(u *universe.Universe, id string, coord universe.Coordinate) bool {
+// Handle prompts the user to auto-generate, skip, or manually create a new
+// outgoing location when a dead end is reached.
+func (h *InteractiveHandler) Handle(u *universe.UniverseAggregate, id string, coord universe.CoordinateVO) bool {
 	name := locationDisplayName(u, id)
 	fmt.Printf("No outgoing journeys from %s.\n", name)
 	fmt.Println("Options: (a)uto-generate, (s)kip, (c)reate custom")
@@ -44,7 +46,7 @@ func (h *InteractiveHandler) Handle(u *universe.Universe, id string, coord unive
 	return false
 }
 
-func (h *InteractiveHandler) createCustomLocation(u *universe.Universe, id string, coord universe.Coordinate) bool {
+func (h *InteractiveHandler) createCustomLocation(u *universe.UniverseAggregate, id string, coord universe.CoordinateVO) bool {
 	suggested := ""
 	for i := 1; i < 1000; i++ {
 		candidate := fmt.Sprintf("%s-%d", id, i)
@@ -93,14 +95,14 @@ func (h *InteractiveHandler) createCustomLocation(u *universe.Universe, id strin
 
 	c := coord
 	c.Location = nameLine
-	u.AddLocation(universe.Location{ID: idLine, Name: nameLine, Description: descLine, Coordinate: c})
-	u.AddEdge(universe.Edge{From: id, To: idLine, Mode: universe.Walk, Distance: distance, Cost: cost, Description: "User-created path"})
-	u.AddEdge(universe.Edge{From: idLine, To: id, Mode: universe.Walk, Distance: distance, Cost: cost, Description: "User-created return path"})
+	u.AddLocation(universe.LocationEntity{ID: idLine, Name: nameLine, Description: descLine, Coordinate: c})
+	u.AddEdge(universe.EdgeVO{From: id, To: idLine, Mode: universe.Walk, Distance: distance, Cost: cost, Description: "User-created path"})
+	u.AddEdge(universe.EdgeVO{From: idLine, To: id, Mode: universe.Walk, Distance: distance, Cost: cost, Description: "User-created return path"})
 	fmt.Printf("Created: %s (%s)\n", nameLine, idLine)
 	return true
 }
 
-func locationDisplayName(u *universe.Universe, id string) string {
+func locationDisplayName(u *universe.UniverseAggregate, id string) string {
 	if loc, ok := u.GetLocation(id); ok && loc.Name != "" {
 		return loc.Name
 	}

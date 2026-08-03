@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newLookupFixture() (*universe.Universe, *exploration.Session) {
+func newLookupFixture() (*universe.UniverseAggregate, *exploration.ExplorationEntity) {
 	u := mocks.NewTestUniverse()
 	loc, _ := u.GetLocation("home")
-	sess := exploration.NewSession("home", loc.Coordinate)
+	sess := exploration.NewExplorationEntity("home", loc.Coordinate)
 	return u, sess
 }
 
@@ -76,7 +76,7 @@ func TestLookupQuery_Look_ReturnsNameAndDescription(t *testing.T) {
 func TestLookupQuery_Look_NotFound(t *testing.T) {
 	u := mocks.NewTestUniverse()
 	// create a session pointing at a location not in the universe
-	sess := exploration.NewSession("ghost", universe.NewCoordinate())
+	sess := exploration.NewExplorationEntity("ghost", universe.DefaultCoordinateVO())
 
 	q := &queries.LookupQuery{Universe: u, Session: sess}
 	result, ok := q.Look()

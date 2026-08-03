@@ -1,0 +1,28 @@
+refactor: apply explicit DDD suffixes and add DDD documentation
+
+Rename exported types across all layers to make their DDD role visible
+at every call site. No behaviour changes — purely mechanical renames.
+
+Domain layer (internal/domain/)
+- Universe        → UniverseAggregate         (aggregate root)
+- NewUniverse()   → NewUniverseAggregate()
+- Location        → LocationEntity            (entity)
+- Coordinate      → CoordinateVO              (value object)
+- NewCoordinate() → DefaultCoordinateVO()
+- Edge            → EdgeVO                    (value object)
+- TravelMode      → TravelModeVO              (value object)
+- Repository      → UniverseRepository        (repository interface)
+- LocationGenerator  → LocationGeneratorService  (domain service interface)
+- BranchQuantum()    → BranchQuantumService()    (domain service)
+- BranchTimeline()   → BranchTimelineService()   (domain service)
+- Pathfinder         → PathfinderService          (domain service interface)
+- Session            → ExplorationEntity          (entity)
+- NewSession()       → NewExplorationEntity()
+
+All downstream files updated: application commands and queries,
+infrastructure implementations, interface/cli, mocks, and all tests.
+
+Documentation
+- Add docs/DDD.md: explains DDD theory (aggregate, entity, value object,
+  domain service, repository, CQRS) then maps each concept to this codebase
+- Trim README Architecture section to a four-row table with a link to DDD.md

@@ -20,9 +20,9 @@ const (
 
 // TravelResult is the value returned by a successful TravelCommand execution.
 type TravelResult struct {
-	Location       universe.Location
-	Path           []universe.Edge // edges traversed to reach the destination
-	Edges          []universe.Edge
+	Location       universe.LocationEntity
+	Path           []universe.EdgeVO // edges traversed to reach the destination
+	Edges          []universe.EdgeVO
 	History        []string
 	DeadEndHandled bool
 	Persisted      bool
@@ -31,13 +31,13 @@ type TravelResult struct {
 
 // TravelCommand moves the session to a physical destination. It rejects paths
 // that cross non-physical boundaries (quantum, timeline) and optionally
-// invokes a LocationGenerator when the destination is a dead end.
+// invokes a LocationGeneratorService when the destination is a dead end.
 type TravelCommand struct {
-	Universe       *universe.Universe
-	Session        *exploration.Session
-	Repo           universe.Repository
-	Pathfinder     navigation.Pathfinder
-	DeadEndHandler universe.LocationGenerator
+	Universe       *universe.UniverseAggregate
+	Session        *exploration.ExplorationEntity
+	Repo           universe.UniverseRepository
+	Pathfinder     navigation.PathfinderService
+	DeadEndHandler universe.LocationGeneratorService
 }
 
 // Execute validates the target, finds a physical-only route, moves the session,
@@ -87,7 +87,7 @@ func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 }
 
 // ensureOutgoing returns true if the location is a dead end and the handler created new edges.
-func ensureOutgoing(u *universe.Universe, id, cameFrom string, handler universe.LocationGenerator) bool {
+func ensureOutgoing(u *universe.UniverseAggregate, id, cameFrom string, handler universe.LocationGeneratorService) bool {
 	for _, e := range u.EdgesFrom(id) {
 		if e.To != cameFrom {
 			return false

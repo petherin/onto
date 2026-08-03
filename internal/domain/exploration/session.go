@@ -1,7 +1,7 @@
-// Package exploration tracks the user's position within a universe. The Session
-// entity records the current location, coordinate, and travel history, and
-// exposes the movement methods (MoveTo, ShiftTo, JumpTo) that commands call
-// after a successful route or branch transition.
+// Package exploration tracks the user's position within a universe. The
+// ExplorationEntity records the current location, coordinate, and travel
+// history, and exposes the movement methods (MoveTo, ShiftTo, JumpTo) that
+// commands call after a successful route or branch transition.
 package exploration
 
 import (
@@ -10,16 +10,18 @@ import (
 	"github.com/petherin/onto/internal/domain/universe"
 )
 
-// Session tracks the user's position within the universe.
-type Session struct {
+// ExplorationEntity is a domain entity that tracks the user's position within
+// the universe across physical travel, quantum shifts, and timeline jumps.
+type ExplorationEntity struct {
 	CurrentLocation   string
-	CurrentCoordinate universe.Coordinate
+	CurrentCoordinate universe.CoordinateVO
 	TravelHistory     []string
 }
 
-// NewSession creates a Session positioned at the given location and coordinate.
-func NewSession(location string, coord universe.Coordinate) *Session {
-	return &Session{
+// NewExplorationEntity creates an ExplorationEntity positioned at the given
+// location and coordinate.
+func NewExplorationEntity(location string, coord universe.CoordinateVO) *ExplorationEntity {
+	return &ExplorationEntity{
 		CurrentLocation:   location,
 		CurrentCoordinate: coord,
 		TravelHistory:     []string{},
@@ -27,7 +29,7 @@ func NewSession(location string, coord universe.Coordinate) *Session {
 }
 
 // MoveTo updates position and records the move in travel history.
-func (s *Session) MoveTo(loc universe.Location) {
+func (s *ExplorationEntity) MoveTo(loc universe.LocationEntity) {
 	prev := s.CurrentLocation
 	s.CurrentLocation = loc.ID
 	s.CurrentCoordinate = loc.Coordinate
@@ -35,7 +37,7 @@ func (s *Session) MoveTo(loc universe.Location) {
 }
 
 // ShiftTo updates position for a quantum shift and records it in travel history.
-func (s *Session) ShiftTo(loc universe.Location) {
+func (s *ExplorationEntity) ShiftTo(loc universe.LocationEntity) {
 	prev := s.CurrentLocation
 	s.CurrentLocation = loc.ID
 	s.CurrentCoordinate = loc.Coordinate
@@ -43,17 +45,17 @@ func (s *Session) ShiftTo(loc universe.Location) {
 }
 
 // QuantumLevel returns the numeric quantum level of the current position (Q0 → 0, Q1 → 1, …).
-func (s *Session) QuantumLevel() int {
+func (s *ExplorationEntity) QuantumLevel() int {
 	return s.CurrentCoordinate.QuantumLevel()
 }
 
 // NextQuantumID returns the location ID that 'shift' would move to from the current position.
-func (s *Session) NextQuantumID() string {
+func (s *ExplorationEntity) NextQuantumID() string {
 	return fmt.Sprintf("%s-q%d", s.CurrentLocation, s.QuantumLevel()+1)
 }
 
 // JumpTo updates position for a timeline shift and records it in travel history.
-func (s *Session) JumpTo(loc universe.Location) {
+func (s *ExplorationEntity) JumpTo(loc universe.LocationEntity) {
 	prev := s.CurrentLocation
 	s.CurrentLocation = loc.ID
 	s.CurrentCoordinate = loc.Coordinate
@@ -61,11 +63,11 @@ func (s *Session) JumpTo(loc universe.Location) {
 }
 
 // TimelineLevel returns the numeric timeline level of the current position ("Prime" → 0, "T1" → 1, …).
-func (s *Session) TimelineLevel() int {
+func (s *ExplorationEntity) TimelineLevel() int {
 	return s.CurrentCoordinate.TimelineLevel()
 }
 
 // NextTimelineID returns the location ID that 'jump' would move to from the current position.
-func (s *Session) NextTimelineID() string {
+func (s *ExplorationEntity) NextTimelineID() string {
 	return fmt.Sprintf("%s-t%d", s.CurrentLocation, s.TimelineLevel()+1)
 }

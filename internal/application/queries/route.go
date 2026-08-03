@@ -16,16 +16,16 @@ const (
 
 // RouteResult holds the data returned by a Route query.
 type RouteResult struct {
-	Steps    []universe.Edge
+	Steps    []universe.EdgeVO
 	Distance float64
 	Cost     float64
 }
 
 // RouteQuery plans a route from the current session position to a target.
 type RouteQuery struct {
-	Universe   *universe.Universe
-	Session    *exploration.Session
-	Pathfinder navigation.Pathfinder
+	Universe   *universe.UniverseAggregate
+	Session    *exploration.ExplorationEntity
+	Pathfinder navigation.PathfinderService
 }
 
 // Execute plans a route from the current session position to target, returning

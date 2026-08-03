@@ -1,5 +1,5 @@
-// Package persistence implements the universe.Repository interface using a
-// JSON file on disk. The serialised format stores locations and edges as flat
+// Package persistence implements the universe.UniverseRepository interface using
+// a JSON file on disk. The serialised format stores locations and edges as flat
 // slices so the file is human-readable and easy to seed by hand.
 package persistence
 
@@ -11,11 +11,11 @@ import (
 )
 
 type serialized struct {
-	Locations []universe.Location `json:"locations"`
-	Edges     []universe.Edge     `json:"edges"`
+	Locations []universe.LocationEntity `json:"locations"`
+	Edges     []universe.EdgeVO         `json:"edges"`
 }
 
-// JSONRepository implements universe.Repository using a JSON file on disk.
+// JSONRepository implements universe.UniverseRepository using a JSON file on disk.
 type JSONRepository struct {
 	path string
 }
@@ -25,8 +25,8 @@ func NewJSONRepository(path string) *JSONRepository {
 	return &JSONRepository{path: path}
 }
 
-// Load reads the JSON file and reconstructs a Universe from it.
-func (r *JSONRepository) Load() (*universe.Universe, error) {
+// Load reads the JSON file and reconstructs a UniverseAggregate from it.
+func (r *JSONRepository) Load() (*universe.UniverseAggregate, error) {
 	data, err := os.ReadFile(r.path)
 	if err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func (r *JSONRepository) Load() (*universe.Universe, error) {
 		return nil, err
 	}
 
-	u := universe.NewUniverse()
+	u := universe.NewUniverseAggregate()
 	for _, loc := range s.Locations {
 		u.AddLocation(loc)
 	}
@@ -47,8 +47,8 @@ func (r *JSONRepository) Load() (*universe.Universe, error) {
 	return u, nil
 }
 
-// Save serialises the Universe to indented JSON and writes it to disk atomically.
-func (r *JSONRepository) Save(u *universe.Universe) error {
+// Save serialises the UniverseAggregate to indented JSON and writes it to disk atomically.
+func (r *JSONRepository) Save(u *universe.UniverseAggregate) error {
 	s := serialized{
 		Locations: u.AllLocations(),
 		Edges:     u.AllEdgesFlat(),

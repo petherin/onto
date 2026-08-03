@@ -2,24 +2,24 @@ package cli
 
 import "github.com/petherin/onto/internal/domain/universe"
 
-func buildDefaultUniverse() *universe.Universe {
-	u := universe.NewUniverse()
-	base := universe.NewCoordinate()
+func buildDefaultUniverse() *universe.UniverseAggregate {
+	u := universe.NewUniverseAggregate()
+	base := universe.DefaultCoordinateVO()
 
-	u.AddLocation(universe.Location{ID: "home", Name: "Home", Description: "A quiet residential location.", Coordinate: base})
-	u.AddLocation(universe.Location{ID: "station", Name: "Station", Description: "Leeds Station.", Coordinate: coordFor("Station", base)})
-	u.AddLocation(universe.Location{ID: "park", Name: "Park", Description: "A green public park.", Coordinate: coordFor("Park", base)})
-	u.AddLocation(universe.Location{ID: "city-centre", Name: "City Centre", Description: "The centre of town.", Coordinate: coordFor("City Centre", base)})
+	u.AddLocation(universe.LocationEntity{ID: "home", Name: "Home", Description: "A quiet residential location.", Coordinate: base})
+	u.AddLocation(universe.LocationEntity{ID: "station", Name: "Station", Description: "Leeds Station.", Coordinate: coordFor("Station", base)})
+	u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Description: "A green public park.", Coordinate: coordFor("Park", base)})
+	u.AddLocation(universe.LocationEntity{ID: "city-centre", Name: "City Centre", Description: "The centre of town.", Coordinate: coordFor("City Centre", base)})
 
-	u.AddEdge(universe.Edge{From: "home", To: "station", Mode: universe.Walk, Distance: 1.6, Cost: 1, Description: "Walk to the station"})
-	u.AddEdge(universe.Edge{From: "home", To: "park", Mode: universe.Walk, Distance: 0.8, Cost: 1, Description: "Walk to the park"})
-	u.AddEdge(universe.Edge{From: "station", To: "city-centre", Mode: universe.Rail, Distance: 2.0, Cost: 3, Description: "Take the rail line"})
-	u.AddEdge(universe.Edge{From: "city-centre", To: "home", Mode: universe.Walk, Distance: 2.4, Cost: 2, Description: "Walk home"})
+	u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk, Distance: 1.6, Cost: 1, Description: "Walk to the station"})
+	u.AddEdge(universe.EdgeVO{From: "home", To: "park", Mode: universe.Walk, Distance: 0.8, Cost: 1, Description: "Walk to the park"})
+	u.AddEdge(universe.EdgeVO{From: "station", To: "city-centre", Mode: universe.Rail, Distance: 2.0, Cost: 3, Description: "Take the rail line"})
+	u.AddEdge(universe.EdgeVO{From: "city-centre", To: "home", Mode: universe.Walk, Distance: 2.4, Cost: 2, Description: "Walk home"})
 
 	return u
 }
 
-func coordFor(name string, base universe.Coordinate) universe.Coordinate {
+func coordFor(name string, base universe.CoordinateVO) universe.CoordinateVO {
 	coord := base
 	coord.Location = name
 	coord.City = "Leeds"
