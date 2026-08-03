@@ -185,4 +185,21 @@ Costs arise from which axes change and by how much. Examples (illustrative):
 
 This model keeps the CLI surface stable (same commands) while the routing backend interprets edges and costs across axes.
 
+Observer axis and the umwelt
+
+The `Observer` axis captures the idea that reality is not objective — it is always perceived from a point of view. The concept comes from Jakob von Uexküll's notion of the *umwelt*: the subjective, species-specific perceptual world that every organism inhabits. A bat, a dog, and a human standing in the same room occupy the same spatial location but three entirely different umwelts.
+
+In Onto, two coordinates can share every other axis and still differ on `Observer`. An `ObserverShift` edge transitions between umwelts — from human perception to machine perception, from waking to dreaming, from one interpretive frame to another. This is one of the cheapest exotic transitions (it requires no physical movement) but one of the hardest to reverse, because the origin umwelt may no longer be recognisable from inside the destination one.
+
+Simulation axis
+
+The `Simulation int` axis represents depth within nested simulations. At depth 0 you are in base reality (or what you take to be base reality). Each `SimulationEntry` edge increments the depth by one. Simulations can be arbitrarily nested, and the routing graph can represent them as subgraphs reachable only through a simulation boundary edge.
+
+Cost implications:
+- Entering a simulation: low cost (the boundary is intentionally designed to be crossed)
+- Exiting a simulation: moderate cost (requires finding or constructing an exit)
+- Determining whether you are inside a simulation: undefined — this is left to the observer
+
+The simulation axis interacts with the observer axis: changing umwelt inside a simulation may be easier than in base reality, because the simulation's rules are malleable.
+
 Use these notes as a guide when extending Onto beyond local navigation: they explain the address model, rendering choices, and the vector-based view that unifies walking and exotic reality transitions.
