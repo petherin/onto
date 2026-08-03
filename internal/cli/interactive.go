@@ -37,7 +37,7 @@ func (a *App) interactiveEnsureOutgoing(id string) bool {
 	if choice == "c" || choice == "create" {
 		fmt.Print("Enter ID (short, lowercase, hyphen allowed) [suggested will be used if empty]: ")
 		idLine, _ := a.interactiveReader.ReadString('\n')
-		idLine = strings.TrimSpace(idLine)
+		idLine = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(idLine), " ", "-"))
 		suggested := ""
 		for i := 1; i < 1000; i++ {
 			candidate := fmt.Sprintf("%s-%d", id, i)

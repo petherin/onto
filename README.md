@@ -13,7 +13,7 @@ Onto is an experimental CLI for navigating reality as a coordinate system.
 - [Roadmap](#roadmap)
 - [Notes](#notes)
 - [Why the name "Onto"](#why-the-name-onto)
-- [Design notes](docs/DESIGN.md)
+- [Design notes](#design-notes)
 
 
 The long-term idea is simple: whether you are walking to a station, shifting to a different timeline, entering a simulation, or moving between imagined worlds, the interface should feel like the same operation: routing through a graph of possible locations.
@@ -97,7 +97,6 @@ look
 ls
 route station
 travel station
-history
 cost
 exit
 ```
@@ -106,15 +105,15 @@ These commands are intended to grow from a simple local-navigation prototype int
 
 ## Current status
 
-The repository now contains a basic Go project scaffold with:
+The app is functional. It includes:
 
-- a command entrypoint in cmd/onto
-- CLI package structure
-- navigation primitives for graph routing and pathfinding
-- reality abstractions for coordinates, locations, edges, and travel plans
-- starter world and data files for Earth
-
-This is an early foundation, not yet a full implementation.
+- a command entrypoint in `cmd/onto`
+- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `cost`, and `exit` commands
+- BFS-based graph routing across locations with travel modes (walk, rail, etc.)
+- a full coordinate model covering universe, timeline, quantum, planet, country, region, city, and location
+- location and edge data loaded from `data/locations.json`, with a built-in fallback map
+- interactive prompting to create new locations when arriving at a dead-end node
+- auto-save of the universe graph back to `data/locations.json` after travel
 
 ## Getting started
 
@@ -126,9 +125,9 @@ go run ./cmd/onto
 
 ## Roadmap
 
-1. Implement a simple local-world graph for Earth.
-2. Add location lookup and basic routing.
-3. Introduce travel modes and cost calculations.
+1. ~~Implement a simple local-world graph for Earth.~~ ✓
+2. ~~Add location lookup and basic routing.~~ ✓
+3. Introduce full cost calculations (currently a stub).
 4. Expand the coordinate model with more layers.
 5. Support speculative routing such as timeline or quantum transitions.
 6. Evolve the CLI into a true reality navigator.
@@ -137,102 +136,9 @@ go run ./cmd/onto
 
 This project is philosophical in spirit, but practical in implementation. It treats navigation as a general problem: move from one place to another, whether that place is physical, historical, simulated, or otherwise.
 
-## Design notes — Hierarchical realities & navigation
+## Design notes
 
-The following is a saved copy of the hierarchical-reality concept and CLI progression you described. It's intended as a future-improvements reference when we expand beyond local navigation.
-
-Yes. The concept treats reality as a hierarchy rather than a flat graph. Roughly:
-
-- **Local reality** (walking around normally)
-- **Neighbouring realities** (small quantum divergences)
-- **Branches** (major historical differences)
-- **Universes** (different physical constants)
-- **Meta-realities** (collections of universes)
-- **Infinite hierarchy**
-
-Key ideas
-
-- Travelling has a cost (Sigma instability, entropy, or "reality debt"). Some transitions are effectively impossible or very costly.
-- The CLI acts like a GPS for existence: users request a `route` and the engine computes a path across layers, with cost, risk, and return probability metadata.
-
-Example interaction (speculative):
-
-```
-> where
-Φ: Sol.Earth.Europe.UK.Leeds.Home.Office
-
-> route Shakespeare.Alive
-
-Searching...
-
-✓ Route found
-
-1. Leeds.Office
-2. Leeds.Outside
-3. Earth.Quantum+3
-4. Britain.MonarchyDivergence
-5. Timeline 447A
-6. Shakespeare.Alive
-
-Estimated Cost:
-σ 14.7
-
-Risk:
-■■□□□□
-
-Probability of successful return:
-92%
-```
-
-Recommended progression
-
-1. Start with only local navigation — a filesystem-like model (this is exactly the right decision). Keep the CLI small and familiar: `where`, `ls`, `cd`/`travel`, `route`, `look`, `scan`, `cost`.
-
-```
-Reality
-└── Earth
-    └── Europe
-        └── UK
-            └── Yorkshire
-                └── Leeds
-                    ├── Station
-                    ├── University
-                    ├── CityCentre
-                    └── Home
-```
-
-2. Add coordinates for each location (human-readable and machine-friendly).
-
-3. Navigation: `route <destination>` returns path, distance, cost, sigma/entropy and risk metadata.
-
-4. After local navigation is solid, add higher-dimension transports (quantum shifts, timeline shifts, universe jumps). The commands remain the same; only the underlying graph and edge types change.
-
-CLI commands (early set)
-
-```
-where    — current coordinate
-look     — describe location
-ls       — adjacent nodes
-cd       — move (alias: travel)
-route    — compute route
-scan     — nearby reachable nodes
-cost     — show energy/cost
-history  — visited
-map      — ascii map
-```
-
-Later, add `shift` and `route` variants that operate on quantum/historical layers, for example:
-
-```
-shift +1           // move to neighbouring quantum branch
-route "Roman Empire survives"  // route to an alternate-history node
-```
-
-The key UX principle: the same navigation commands work at all layers; only the graph and edge semantics change. This continuity is what makes the interface feel like an "operating system for reality" rather than a collection of separate features.
-
-Use this section as a future roadmap reference when we expand Onto beyond local navigation.
-
-For full design notes, coordinates and the vector model, see [DESIGN.md](DESIGN.md).
+For the hierarchical reality model, coordinate system, vector costs, and future CLI progression, see [DESIGN.md](docs/DESIGN.md).
 
 ## Why the name "Onto"
 

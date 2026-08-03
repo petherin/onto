@@ -3,7 +3,7 @@ Design notes — Hierarchical realities & navigation
 
 The following is a saved copy of the hierarchical-reality concept and CLI progression. It's intended as a future-improvements reference when we expand beyond local navigation.
 
-Yes. The concept treats reality as a hierarchy rather than a flat graph. Roughly:
+The concept treats reality as a hierarchy rather than a flat graph. Roughly:
 
 - **Local reality** (walking around normally)
 - **Neighbouring realities** (small quantum divergences)

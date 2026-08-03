@@ -265,9 +265,8 @@ func (a *App) Travel(target string) string {
 	a.currentCoordinate = location.Coordinate
 	a.travelHistory = append(a.travelHistory, fmt.Sprintf("%s -> %s", previous, norm))
 
-	// ensure a `home` location exists so users can always `route home` or `travel home`
 	// attempt to auto-generate outgoing nodes; ensureOutgoing returns true when it created something
-	created := a.ensureOutgoing(target)
+	created := a.ensureOutgoing(norm, previous)
 
 	if created {
 		if err := a.saveConfig(); err != nil {
@@ -410,12 +409,13 @@ func (a *App) suggestDestination(target string) string {
 }
 
 // ensureOutgoing auto-generates a nearby location and edge if the given
-// location has no outgoing edges, to keep exploration possible.
-func (a *App) ensureOutgoing(id string) bool {
-	// if there are outgoing edges already, nothing to do
+// location has no outgoing edges beyond the one leading back to cameFrom.
+func (a *App) ensureOutgoing(id, cameFrom string) bool {
 	edges := a.universe.Edges[id]
-	if len(edges) > 0 {
-		return false
+	for _, e := range edges {
+		if e.To != cameFrom {
+			return false // there is at least one onward edge; nothing to do
+		}
 	}
 
 	if a.interactiveReader != nil {
