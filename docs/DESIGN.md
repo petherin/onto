@@ -83,10 +83,18 @@ history  — visited
 map      — ascii map
 ```
 
-Later, add `shift` and `route` variants that operate on quantum/historical layers, for example:
+Quantum shift commands are now implemented:
 
 ```
-shift +1           // move to neighbouring quantum branch
+shift           // jump forward to the next quantum branch (Q0 → Q1 → …)
+shift back      // return to the previous quantum branch
+```
+
+`travel` enforces physical-only routing — it rejects any path that contains a quantum or timeline edge. Exotic transitions require their own dedicated command.
+
+Still to add: `route` variants and shift commands for timeline and universe layers, for example:
+
+```
 route "Roman Empire survives"  // route to an alternate-history node
 ```
 
@@ -139,25 +147,25 @@ Filesystem-like path (CLI-friendly):
 
 Multidimensional structure
 
-The model can be represented as a structured value rather than a single string. Example Go type:
+The model can be represented as a structured value rather than a single string. The current implementation in `internal/domain/universe/coordinate.go`:
 
 ```go
 type Coordinate struct {
-    Layer        int       // Reality layer (0 = local)
-    UniverseID   string
-    TimelineID   string
-    BranchID     string
-    QuantumID    string
-
-    Galaxy       string
-    StarSystem   string
-    Planet       string
-
-    Region       string
-    City         string
-    Location     string
-
-    Time         time.Time
+    Meta        string    // Ontological layer
+    Mathematics string    // Mathematical framework
+    Universe    string    // Which universe
+    Timeline    string    // Historical timeline
+    Quantum     string    // Quantum branch (e.g. "Q0", "Q1")
+    Simulation  int       // Nesting depth within simulations (0 = base reality)
+    Galaxy      string
+    System      string
+    Planet      string
+    Country     string
+    Region      string
+    City        string
+    Location    string
+    Observer    string    // Perceptual umwelt
+    Time        time.Time
 }
 ```
 

@@ -109,8 +109,10 @@ These commands are intended to grow from a simple local-navigation prototype int
 The app is functional. It includes:
 
 - a command entrypoint in `cmd/onto`
-- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `cost`, and `exit` commands
+- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `cost`, `shift`, `shift back`, and `exit` commands
 - BFS-based graph routing across locations with travel modes (walk, rail, etc.)
+- quantum branch navigation: `shift` jumps forward to the next branch; `shift back` returns to the previous one
+- `travel` rejects routes that cross quantum boundaries — physical and non-physical travel are kept separate
 - a full coordinate model covering universe, timeline, quantum, planet, country, region, city, and location
 - location and edge data loaded from `data/locations.json`, with a built-in fallback map
 - interactive prompting to create new locations when arriving at a dead-end node
@@ -126,16 +128,18 @@ cmd/onto/               Entry point — wires everything together and calls Run(
 internal/
   domain/               The heart of the software. No imports from other internal layers.
     universe/           Core domain: Location (entity), Coordinate, Edge, TravelMode
-                        (value objects), Universe (aggregate root), and the
-                        Repository + LocationGenerator interfaces it defines.
-    navigation/         Domain service: BFS pathfinding (FindRoute, PathDistance, PathCost).
+                        (value objects), Universe (aggregate root with unexported maps
+                        and public accessor methods), Repository + LocationGenerator
+                        interfaces, and the BranchQuantum domain service.
+    navigation/         Pathfinder interface + pure BFS functions (FindRoute,
+                        PathDistance, PathCost). No concrete struct here.
     exploration/        Session entity — tracks current position, travel history,
                         and quantum state. Owned by the user, not the universe.
 
   application/          Orchestrates use cases. Imports domain only.
     commands/           Write operations that change state:
                           TravelCommand — moves the session to a destination.
-                          ShiftCommand  — jumps to the next quantum branch.
+                          ShiftCommand  — jumps forward or back through quantum branches.
     queries/            Read operations that never change state:
                           LookupQuery   — Where, Look, List.
                           RouteQuery    — plans a route without travelling it.
@@ -143,6 +147,7 @@ internal/
   infrastructure/       Technical implementations of domain interfaces.
     persistence/        JSONRepository — loads and saves Universe to a JSON file.
     generator/          NearbyGenerator — auto-creates locations at dead ends.
+    navigation/         BFSPathfinder — concrete implementation of navigation.Pathfinder.
 
   interface/
     cli/                Delivery mechanism. Knows about the terminal; the domain
@@ -151,6 +156,9 @@ internal/
                           display.go      — formats application results as strings.
                           interactive.go  — InteractiveHandler (prompts user at dead ends).
                           fuzzy.go        — Levenshtein-based command/destination suggestions.
+
+  mocks/                Generated test doubles (mockery). Never edit by hand.
+                          fixtures.go     — NewTestUniverse() shared test helper.
 ```
 
 ### Layer rules
@@ -164,9 +172,10 @@ internal/
 
 ### Key patterns
 
-- **Aggregate root** — `Universe` owns all `Location` entities and `Edge` value objects. Nothing mutates them directly; all changes go through `Universe` methods.
+- **Aggregate root** — `Universe` owns all `Location` entities and `Edge` value objects. The internal maps are unexported; all access goes through methods (`GetLocation`, `EdgesFrom`, `AllLocations`, `AllEdgesFlat`, etc.) so invariants are enforced by the struct itself.
 - **Repository interface** — defined in `domain/universe`, implemented in `infrastructure/persistence`. The domain never references a file or database.
 - **LocationGenerator interface** — also defined in the domain. Two implementations exist: `NearbyGenerator` (auto) and `InteractiveHandler` (prompts user). The `TravelCommand` accepts either without knowing which it has.
+- **BranchQuantum domain service** — quantum branch creation logic lives in `domain/universe/quantum.go`, not in the application command. `ShiftCommand` calls it rather than building locations and edges itself.
 - **Commands vs Queries (CQRS)** — commands (`Travel`, `Shift`) mutate session and universe state and persist the result. Queries (`Where`, `Look`, `List`, `Route`) are pure reads with no side effects.
 
 ## Getting started
@@ -187,7 +196,11 @@ make docker-run
 docker compose run --rm onto
 ```
 
-The `data/` directory is mounted as a volume when running in Docker, so any locations you create or travel to persist to the host between runs.
+The `data/` directory is mounted as a bind mount, so locations you create or travel to persist on the host between runs. To clean up any dangling containers or anonymous volumes:
+
+```bash
+make docker-clean
+```
 
 Environment variables can be set in `.env` (copy `.env.example` to get started) or overridden inline:
 
@@ -200,14 +213,27 @@ Environment variables can be set in `.env` (copy `.env.example` to get started) 
 ONTO_START_LOCATION=station make docker-run
 ```
 
+**Running tests:**
+
+```bash
+make test
+```
+
+**Regenerating mocks** (after changing a domain interface):
+
+```bash
+make mocks
+```
+
 ## Roadmap
 
 1. ~~Implement a simple local-world graph for Earth.~~ ✓
 2. ~~Add location lookup and basic routing.~~ ✓
 3. Introduce full cost calculations (currently a stub).
 4. Expand the coordinate model with more layers.
-5. Support speculative routing such as timeline or quantum transitions.
-6. Evolve the CLI into a true reality navigator.
+5. ~~Support quantum transitions.~~ ✓ (`shift` / `shift back` implemented)
+6. Support timeline and universe transitions (higher-cost exotic modes).
+7. Evolve the CLI into a true reality navigator.
 
 ## Notes
 
