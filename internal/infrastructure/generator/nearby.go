@@ -1,3 +1,7 @@
+// Package generator implements the universe.LocationGenerator interface.
+// NearbyGenerator automatically creates a plausible neighbouring location and
+// bidirectional walk edges when the traveller reaches a dead end, keeping the
+// world explorable without manual data entry.
 package generator
 
 import (
@@ -12,10 +16,13 @@ import (
 // a neighbouring location with bidirectional walk edges.
 type NearbyGenerator struct{}
 
+// New returns a ready-to-use NearbyGenerator.
 func New() *NearbyGenerator {
 	return &NearbyGenerator{}
 }
 
+// Handle creates a new nearby location with bidirectional walk edges and adds
+// it to the universe. Returns true if a new location was created.
 func (g *NearbyGenerator) Handle(u *universe.Universe, id string, coord universe.Coordinate) bool {
 	rand.Seed(time.Now().UnixNano())
 	for i := 1; i < 1000; i++ {

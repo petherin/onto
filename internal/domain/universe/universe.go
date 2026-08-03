@@ -1,10 +1,19 @@
+// Package universe is the core domain model. It defines the aggregate root
+// (Universe), entities (Location), value objects (Coordinate, Edge,
+// TravelMode), domain interfaces (Repository, LocationGenerator), and domain
+// services (BranchQuantum, BranchTimeline) that encode the rules of reality
+// navigation. Nothing in this package may import other internal packages.
 package universe
 
+// Universe is the aggregate root of the domain. It owns all Locations and
+// directed Edges and exposes them only through its methods, keeping the
+// internal maps unexported to preserve encapsulation.
 type Universe struct {
 	locations map[string]Location
 	edges     map[string][]Edge
 }
 
+// NewUniverse returns an empty, ready-to-use Universe.
 func NewUniverse() *Universe {
 	return &Universe{
 		locations: make(map[string]Location),
@@ -12,14 +21,18 @@ func NewUniverse() *Universe {
 	}
 }
 
+// AddLocation inserts or replaces a location in the universe.
 func (u *Universe) AddLocation(location Location) {
 	u.locations[location.ID] = location
 }
 
+// AddEdge appends a directed edge to the universe graph.
 func (u *Universe) AddEdge(edge Edge) {
 	u.edges[edge.From] = append(u.edges[edge.From], edge)
 }
 
+// GetLocation looks up a location by its ID, returning the location and a
+// boolean indicating whether it was found.
 func (u *Universe) GetLocation(id string) (Location, bool) {
 	location, ok := u.locations[id]
 	return location, ok

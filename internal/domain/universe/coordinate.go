@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+// Coordinate is a full reality position vector. Each field narrows scope from
+// the widest (Meta, Universe) down to the most local (Location, Observer).
+// Zero values are valid — a Coordinate with only Planet and City set still
+// describes a meaningful position within a physical world.
 type Coordinate struct {
 	Meta        string
 	Mathematics string
@@ -44,6 +48,8 @@ func (c Coordinate) TimelineLevel() int {
 	return n
 }
 
+// NewCoordinate returns the default starting coordinate: Earth, United Kingdom,
+// Yorkshire, Leeds, Home, Observer: Human, at the Prime timeline and Q0 quantum level.
 func NewCoordinate() Coordinate {
 	return Coordinate{
 		Meta:        "Origin",

@@ -28,6 +28,8 @@ type RouteQuery struct {
 	Pathfinder navigation.Pathfinder
 }
 
+// Execute plans a route from the current session position to target, returning
+// the ordered edge list, total distance, and total cost.
 func (q *RouteQuery) Execute(target string) (*RouteResult, error) {
 	norm := strings.ToLower(strings.ReplaceAll(target, " ", "-"))
 	if _, ok := q.Universe.GetLocation(norm); !ok {

@@ -1,3 +1,8 @@
+// Package cli is the delivery mechanism for the Onto application. It owns the
+// terminal run loop, command dispatch, result formatting, and user-facing
+// helpers such as fuzzy command/destination suggestion and the interactive
+// dead-end handler. The domain and application layers have no knowledge that
+// this package exists.
 package cli
 
 import (
@@ -16,6 +21,8 @@ import (
 	"github.com/petherin/onto/internal/infrastructure/persistence"
 )
 
+// App is the top-level CLI object. It holds the wired-up universe, session,
+// repository, and pathfinder and exposes one method per user command.
 type App struct {
 	universe          *universe.Universe
 	session           *exploration.Session
@@ -24,6 +31,7 @@ type App struct {
 	interactiveReader *bufio.Reader
 }
 
+// NewApp loads (or initialises) the universe from disk and returns a ready App.
 func NewApp() *App {
 	repo := persistence.NewJSONRepository(dataFile())
 	u, err := repo.Load()
@@ -53,6 +61,8 @@ func NewApp() *App {
 	}
 }
 
+// Execute dispatches a raw input string to the appropriate command handler and
+// returns the formatted output string.
 func (a *App) Execute(input string) string {
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
@@ -107,6 +117,7 @@ func (a *App) Execute(input string) string {
 	}
 }
 
+// Help returns the usage text listing all available commands.
 func (a *App) Help() string {
 	return strings.Join([]string{
 		"Usage",
@@ -133,6 +144,8 @@ func (a *App) Help() string {
 	}, "\n")
 }
 
+// Travel attempts physical movement to target, reporting the specific reason if
+// the destination exists but cannot be reached (e.g. across a quantum boundary).
 func (a *App) Travel(target string) string {
 	var handler universe.LocationGenerator
 	if a.interactiveReader != nil {
@@ -166,6 +179,7 @@ func (a *App) Travel(target string) string {
 	return a.formatTravelResult(result, target)
 }
 
+// Shift jumps the session forward to the next quantum branch of the current location.
 func (a *App) Shift() string {
 	cmd := &commands.ShiftCommand{Universe: a.universe, Session: a.session, Repo: a.repo}
 	result, err := cmd.Execute()
@@ -175,6 +189,7 @@ func (a *App) Shift() string {
 	return a.formatShiftResult(result)
 }
 
+// ShiftBack returns the session to the previous quantum branch.
 func (a *App) ShiftBack() string {
 	cmd := &commands.ShiftCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
 	result, err := cmd.Execute()
@@ -184,6 +199,7 @@ func (a *App) ShiftBack() string {
 	return a.formatShiftResult(result)
 }
 
+// Jump moves the session forward to the next timeline branch of the current location.
 func (a *App) Jump() string {
 	cmd := &commands.JumpCommand{Universe: a.universe, Session: a.session, Repo: a.repo}
 	result, err := cmd.Execute()
@@ -193,6 +209,7 @@ func (a *App) Jump() string {
 	return a.formatJumpResult(result)
 }
 
+// JumpBack returns the session to the previous timeline branch.
 func (a *App) JumpBack() string {
 	cmd := &commands.JumpCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
 	result, err := cmd.Execute()
@@ -202,6 +219,7 @@ func (a *App) JumpBack() string {
 	return a.formatJumpResult(result)
 }
 
+// Route plans and displays a route to target without moving the session.
 func (a *App) Route(target string) string {
 	q := &queries.RouteQuery{Universe: a.universe, Session: a.session, Pathfinder: a.pathfinder}
 	result, err := q.Execute(target)
@@ -214,10 +232,13 @@ func (a *App) Route(target string) string {
 	return a.formatRouteResult(result)
 }
 
+// Cost returns informational text about how travel costs are calculated.
 func (a *App) Cost() string {
 	return "Travel cost is estimated and currently local-only."
 }
 
+// Run starts the interactive read-eval-print loop, displaying the welcome
+// message and current position before reading lines from stdin.
 func (a *App) Run() {
 	fmt.Println(AppVersion)
 	fmt.Println()

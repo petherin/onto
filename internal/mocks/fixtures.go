@@ -1,3 +1,6 @@
+// Package mocks contains generated mock implementations of domain interfaces
+// (produced by mockery) and shared test fixtures such as NewTestUniverse.
+// Nothing in this package should be imported outside of test files.
 package mocks
 
 import "github.com/petherin/onto/internal/domain/universe"

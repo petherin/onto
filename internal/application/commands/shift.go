@@ -7,6 +7,7 @@ import (
 	"github.com/petherin/onto/internal/domain/universe"
 )
 
+// ShiftResult is the value returned by a successful ShiftCommand execution.
 type ShiftResult struct {
 	NextQuantum string
 	Location    universe.Location
@@ -17,6 +18,8 @@ type ShiftResult struct {
 	SaveErr     error
 }
 
+// ShiftCommand moves the session to the next (or previous) quantum branch of
+// the current location, creating the branch if it does not yet exist.
 type ShiftCommand struct {
 	Universe *universe.Universe
 	Session  *exploration.Session
@@ -24,6 +27,8 @@ type ShiftCommand struct {
 	Back     bool // if true, traverse the reverse quantum edge instead of creating a new branch
 }
 
+// Execute runs the command. It delegates to shiftForward or shiftBack depending
+// on the Back flag.
 func (c *ShiftCommand) Execute() (*ShiftResult, error) {
 	if c.Back {
 		return c.shiftBack()

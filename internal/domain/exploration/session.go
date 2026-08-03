@@ -1,3 +1,7 @@
+// Package exploration tracks the user's position within a universe. The Session
+// entity records the current location, coordinate, and travel history, and
+// exposes the movement methods (MoveTo, ShiftTo, JumpTo) that commands call
+// after a successful route or branch transition.
 package exploration
 
 import (
@@ -13,6 +17,7 @@ type Session struct {
 	TravelHistory     []string
 }
 
+// NewSession creates a Session positioned at the given location and coordinate.
 func NewSession(location string, coord universe.Coordinate) *Session {
 	return &Session{
 		CurrentLocation:   location,
@@ -42,7 +47,7 @@ func (s *Session) QuantumLevel() int {
 	return s.CurrentCoordinate.QuantumLevel()
 }
 
-// NextQuantumID returns the location ID that 'shift' would jump to from the current position.
+// NextQuantumID returns the location ID that 'shift' would move to from the current position.
 func (s *Session) NextQuantumID() string {
 	return fmt.Sprintf("%s-q%d", s.CurrentLocation, s.QuantumLevel()+1)
 }
@@ -60,7 +65,7 @@ func (s *Session) TimelineLevel() int {
 	return s.CurrentCoordinate.TimelineLevel()
 }
 
-// NextTimelineID returns the location ID that 'jump' would shift to from the current position.
+// NextTimelineID returns the location ID that 'jump' would move to from the current position.
 func (s *Session) NextTimelineID() string {
 	return fmt.Sprintf("%s-t%d", s.CurrentLocation, s.TimelineLevel()+1)
 }

@@ -1,3 +1,8 @@
+// Package navigation defines the Pathfinder interface and the pure graph
+// functions (FindRoute, PathDistance, PathCost) used to plan routes through a
+// Universe. Concrete algorithm implementations live in
+// internal/infrastructure/navigation so that the domain stays free of
+// technical dependencies.
 package navigation
 
 import "github.com/petherin/onto/internal/domain/universe"
@@ -8,7 +13,7 @@ type Pathfinder interface {
 	FindRoute(u *universe.Universe, from, to string) ([]universe.Edge, bool)
 }
 
-// FindRoute runs BFS from from to to across the universe graph.
+// FindRoute runs BFS from the `from` location to the `to` location across the universe graph.
 func FindRoute(u *universe.Universe, from, to string) ([]universe.Edge, bool) {
 	if from == to {
 		return nil, true

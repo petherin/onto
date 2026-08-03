@@ -1,21 +1,24 @@
 package universe
 
+// TravelMode identifies how a traveller moves along an edge. Physical modes
+// (Walk through Warp) are usable with the travel command; non-physical modes
+// require dedicated commands (shift, jump, etc.).
 type TravelMode string
 
 const (
-	Walk              TravelMode = "walk"
-	Cycle             TravelMode = "cycle"
-	Drive             TravelMode = "drive"
-	Rail              TravelMode = "rail"
-	Flight            TravelMode = "flight"
-	Orbit             TravelMode = "orbit"
-	Warp              TravelMode = "warp"
-	QuantumShift      TravelMode = "quantum"
-	TimelineShift     TravelMode = "timeline"
-	UniverseShift     TravelMode = "universe"
-	SimulationEntry   TravelMode = "simulation"
-	ObserverShift     TravelMode = "observer"
-	MathematicalShift TravelMode = "math"
+	Walk              TravelMode = "walk"        // on foot
+	Cycle             TravelMode = "cycle"       // by bicycle
+	Drive             TravelMode = "drive"       // by road vehicle
+	Rail              TravelMode = "rail"        // by train or metro
+	Flight            TravelMode = "flight"      // by aircraft
+	Orbit             TravelMode = "orbit"       // sub-orbital / space shuttle
+	Warp              TravelMode = "warp"        // faster-than-light
+	QuantumShift      TravelMode = "quantum"     // cross to an adjacent quantum branch
+	TimelineShift     TravelMode = "timeline"    // cross to an adjacent timeline
+	UniverseShift     TravelMode = "universe"    // cross to a parallel universe
+	SimulationEntry   TravelMode = "simulation"  // enter or exit a simulation layer
+	ObserverShift     TravelMode = "observer"    // change observer perspective
+	MathematicalShift TravelMode = "math"        // traverse a mathematical abstraction
 )
 
 // QuantumShiftCost is the cost of a single quantum branch jump.
@@ -34,6 +37,8 @@ func (m TravelMode) IsPhysical() bool {
 	return false
 }
 
+// Edge represents a directional connection between two locations. Cost is used
+// by the pathfinder; Distance is informational only.
 type Edge struct {
 	From        string
 	To          string

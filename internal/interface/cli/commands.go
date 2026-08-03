@@ -1,10 +1,13 @@
 package cli
 
+// Command holds the name and one-line description of a CLI command, used for
+// fuzzy matching and help text generation.
 type Command struct {
 	Name        string
 	Description string
 }
 
+// Commands returns the full list of commands supported by the App.
 func (a *App) Commands() []Command {
 	return []Command{
 		{Name: cmdWhere, Description: "Show the current reality coordinate"},

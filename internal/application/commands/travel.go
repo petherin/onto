@@ -1,3 +1,7 @@
+// Package commands contains the write-side use cases (CQRS commands) that
+// mutate session and universe state. Each command validates its inputs, applies
+// domain logic, persists the result through the Repository interface, and
+// returns a result struct for the interface layer to render.
 package commands
 
 import (
@@ -14,6 +18,7 @@ const (
 	errFmtNoRoute     = "no route: %s"
 )
 
+// TravelResult is the value returned by a successful TravelCommand execution.
 type TravelResult struct {
 	Location       universe.Location
 	Path           []universe.Edge // edges traversed to reach the destination
@@ -24,6 +29,9 @@ type TravelResult struct {
 	SaveErr        error
 }
 
+// TravelCommand moves the session to a physical destination. It rejects paths
+// that cross non-physical boundaries (quantum, timeline) and optionally
+// invokes a LocationGenerator when the destination is a dead end.
 type TravelCommand struct {
 	Universe       *universe.Universe
 	Session        *exploration.Session
@@ -32,6 +40,8 @@ type TravelCommand struct {
 	DeadEndHandler universe.LocationGenerator
 }
 
+// Execute validates the target, finds a physical-only route, moves the session,
+// handles dead ends, and persists any newly generated locations.
 func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 	norm := strings.ToLower(strings.ReplaceAll(target, " ", "-"))
 	if _, ok := c.Universe.GetLocation(norm); !ok {

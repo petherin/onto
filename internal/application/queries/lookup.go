@@ -1,3 +1,6 @@
+// Package queries contains the read-side use cases (CQRS queries) that return
+// information about the current session and universe without mutating any
+// state. Queries are safe to call at any time and have no side effects.
 package queries
 
 import (
@@ -31,6 +34,7 @@ type LookupQuery struct {
 	Session  *exploration.Session
 }
 
+// Where returns the current reality coordinate, outgoing edges, and travel history.
 func (q *LookupQuery) Where() *WhereResult {
 	return &WhereResult{
 		Coordinate:  q.Session.CurrentCoordinate,
@@ -40,6 +44,8 @@ func (q *LookupQuery) Where() *WhereResult {
 	}
 }
 
+// Look returns the name and description of the current location, or false if
+// the location cannot be found in the universe.
 func (q *LookupQuery) Look() (*LookResult, bool) {
 	loc, ok := q.Universe.GetLocation(q.Session.CurrentLocation)
 	if !ok {
@@ -48,6 +54,7 @@ func (q *LookupQuery) Look() (*LookResult, bool) {
 	return &LookResult{Name: loc.Name, Description: loc.Description}, true
 }
 
+// List returns the outgoing edges from the current location.
 func (q *LookupQuery) List() *ListResult {
 	return &ListResult{
 		Edges:       q.Universe.EdgesFrom(q.Session.CurrentLocation),

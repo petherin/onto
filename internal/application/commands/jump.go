@@ -7,6 +7,7 @@ import (
 	"github.com/petherin/onto/internal/domain/universe"
 )
 
+// JumpResult is the value returned by a successful JumpCommand execution.
 type JumpResult struct {
 	NextTimeline string
 	Location     universe.Location
@@ -17,6 +18,8 @@ type JumpResult struct {
 	SaveErr      error
 }
 
+// JumpCommand moves the session to the next (or previous) timeline branch of
+// the current location, creating the branch if it does not yet exist.
 type JumpCommand struct {
 	Universe *universe.Universe
 	Session  *exploration.Session
@@ -24,6 +27,8 @@ type JumpCommand struct {
 	Back     bool // if true, traverse the reverse timeline edge instead of creating a new branch
 }
 
+// Execute runs the command. It delegates to jumpForward or jumpBack depending
+// on the Back flag.
 func (c *JumpCommand) Execute() (*JumpResult, error) {
 	if c.Back {
 		return c.jumpBack()

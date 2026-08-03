@@ -9,6 +9,7 @@ import (
 	"github.com/petherin/onto/internal/domain/universe"
 )
 
+// Where formats the full reality coordinate, possible journeys, and recent history.
 func (a *App) Where() string {
 	q := &queries.LookupQuery{Universe: a.universe, Session: a.session}
 	r := q.Where()
@@ -22,6 +23,7 @@ func (a *App) Where() string {
 	)
 }
 
+// Look formats the name and description of the current location.
 func (a *App) Look() string {
 	q := &queries.LookupQuery{Universe: a.universe, Session: a.session}
 	result, ok := q.Look()
@@ -31,6 +33,7 @@ func (a *App) Look() string {
 	return fmt.Sprintf("%s\n\n%s", result.Name, result.Description)
 }
 
+// List formats the outgoing edges from the current location.
 func (a *App) List() string {
 	q := &queries.LookupQuery{Universe: a.universe, Session: a.session}
 	r := q.List()
@@ -132,7 +135,8 @@ func (a *App) formatEdges(edges []universe.Edge) string {
 }
 
 // travelVerb picks a human-readable progress line based on the dominant mode in the path.
-// It uses the most "exotic" (highest-cost) mode across all edges.
+// It uses the most "exotic" mode, defined by the priority order in the order slice
+// (Warp > Orbit > Flight > Rail > Drive > Cycle > Walk).
 func travelVerb(path []universe.Edge) string {
 	order := []universe.TravelMode{
 		universe.Warp, universe.Orbit, universe.Flight,

@@ -1,3 +1,6 @@
+// Package persistence implements the universe.Repository interface using a
+// JSON file on disk. The serialised format stores locations and edges as flat
+// slices so the file is human-readable and easy to seed by hand.
 package persistence
 
 import (
@@ -17,10 +20,12 @@ type JSONRepository struct {
 	path string
 }
 
+// NewJSONRepository returns a JSONRepository that reads and writes the file at path.
 func NewJSONRepository(path string) *JSONRepository {
 	return &JSONRepository{path: path}
 }
 
+// Load reads the JSON file and reconstructs a Universe from it.
 func (r *JSONRepository) Load() (*universe.Universe, error) {
 	data, err := os.ReadFile(r.path)
 	if err != nil {
@@ -42,6 +47,7 @@ func (r *JSONRepository) Load() (*universe.Universe, error) {
 	return u, nil
 }
 
+// Save serialises the Universe to indented JSON and writes it to disk atomically.
 func (r *JSONRepository) Save(u *universe.Universe) error {
 	s := serialized{
 		Locations: u.AllLocations(),
