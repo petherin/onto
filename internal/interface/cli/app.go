@@ -67,32 +67,32 @@ func (a *App) Execute(input string) string {
 	}
 
 	switch cmd {
-	case "help":
+	case cmdHelp:
 		return a.Help()
-	case "where":
+	case cmdWhere:
 		return a.Where()
-	case "look":
+	case cmdLook:
 		return a.Look()
-	case "ls":
+	case cmdList:
 		return a.List()
-	case "route":
+	case cmdRoute:
 		if args == "" {
 			return "Usage: route <destination>"
 		}
 		return a.Route(args)
-	case "travel":
+	case cmdTravel:
 		if args == "" {
 			return "Usage: travel <destination>"
 		}
 		return a.Travel(args)
-	case "cost":
+	case cmdCost:
 		return a.Cost()
-	case "shift":
-		if args == "back" {
+	case cmdShift:
+		if args == argBack {
 			return a.ShiftBack()
 		}
 		return a.Shift()
-	case "exit":
+	case cmdExit:
 		return msgGoodbye
 	default:
 		if suggestion := a.suggestCommand(cmd); suggestion != "" {

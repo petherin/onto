@@ -12,6 +12,17 @@ const (
 	msgGoodbye            = "Goodbye."
 	fmtUnknownDestSuggest = "Unknown destination: %s\n\nDid you mean '%s'?"
 	fmtSaveWarning        = "\n\nWarning: failed to save config: %v"
+
+	cmdHelp   = "help"
+	cmdWhere  = "where"
+	cmdLook   = "look"
+	cmdList   = "ls"
+	cmdRoute  = "route"
+	cmdTravel = "travel"
+	cmdCost   = "cost"
+	cmdShift  = "shift"
+	cmdExit   = "exit"
+	argBack   = "back"
 )
 
 // dataFile returns the path to the locations JSON file.

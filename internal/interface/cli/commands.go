@@ -7,13 +7,13 @@ type Command struct {
 
 func (a *App) Commands() []Command {
 	return []Command{
-		{Name: "where", Description: "Show the current reality coordinate"},
-		{Name: "look", Description: "Inspect the current location"},
-		{Name: "ls", Description: "List connected locations"},
-		{Name: "route", Description: "Plan a route to a destination"},
-		{Name: "travel", Description: "Travel to a destination"},
-		{Name: "cost", Description: "Show travel cost information"},
-		{Name: "shift", Description: "Jump to the nearest quantum branch of your current location"},
-		{Name: "exit", Description: "Exit the CLI"},
+		{Name: cmdWhere, Description: "Show the current reality coordinate"},
+		{Name: cmdLook, Description: "Inspect the current location"},
+		{Name: cmdList, Description: "List connected locations"},
+		{Name: cmdRoute, Description: "Plan a route to a destination"},
+		{Name: cmdTravel, Description: "Travel to a destination"},
+		{Name: cmdCost, Description: "Show travel cost information"},
+		{Name: cmdShift, Description: "Jump to the nearest quantum branch of your current location"},
+		{Name: cmdExit, Description: "Exit the CLI"},
 	}
 }

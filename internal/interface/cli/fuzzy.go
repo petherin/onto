@@ -44,7 +44,7 @@ func (a *App) suggestCommand(input string) string {
 		return ""
 	}
 
-	candidates := []string{"help", "where", "look", "ls", "route", "travel", "cost", "shift", "exit"}
+	candidates := []string{cmdHelp, cmdWhere, cmdLook, cmdList, cmdRoute, cmdTravel, cmdCost, cmdShift, cmdExit}
 	best := ""
 	bestDistance := 999
 	for _, candidate := range candidates {
