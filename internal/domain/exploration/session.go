@@ -37,12 +37,12 @@ func (s *Session) ShiftTo(loc universe.Location) {
 	s.TravelHistory = append(s.TravelHistory, fmt.Sprintf("%s -> %s (quantum shift)", prev, loc.ID))
 }
 
+// QuantumLevel returns the numeric quantum level of the current position (Q0 → 0, Q1 → 1, …).
+func (s *Session) QuantumLevel() int {
+	return s.CurrentCoordinate.QuantumLevel()
+}
+
 // NextQuantumID returns the location ID that 'shift' would jump to from the current position.
 func (s *Session) NextQuantumID() string {
-	n := 0
-	q := s.CurrentCoordinate.Quantum
-	if len(q) > 1 && q[0] == 'Q' {
-		fmt.Sscanf(q[1:], "%d", &n)
-	}
-	return fmt.Sprintf("%s-q%d", s.CurrentLocation, n+1)
+	return fmt.Sprintf("%s-q%d", s.CurrentLocation, s.QuantumLevel()+1)
 }

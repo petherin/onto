@@ -43,14 +43,9 @@ func (r *JSONRepository) Load() (*universe.Universe, error) {
 }
 
 func (r *JSONRepository) Save(u *universe.Universe) error {
-	var s serialized
-	for _, loc := range u.Locations {
-		s.Locations = append(s.Locations, loc)
-	}
-	for _, list := range u.Edges {
-		for _, e := range list {
-			s.Edges = append(s.Edges, e)
-		}
+	s := serialized{
+		Locations: u.AllLocations(),
+		Edges:     u.AllEdgesFlat(),
 	}
 
 	data, err := json.MarshalIndent(s, "", "  ")

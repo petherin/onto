@@ -1,6 +1,9 @@
 package universe
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type Coordinate struct {
 	Meta        string
@@ -18,6 +21,15 @@ type Coordinate struct {
 	Location    string
 	Observer    string
 	Time        time.Time
+}
+
+// QuantumLevel returns the numeric quantum level encoded in the Quantum field (Q0 → 0, Q1 → 1, …).
+func (c Coordinate) QuantumLevel() int {
+	n := 0
+	if len(c.Quantum) > 1 && c.Quantum[0] == 'Q' {
+		fmt.Sscanf(c.Quantum[1:], "%d", &n)
+	}
+	return n
 }
 
 func NewCoordinate() Coordinate {

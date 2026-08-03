@@ -34,7 +34,7 @@ type LookupQuery struct {
 func (q *LookupQuery) Where() *WhereResult {
 	return &WhereResult{
 		Coordinate:  q.Session.CurrentCoordinate,
-		Edges:       q.Universe.Edges[q.Session.CurrentLocation],
+		Edges:       q.Universe.EdgesFrom(q.Session.CurrentLocation),
 		NextQuantum: q.Session.NextQuantumID(),
 		History:     q.Session.TravelHistory,
 	}
@@ -50,7 +50,7 @@ func (q *LookupQuery) Look() (*LookResult, bool) {
 
 func (q *LookupQuery) List() *ListResult {
 	return &ListResult{
-		Edges:       q.Universe.Edges[q.Session.CurrentLocation],
+		Edges:       q.Universe.EdgesFrom(q.Session.CurrentLocation),
 		NextQuantum: q.Session.NextQuantumID(),
 	}
 }

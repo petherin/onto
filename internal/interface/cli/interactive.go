@@ -32,7 +32,7 @@ func (h *InteractiveHandler) Handle(u *universe.Universe, id string, coord unive
 	case "a", "auto":
 		created := h.gen.Handle(u, id, coord)
 		if created {
-			for _, edge := range u.Edges[id] {
+			for _, edge := range u.EdgesFrom(id) {
 				fmt.Printf("Auto-generated: %s (%s)\n", locationDisplayName(u, edge.To), edge.To)
 				break
 			}

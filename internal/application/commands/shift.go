@@ -13,6 +13,7 @@ type ShiftResult struct {
 	Edges       []universe.Edge
 	History     []string
 	Persisted   bool
+	Reversed    bool // true when shifting back to a lower quantum level
 	SaveErr     error
 }
 
@@ -20,54 +21,57 @@ type ShiftCommand struct {
 	Universe *universe.Universe
 	Session  *exploration.Session
 	Repo     universe.Repository
+	Back     bool // if true, traverse the reverse quantum edge instead of creating a new branch
 }
 
 func (c *ShiftCommand) Execute() (*ShiftResult, error) {
-	currentQ := c.Session.CurrentCoordinate.Quantum
-	n := 0
-	if len(currentQ) > 1 && currentQ[0] == 'Q' {
-		fmt.Sscanf(currentQ[1:], "%d", &n)
+	if c.Back {
+		return c.shiftBack()
 	}
-	nextN := n + 1
-	nextQ := fmt.Sprintf("Q%d", nextN)
+	return c.shiftForward()
+}
 
+func (c *ShiftCommand) shiftForward() (*ShiftResult, error) {
+	nextQ := fmt.Sprintf("Q%d", c.Session.QuantumLevel()+1)
 	destID := c.Session.NextQuantumID()
+	currentName := locationName(c.Universe, c.Session.CurrentLocation)
+	universe.BranchQuantum(c.Universe, c.Session.CurrentLocation, c.Session.CurrentCoordinate, currentName, destID, nextQ)
+	return c.completeShift(destID, nextQ, false)
+}
 
-	if _, exists := c.Universe.GetLocation(destID); !exists {
-		coord := c.Session.CurrentCoordinate
-		coord.Quantum = nextQ
-		currentName := locationName(c.Universe, c.Session.CurrentLocation)
-		loc := universe.Location{
-			ID:          destID,
-			Name:        fmt.Sprintf("%s (%s)", currentName, nextQ),
-			Description: fmt.Sprintf("A neighbouring quantum branch of %s. The surroundings are almost identical, but something is subtly different.", currentName),
-			Coordinate:  coord,
-		}
-		c.Universe.AddLocation(loc)
-		c.Universe.AddEdge(universe.Edge{
-			From:        c.Session.CurrentLocation,
-			To:          destID,
-			Mode:        universe.QuantumShift,
-			Cost:        universe.QuantumShiftCost,
-			Description: fmt.Sprintf("Quantum shift to %s", nextQ),
-		})
-		c.Universe.AddEdge(universe.Edge{
-			From:        destID,
-			To:          c.Session.CurrentLocation,
-			Mode:        universe.QuantumShift,
-			Cost:        universe.QuantumShiftCost,
-			Description: fmt.Sprintf("Quantum shift back to %s", currentQ),
-		})
+func (c *ShiftCommand) shiftBack() (*ShiftResult, error) {
+	currentLevel := c.Session.QuantumLevel()
+	if currentLevel == 0 {
+		return nil, fmt.Errorf("already at base quantum level (Q0) — cannot shift back further")
 	}
 
+	// Find the quantum edge that leads to a lower quantum level.
+	for _, e := range c.Universe.EdgesFrom(c.Session.CurrentLocation) {
+		if e.Mode != universe.QuantumShift {
+			continue
+		}
+		dest, ok := c.Universe.GetLocation(e.To)
+		if !ok {
+			continue
+		}
+		if dest.Coordinate.QuantumLevel() < currentLevel {
+			return c.completeShift(dest.ID, dest.Coordinate.Quantum, true)
+		}
+	}
+
+	return nil, fmt.Errorf("no quantum path back from here")
+}
+
+func (c *ShiftCommand) completeShift(destID, quantum string, reversed bool) (*ShiftResult, error) {
 	loc, _ := c.Universe.GetLocation(destID)
 	c.Session.ShiftTo(loc)
 
 	result := &ShiftResult{
-		NextQuantum: nextQ,
+		NextQuantum: quantum,
 		Location:    loc,
-		Edges:       c.Universe.Edges[destID],
+		Edges:       c.Universe.EdgesFrom(destID),
 		History:     c.Session.TravelHistory,
+		Reversed:    reversed,
 	}
 
 	if err := c.Repo.Save(c.Universe); err != nil {
@@ -75,7 +79,6 @@ func (c *ShiftCommand) Execute() (*ShiftResult, error) {
 	} else {
 		result.Persisted = true
 	}
-
 	return result, nil
 }
 

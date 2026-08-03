@@ -53,8 +53,12 @@ func (a *App) formatTravelResult(r *commands.TravelResult, target string) string
 }
 
 func (a *App) formatShiftResult(r *commands.ShiftResult) string {
-	base := fmt.Sprintf("Shifting...\n\nQuantum branch entered: %s\n\nCurrent Location\n%s\n\n%s\n\nPossible journeys\n%s\n\nTravel history\n%s",
-		r.NextQuantum, r.Location.Name, r.Location.Description,
+	verb := "Quantum branch entered"
+	if r.Reversed {
+		verb = "Quantum branch exited"
+	}
+	base := fmt.Sprintf("Shifting...\n\n%s: %s\n\nCurrent Location\n%s\n\n%s\n\nPossible journeys\n%s\n\nTravel history\n%s",
+		verb, r.NextQuantum, r.Location.Name, r.Location.Description,
 		a.formatEdges(r.Edges, a.session.NextQuantumID()),
 		a.formatHistory(r.History),
 	)
@@ -75,10 +79,25 @@ func (a *App) formatRouteResult(r *queries.RouteResult) string {
 
 func (a *App) formatEdges(edges []universe.Edge, nextQuantum string) string {
 	var lines []string
+	hasReverseQuantum := false
+
 	for _, edge := range edges {
+		if edge.Mode == universe.QuantumShift {
+			// Don't list quantum edges as regular journeys — they need 'shift' or 'shift back'.
+			if dest, ok := a.universe.GetLocation(edge.To); ok {
+				if dest.Coordinate.QuantumLevel() < a.session.QuantumLevel() {
+					hasReverseQuantum = true
+				}
+			}
+			continue
+		}
 		lines = append(lines, fmt.Sprintf("- %s (%s, %.0f cost)", a.locationName(edge.To), string(edge.Mode), edge.Cost))
 	}
+
 	lines = append(lines, fmt.Sprintf("- %s (quantum, %.0f cost — use 'shift')", nextQuantum, universe.QuantumShiftCost))
+	if hasReverseQuantum {
+		lines = append(lines, fmt.Sprintf("  (use 'shift back' to return to the previous quantum branch)"))
+	}
 	return strings.Join(lines, "\n")
 }
 
@@ -107,11 +126,11 @@ func (a *App) routeUnavailableDiagnostics(target string) string {
 		b.WriteString(fmt.Sprintf("%s is NOT present in universe\n", sl))
 	}
 	b.WriteString("Outgoing from current location:\n")
-	for _, e := range a.universe.Edges[a.session.CurrentLocation] {
+	for _, e := range a.universe.EdgesFrom(a.session.CurrentLocation) {
 		b.WriteString(fmt.Sprintf("- %s (%s)\n", e.To, e.Mode))
 	}
 	b.WriteString("\nKnown location IDs:\n")
-	for id := range a.universe.Locations {
+	for _, id := range a.universe.AllLocationIDs() {
 		b.WriteString(fmt.Sprintf("- %s\n", id))
 	}
 	return b.String()

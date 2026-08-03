@@ -1,63 +1,100 @@
 package cli
 
 import (
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAppWhere(t *testing.T) {
 	app := NewApp()
 	output := app.Execute("where")
 
-	if !strings.Contains(output, "Reality Coordinate") {
-		t.Fatalf("expected coordinate header, got %q", output)
-	}
-
-	if !strings.Contains(output, "Earth") {
-		t.Fatalf("expected Earth in output, got %q", output)
-	}
+	assert.Contains(t, output, "Reality Coordinate")
+	assert.Contains(t, output, "Earth")
 }
 
 func TestAppRouteToStation(t *testing.T) {
 	app := NewApp()
 	output := app.Execute("route station")
 
-	if !strings.Contains(output, "Route") {
-		t.Fatalf("expected route output, got %q", output)
-	}
-
-	if !strings.Contains(output, "Station") {
-		t.Fatalf("expected station in route output, got %q", output)
-	}
+	assert.Contains(t, output, "Route")
+	assert.Contains(t, output, "Station")
 }
 
 func TestAppTravelToStation(t *testing.T) {
 	app := NewApp()
 	output := app.Execute("travel station")
 
-	if !strings.Contains(output, "Arrived") {
-		t.Fatalf("expected arrival message, got %q", output)
-	}
+	assert.Contains(t, output, "Arrived")
 }
 
 func TestAppTravelShowsPossibleJourneys(t *testing.T) {
 	app := NewApp()
 	output := app.Execute("travel station")
 
-	if !strings.Contains(output, "Possible journeys") {
-		t.Fatalf("expected nearby journey suggestions, got %q", output)
-	}
+	assert.Contains(t, output, "Possible journeys")
 }
 
 func TestAppSuggestsSimilarDestination(t *testing.T) {
 	app := NewApp()
 	output := app.Execute("route parl")
 
-	if !strings.Contains(output, "Did you mean") {
-		t.Fatalf("expected destination suggestion, got %q", output)
-	}
+	assert.Contains(t, output, "Did you mean")
+	assert.Contains(t, output, "park")
+}
 
-	if !strings.Contains(output, "park") {
-		t.Fatalf("expected park suggestion, got %q", output)
+func TestAppShift_CreatesQuantumBranch(t *testing.T) {
+	app := NewApp()
+	output := app.Execute("shift")
+
+	assert.Contains(t, output, "Q1")
+	assert.Contains(t, output, "quantum")
+}
+
+func TestAppShift_UpdatesLocation(t *testing.T) {
+	app := NewApp()
+	app.Execute("shift")
+	output := app.Execute("where")
+
+	assert.Contains(t, output, "home-q1")
+}
+
+func TestAppHelp_ListsAllCommands(t *testing.T) {
+	app := NewApp()
+	output := app.Execute("help")
+
+	for _, cmd := range []string{"where", "look", "ls", "route", "travel", "shift", "exit"} {
+		assert.Contains(t, output, cmd, "help should list command %q", cmd)
 	}
+}
+
+func TestAppUnknownCommand_SuggestsAlternative(t *testing.T) {
+	app := NewApp()
+	output := app.Execute("wher") // typo of "where"
+
+	assert.Contains(t, output, "Did you mean")
+	assert.Contains(t, output, "where")
+}
+
+func TestAppEmptyInput_ReturnsEmpty(t *testing.T) {
+	app := NewApp()
+	output := app.Execute("")
+
+	require.Empty(t, output)
+}
+
+func TestAppLook_ReturnsDescription(t *testing.T) {
+	app := NewApp()
+	output := app.Execute("look")
+
+	assert.Contains(t, output, "Home")
+}
+
+func TestAppList_ShowsQuantumOption(t *testing.T) {
+	app := NewApp()
+	output := app.Execute("ls")
+
+	assert.Contains(t, output, "shift")
 }

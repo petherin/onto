@@ -12,7 +12,8 @@ func (a *App) suggestDestination(target string) string {
 	lowerTarget := strings.ToLower(target)
 	compactTarget := strings.ReplaceAll(lowerTarget, " ", "")
 
-	for id, loc := range a.universe.Locations {
+	for _, loc := range a.universe.AllLocations() {
+		id := loc.ID
 		if d := levenshteinDistance(lowerTarget, strings.ToLower(id)); d < bestDistance {
 			bestDistance = d
 			best = id

@@ -12,6 +12,7 @@ import (
 	"github.com/petherin/onto/internal/domain/navigation"
 	"github.com/petherin/onto/internal/domain/universe"
 	"github.com/petherin/onto/internal/infrastructure/generator"
+	infranav "github.com/petherin/onto/internal/infrastructure/navigation"
 	"github.com/petherin/onto/internal/infrastructure/persistence"
 )
 
@@ -38,9 +39,8 @@ func NewApp() *App {
 
 	start := sl
 	if _, ok := u.GetLocation(start); !ok {
-		for id := range u.Locations {
-			start = id
-			break
+		if ids := u.AllLocationIDs(); len(ids) > 0 {
+			start = ids[0]
 		}
 	}
 
@@ -49,7 +49,7 @@ func NewApp() *App {
 		universe:   u,
 		session:    exploration.NewSession(start, loc.Coordinate),
 		repo:       repo,
-		pathfinder: navigation.NewBFSPathfinder(),
+		pathfinder: infranav.NewBFSPathfinder(),
 	}
 }
 
@@ -88,6 +88,9 @@ func (a *App) Execute(input string) string {
 	case "cost":
 		return a.Cost()
 	case "shift":
+		if args == "back" {
+			return a.ShiftBack()
+		}
 		return a.Shift()
 	case "exit":
 		return "Goodbye."
@@ -109,7 +112,8 @@ func (a *App) Help() string {
 		"route <destination>    Plan a route to a known place",
 		"travel <destination>   Move to a known place",
 		"cost                   Show travel cost information",
-		"shift                  Jump to the nearest quantum branch of your current location",
+		"shift                  Jump forward to the next quantum branch",
+		"shift back             Return to the previous quantum branch",
 		"exit                   Leave the CLI",
 		"",
 		"Example destinations:",
@@ -150,14 +154,19 @@ func (a *App) Travel(target string) string {
 }
 
 func (a *App) Shift() string {
-	cmd := &commands.ShiftCommand{
-		Universe: a.universe,
-		Session:  a.session,
-		Repo:     a.repo,
-	}
+	cmd := &commands.ShiftCommand{Universe: a.universe, Session: a.session, Repo: a.repo}
 	result, err := cmd.Execute()
 	if err != nil {
 		return fmt.Sprintf("Shift failed: %v", err)
+	}
+	return a.formatShiftResult(result)
+}
+
+func (a *App) ShiftBack() string {
+	cmd := &commands.ShiftCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
+	result, err := cmd.Execute()
+	if err != nil {
+		return fmt.Sprintf("Cannot shift back: %v", err)
 	}
 	return a.formatShiftResult(result)
 }

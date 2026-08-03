@@ -8,15 +8,6 @@ type Pathfinder interface {
 	FindRoute(u *universe.Universe, from, to string) ([]universe.Edge, bool)
 }
 
-// BFSPathfinder is the default Pathfinder using breadth-first search.
-type BFSPathfinder struct{}
-
-func NewBFSPathfinder() *BFSPathfinder { return &BFSPathfinder{} }
-
-func (p *BFSPathfinder) FindRoute(u *universe.Universe, from, to string) ([]universe.Edge, bool) {
-	return FindRoute(u, from, to)
-}
-
 // FindRoute runs BFS from from to to across the universe graph.
 func FindRoute(u *universe.Universe, from, to string) ([]universe.Edge, bool) {
 	if from == to {
@@ -32,7 +23,7 @@ func FindRoute(u *universe.Universe, from, to string) ([]universe.Edge, bool) {
 		current := queue[0]
 		queue = queue[1:]
 
-		for _, edge := range u.Edges[current] {
+		for _, edge := range u.EdgesFrom(current) {
 			if visited[edge.To] {
 				continue
 			}

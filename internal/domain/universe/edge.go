@@ -21,6 +21,16 @@ const (
 // QuantumShiftCost is the cost of a single quantum branch jump.
 const QuantumShiftCost = 20.0
 
+// IsPhysical reports whether a TravelMode can be used with the travel command.
+// Non-physical modes (quantum, timeline, etc.) require dedicated commands.
+func (m TravelMode) IsPhysical() bool {
+	switch m {
+	case Walk, Cycle, Drive, Rail, Flight, Orbit, Warp:
+		return true
+	}
+	return false
+}
+
 type Edge struct {
 	From        string
 	To          string

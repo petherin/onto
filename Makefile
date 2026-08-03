@@ -18,6 +18,20 @@ build:                 ## Build the native binary to ./onto
 docker-build:          ## Build the Docker image
 	docker compose build
 
+.PHONY: docker-clean
+docker-clean:          ## Stop and remove any leftover containers, anonymous volumes, and networks
+	docker compose down --volumes --remove-orphans
+
+## ── Test ─────────────────────────────────────────────────────────────────────
+
+.PHONY: test
+test:                  ## Run all tests
+	go test ./...
+
+.PHONY: mocks
+mocks:                 ## Regenerate testify mocks from domain interfaces (requires: go install github.com/vektra/mockery/v2@latest)
+	mockery
+
 ## ── Misc ─────────────────────────────────────────────────────────────────────
 
 .PHONY: toc

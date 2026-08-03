@@ -32,8 +32,14 @@ func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 		return nil, fmt.Errorf("unknown destination: %s", target)
 	}
 
-	if _, ok := c.Pathfinder.FindRoute(c.Universe, c.Session.CurrentLocation, norm); !ok {
+	path, ok := c.Pathfinder.FindRoute(c.Universe, c.Session.CurrentLocation, norm)
+	if !ok {
 		return nil, fmt.Errorf("no route: %s", target)
+	}
+	for _, e := range path {
+		if !e.Mode.IsPhysical() {
+			return nil, fmt.Errorf("no physical route to %s — quantum boundaries cannot be crossed on foot", target)
+		}
 	}
 
 	loc, _ := c.Universe.GetLocation(norm)
@@ -47,7 +53,7 @@ func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 
 	result := &TravelResult{
 		Location:       loc,
-		Edges:          c.Universe.Edges[norm],
+		Edges:          c.Universe.EdgesFrom(norm),
 		History:        c.Session.TravelHistory,
 		DeadEndHandled: deadEndHandled,
 	}
@@ -65,7 +71,7 @@ func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 
 // ensureOutgoing returns true if the location is a dead end and the handler created new edges.
 func ensureOutgoing(u *universe.Universe, id, cameFrom string, handler universe.LocationGenerator) bool {
-	for _, e := range u.Edges[id] {
+	for _, e := range u.EdgesFrom(id) {
 		if e.To != cameFrom {
 			return false
 		}
