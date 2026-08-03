@@ -9,6 +9,11 @@ import (
 	"github.com/petherin/onto/internal/domain/universe"
 )
 
+const (
+	errFmtUnknownDest = "unknown destination: %s"
+	errFmtNoRoute     = "no route: %s"
+)
+
 type TravelResult struct {
 	Location       universe.Location
 	Edges          []universe.Edge
@@ -29,12 +34,12 @@ type TravelCommand struct {
 func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 	norm := strings.ToLower(strings.ReplaceAll(target, " ", "-"))
 	if _, ok := c.Universe.GetLocation(norm); !ok {
-		return nil, fmt.Errorf("unknown destination: %s", target)
+		return nil, fmt.Errorf(errFmtUnknownDest, target)
 	}
 
 	path, ok := c.Pathfinder.FindRoute(c.Universe, c.Session.CurrentLocation, norm)
 	if !ok {
-		return nil, fmt.Errorf("no route: %s", target)
+		return nil, fmt.Errorf(errFmtNoRoute, target)
 	}
 	for _, e := range path {
 		if !e.Mode.IsPhysical() {

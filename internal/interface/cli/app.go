@@ -93,7 +93,7 @@ func (a *App) Execute(input string) string {
 		}
 		return a.Shift()
 	case "exit":
-		return "Goodbye."
+		return msgGoodbye
 	default:
 		if suggestion := a.suggestCommand(cmd); suggestion != "" {
 			return fmt.Sprintf("Unknown command: %s\n\nDid you mean '%s'?\n\n%s", cmd, suggestion, a.Help())
@@ -145,7 +145,7 @@ func (a *App) Travel(target string) string {
 	result, err := cmd.Execute(target)
 	if err != nil {
 		if suggestion := a.suggestDestination(target); suggestion != "" {
-			return fmt.Sprintf("Unknown destination: %s\n\nDid you mean '%s'?", target, suggestion)
+			return fmt.Sprintf(fmtUnknownDestSuggest, target, suggestion)
 		}
 		return a.routeUnavailableDiagnostics(target)
 	}
@@ -176,7 +176,7 @@ func (a *App) Route(target string) string {
 	result, err := q.Execute(target)
 	if err != nil {
 		if suggestion := a.suggestDestination(target); suggestion != "" {
-			return fmt.Sprintf("Unknown destination: %s\n\nDid you mean '%s'?", target, suggestion)
+			return fmt.Sprintf(fmtUnknownDestSuggest, target, suggestion)
 		}
 		return fmt.Sprintf("Route unavailable to %s.", target)
 	}
@@ -206,7 +206,7 @@ func (a *App) Run() {
 			break
 		}
 		response := a.Execute(strings.TrimSpace(input))
-		if response == "Goodbye." {
+		if response == msgGoodbye {
 			fmt.Println(response)
 			break
 		}

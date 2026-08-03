@@ -45,7 +45,7 @@ func (a *App) formatTravelResult(r *commands.TravelResult, target string) string
 	)
 	if r.DeadEndHandled {
 		if r.SaveErr != nil {
-			return base + fmt.Sprintf("\n\nWarning: failed to save config: %v", r.SaveErr)
+			return base + fmt.Sprintf(fmtSaveWarning, r.SaveErr)
 		}
 		return base + fmt.Sprintf("\n\nPersisted auto-generated route(s) to %s", dataFile())
 	}
@@ -63,7 +63,7 @@ func (a *App) formatShiftResult(r *commands.ShiftResult) string {
 		a.formatHistory(r.History),
 	)
 	if r.SaveErr != nil {
-		return base + fmt.Sprintf("\n\nWarning: failed to save config: %v", r.SaveErr)
+		return base + fmt.Sprintf(fmtSaveWarning, r.SaveErr)
 	}
 	return base + fmt.Sprintf("\n\nPersisted to %s", dataFile())
 }

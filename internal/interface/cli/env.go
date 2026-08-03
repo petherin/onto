@@ -8,6 +8,10 @@ const (
 
 	defaultDataFile      = "data/locations.json"
 	defaultStartLocation = "home"
+
+	msgGoodbye            = "Goodbye."
+	fmtUnknownDestSuggest = "Unknown destination: %s\n\nDid you mean '%s'?"
+	fmtSaveWarning        = "\n\nWarning: failed to save config: %v"
 )
 
 // dataFile returns the path to the locations JSON file.
