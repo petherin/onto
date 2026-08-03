@@ -117,10 +117,33 @@ The app is functional. It includes:
 
 ## Getting started
 
-Run the current entrypoint with:
+**Natively** (requires Go):
 
 ```bash
+make run
+# or directly:
 go run ./cmd/onto
+```
+
+**In Docker** (requires Docker):
+
+```bash
+make docker-run
+# or directly:
+docker compose run --rm onto
+```
+
+The `data/` directory is mounted as a volume when running in Docker, so any locations you create or travel to persist to the host between runs.
+
+Environment variables can be set in `.env` (copy `.env.example` to get started) or overridden inline:
+
+| Variable | Default | Description |
+|---|---|---|
+| `ONTO_DATA_FILE` | `data/locations.json` | Path to the universe JSON file |
+| `ONTO_START_LOCATION` | `home` | Location ID the app starts at |
+
+```bash
+ONTO_START_LOCATION=station make docker-run
 ```
 
 ## Roadmap

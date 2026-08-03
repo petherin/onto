@@ -1,10 +1,29 @@
-.PHONY: start
+## ── Run ──────────────────────────────────────────────────────────────────────
 
-start:
+.PHONY: run
+run:                   ## Run the app natively (requires Go installed)
 	go run ./cmd/onto
 
-.PHONY: regen-toc
-regen-toc:
-	# Regenerate README table-of-contents in-place using markdown-toc (npm)
-	# Uses official Node image; requires network to fetch package via npx.
+.PHONY: docker-run
+docker-run:            ## Run the app in Docker (requires Docker installed)
+	docker compose run --rm onto
+
+## ── Build ────────────────────────────────────────────────────────────────────
+
+.PHONY: build
+build:                 ## Build the native binary to ./onto
+	go build -o onto ./cmd/onto
+
+.PHONY: docker-build
+docker-build:          ## Build the Docker image
+	docker compose build
+
+## ── Misc ─────────────────────────────────────────────────────────────────────
+
+.PHONY: toc
+toc:                   ## Regenerate the README table of contents
 	docker run --rm -v $(PWD):/work -w /work node:18 npx -y markdown-toc -i README.md
+
+.PHONY: help
+help:                  ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*##' Makefile | awk 'BEGIN {FS = ":.*##"}; {printf "  %-16s %s\n", $$1, $$2}'

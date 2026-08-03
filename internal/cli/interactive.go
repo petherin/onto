@@ -14,7 +14,7 @@ func (a *App) interactiveEnsureOutgoing(id string) bool {
 	if a.interactiveReader == nil {
 		return false
 	}
-	fmt.Printf("No outgoing journeys from %s.\n", displayName(id))
+	fmt.Printf("No outgoing journeys from %s.\n", a.displayName(id))
 	fmt.Println("Options: (a)uto-generate, (s)kip, (c)reate custom")
 	fmt.Print("Choose [a/s/c]: ")
 	line, _ := a.interactiveReader.ReadString('\n')
@@ -28,7 +28,7 @@ func (a *App) interactiveEnsureOutgoing(id string) bool {
 		if created {
 			// announce created node
 			for _, edge := range a.universe.Edges[id] {
-				fmt.Printf("Auto-generated: %s (%s)\n", displayName(edge.To), edge.To)
+				fmt.Printf("Auto-generated: %s (%s)\n", a.displayName(edge.To), edge.To)
 				break
 			}
 		}

@@ -28,3 +28,6 @@ vendor/
 
 # Coverage reports
 coverage.out
+
+# Local environment variables
+.env

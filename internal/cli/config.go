@@ -61,5 +61,5 @@ func LoadUniverse(path string) (*reality.Universe, error) {
 
 // helper for App to save current universe
 func (a *App) saveConfig() error {
-	return SaveUniverse(a.universe, "data/locations.json")
+	return SaveUniverse(a.universe, dataFile())
 }

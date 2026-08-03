@@ -13,6 +13,7 @@ func (a *App) Commands() []Command {
 		{Name: "route", Description: "Plan a route to a destination"},
 		{Name: "travel", Description: "Travel to a destination"},
 		{Name: "cost", Description: "Show travel cost information"},
+		{Name: "shift", Description: "Jump to the nearest quantum branch of your current location"},
 		{Name: "exit", Description: "Exit the CLI"},
 	}
 }
