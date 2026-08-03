@@ -13,19 +13,15 @@ func (a *App) suggestDestination(target string) string {
 	compactTarget := strings.ReplaceAll(lowerTarget, " ", "")
 
 	for id, loc := range a.universe.Locations {
-		distanceID := levenshteinDistance(lowerTarget, strings.ToLower(id))
-		if distanceID < bestDistance {
-			bestDistance = distanceID
+		if d := levenshteinDistance(lowerTarget, strings.ToLower(id)); d < bestDistance {
+			bestDistance = d
 			best = id
 		}
-
-		compactID := strings.ReplaceAll(strings.ToLower(id), "-", "")
-		compactID = strings.ReplaceAll(compactID, "_", "")
+		compactID := strings.ReplaceAll(strings.ReplaceAll(strings.ToLower(id), "-", ""), "_", "")
 		if d := levenshteinDistance(compactTarget, compactID); d < bestDistance {
 			bestDistance = d
 			best = id
 		}
-
 		if d := levenshteinDistance(lowerTarget, strings.ToLower(loc.Name)); d < bestDistance {
 			bestDistance = d
 			best = id

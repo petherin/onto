@@ -9,6 +9,7 @@ Onto is an experimental CLI for navigating reality as a coordinate system.
 - [Coordinate model](#coordinate-model)
 - [Example CLI experience](#example-cli-experience)
 - [Current status](#current-status)
+- [Architecture](#architecture)
 - [Getting started](#getting-started)
 - [Roadmap](#roadmap)
 - [Notes](#notes)
@@ -114,6 +115,59 @@ The app is functional. It includes:
 - location and edge data loaded from `data/locations.json`, with a built-in fallback map
 - interactive prompting to create new locations when arriving at a dead-end node
 - auto-save of the universe graph back to `data/locations.json` after travel
+
+## Architecture
+
+The codebase follows **Domain-Driven Design (DDD)** with a strict layered structure. Each layer may only import inward — never outward.
+
+```
+cmd/onto/               Entry point — wires everything together and calls Run()
+
+internal/
+  domain/               The heart of the software. No imports from other internal layers.
+    universe/           Core domain: Location (entity), Coordinate, Edge, TravelMode
+                        (value objects), Universe (aggregate root), and the
+                        Repository + LocationGenerator interfaces it defines.
+    navigation/         Domain service: BFS pathfinding (FindRoute, PathDistance, PathCost).
+    exploration/        Session entity — tracks current position, travel history,
+                        and quantum state. Owned by the user, not the universe.
+
+  application/          Orchestrates use cases. Imports domain only.
+    commands/           Write operations that change state:
+                          TravelCommand — moves the session to a destination.
+                          ShiftCommand  — jumps to the next quantum branch.
+    queries/            Read operations that never change state:
+                          LookupQuery   — Where, Look, List.
+                          RouteQuery    — plans a route without travelling it.
+
+  infrastructure/       Technical implementations of domain interfaces.
+    persistence/        JSONRepository — loads and saves Universe to a JSON file.
+    generator/          NearbyGenerator — auto-creates locations at dead ends.
+
+  interface/
+    cli/                Delivery mechanism. Knows about the terminal; the domain
+                        does not know the CLI exists.
+                          App             — command dispatcher and run loop.
+                          display.go      — formats application results as strings.
+                          interactive.go  — InteractiveHandler (prompts user at dead ends).
+                          fuzzy.go        — Levenshtein-based command/destination suggestions.
+```
+
+### Layer rules
+
+| Layer | May import | Must not import |
+|---|---|---|
+| `domain` | standard library only | anything in `internal/` |
+| `application` | `domain` | `infrastructure`, `interface` |
+| `infrastructure` | `domain` | `application`, `interface` |
+| `interface/cli` | `domain`, `application`, `infrastructure` | — |
+
+### Key patterns
+
+- **Aggregate root** — `Universe` owns all `Location` entities and `Edge` value objects. Nothing mutates them directly; all changes go through `Universe` methods.
+- **Repository interface** — defined in `domain/universe`, implemented in `infrastructure/persistence`. The domain never references a file or database.
+- **LocationGenerator interface** — also defined in the domain. Two implementations exist: `NearbyGenerator` (auto) and `InteractiveHandler` (prompts user). The `TravelCommand` accepts either without knowing which it has.
+- **Commands vs Queries (CQRS)** — commands (`Travel`, `Shift`) mutate session and universe state and persist the result. Queries (`Where`, `Look`, `List`, `Route`) are pure reads with no side effects.
 
 ## Getting started
 

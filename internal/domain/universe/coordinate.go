@@ -1,4 +1,4 @@
-package reality
+package universe
 
 import "time"
 

@@ -6,9 +6,6 @@ const (
 	// AppVersion is the current version string shown at startup.
 	AppVersion = "Onto Explorer v0.1"
 
-	// QuantumShiftCost is the cost of a single quantum branch jump.
-	QuantumShiftCost = 20.0
-
 	defaultDataFile      = "data/locations.json"
 	defaultStartLocation = "home"
 )

@@ -1,4 +1,4 @@
-package reality
+package universe
 
 type Location struct {
 	ID          string
