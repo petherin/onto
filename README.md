@@ -227,6 +227,10 @@ make test
 make mocks
 ```
 
+**Continuous Integration & Tagging:**
+
+Pushes to `main` automatically run unit tests and linting via GitHub Actions. Upon success, semantic version tags (`vX.Y.Z`) are automatically generated and pushed based on [Conventional Commit](https://www.conventionalcommits.org/) message prefixes (`fix:`, `feat:`, `BREAKING CHANGE:`).
+
 ## Roadmap
 
 1. ~~Implement a simple local-world graph for Earth.~~ ✓
