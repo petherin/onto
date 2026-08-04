@@ -23,35 +23,59 @@ This project begins small, but it is designed to grow into a reality navigator r
 
 ## Vision
 
-Instead of treating reality as a single fixed map, Onto models existence as layered coordinates. Each layer is a distinct axis of reality that you can navigate along — from the mundane to the deeply abstract.
-
-### Spatial layer
-The baseline. Walking to a station, taking a train, flying to another continent, reaching orbit, warping between stars. All of these are the same operation: physical movement through space at different scales. The coordinate tracks planet, country, region, city, and location. At the largest scales this includes regions beyond our observable horizon — cosmologically distant but still the same universe, with the same physical laws and constants. No new axis is needed; it is just a very long journey. _(Tegmark Level I applies to this extreme end only — regions beyond the observable horizon — not to local travel.)_
-
-### Physical universe layer _(Tegmark Level II)_
-Beyond our own bubble, inflationary cosmology suggests other universes exist with different physical constants — a different speed of light, a different gravitational constant, or entirely different fundamental forces. These are not quantum branches of our universe; they are separate universes produced by the same inflationary process. A `universe` shift crosses into one of these.
-
-### Quantum branch layer _(Tegmark Level III)_
-Every quantum event that could have gone differently spawns a parallel branch of the universe — the many-worlds interpretation of quantum mechanics. In Onto, `shift` steps you sideways into an adjacent branch. The physics are identical, but small differences have accumulated from that branching point forward. The further you shift, the more things diverge.
-
-### Mathematical layer _(Tegmark Level IV)_
-The most abstract navigable space. The mathematical multiverse hypothesis holds that every self-consistent mathematical structure exists as its own reality — not just our physics, but any set of axioms that doesn't contradict itself. A mathematical reality might have different numbers of spatial dimensions, different rules of logic, or laws of nature that bear no resemblance to ours. Crossing into a mathematical reality is not a physical journey; it is a transition into a different formal system.
-
-### Historical / timeline layer
-A coarser kind of branching than quantum. A timeline represents a history where a significant event went differently — a war that ended another way, a technology that was never invented, a civilization that collapsed or didn't. Timeline branches are more expensive to cross (cost 800 vs 20 for quantum) because the differences are larger and the distance harder to bridge. `jump` moves you forward into a new alternate history; `jump back` returns you to the one you came from.
-
-### Simulation layer
-If a reality can be computed, it can be nested. This layer tracks depth within a simulation stack — whether you are in the base reality, inside a computed world running on top of it, or deeper still. `simulation` entry moves you down into the next layer; the return path leads back out.
-
-### Perceptual / observer layer
-Some differences in reality are not about where or when you are, but about the perspective from which you observe. An `observer` shift changes whose frame of reference you occupy — a different conscious viewpoint, a different measuring apparatus, or a different relationship to the events around you.
-
-### Meta / ontological layer
-The outermost coordinate. Above all specific models of physics, mathematics, or consciousness lies the question of what kind of existence something has at all — whether it is concrete, abstract, fictional, potential, or something with no name yet. The meta layer is a placeholder for transitions that don't fit any other axis.
+Instead of treating reality as a single fixed map, Onto models existence as a coordinate system with two distinct kinds of axis: **which reality you are in**, and **how you exist within it**.
 
 ---
 
-The CLI does not need to understand every layer immediately. It starts with physical navigation and expands into more exotic modes as commands are implemented.
+### Part 1 — Which reality? (Tegmark levels)
+
+The Tegmark hierarchy classifies realities by what produces them. Each level is strictly more exotic than the last, and each requires a more expensive transition to cross.
+
+#### Spatial regions _(Tegmark Level I)_
+Distant regions of our own universe beyond the observable horizon. Same physical laws, same constants — just unreachably far away. Local travel (walking, driving, flying) operates entirely within this level. `travel` is the command.
+
+#### Bubble universes _(Tegmark Level II)_
+Other universes produced by the same inflationary process as ours, but with different physical constants — a different speed of light, different fundamental forces. Not quantum branches; entirely separate bubbles. A `universe` shift crosses into one. Cost: very high.
+
+#### Quantum branches _(Tegmark Level III)_
+Every quantum event that could have gone differently spawns a parallel branch — the many-worlds interpretation. Physics identical, history diverging from a single branching point. `shift` steps into an adjacent branch; `shift back` returns. Cost: 20.
+
+#### Mathematical structures _(Tegmark Level IV)_
+Every self-consistent mathematical structure exists as its own reality. Different numbers of spatial dimensions, different rules of logic, laws of nature unrecognisable from ours. Crossing here is not a physical journey; it is a transition into a different formal system. Cost: extreme.
+
+---
+
+### Part 2 — How you exist within a reality (modes of existence)
+
+The Tegmark level tells you *which* reality you are in. It says nothing about *how* you exist inside it. These axes are independent overlays — you can change them without changing which Tegmark reality you are in.
+
+#### Timeline
+A coarser kind of branching than quantum. A timeline marks where a significant historical event went differently — a war, a technology, a civilisation. `jump` moves forward into an alternate history; `jump back` returns. Cost: 800. _(A timeline is not a Tegmark level — it is a branch within a Level I or III reality, not a separate universe.)_
+
+#### Time
+Every reality has its own timeline of events. Navigating to a different point in time within the same reality — past or future — is cheaper than changing realities, but increasingly expensive the further you travel.
+
+#### Simulation depth
+If a reality can be computed, it can be nested. Simulation depth tracks whether you are in base reality or inside a computed world running on top of it. Entering a simulation is relatively cheap; the boundary is designed to be crossed. Exiting requires finding or constructing a way out.
+
+#### Observer (umwelt)
+Reality is never perceived directly — it is filtered through the senses and cognition of an observer. Two observers in the same physical location can inhabit entirely different experienced worlds. A bat, a human, and an AI standing in the same room share the same Tegmark address but different umwelts. An observer shift changes whose perceptual frame you occupy. Cost: low, but hard to reverse.
+
+---
+
+### The full coordinate
+
+A complete position in Onto combines both kinds of axis:
+
+```
+Which reality:   Mathematical structure → Bubble universe → Quantum branch → Spatial region
+How you exist:   Timeline → Point in time → Simulation depth → Observer
+Where locally:   Galaxy → System → Planet → Country → Region → City → Location
+```
+
+Some commands move you within a reality (`travel`, `jump`). Others move you between realities (`shift`, `universe`). The CLI surface stays the same; only the edge types and costs change.
+
+The CLI does not implement every axis immediately. It starts with physical navigation and expands outward.
 
 ## Core idea
 
