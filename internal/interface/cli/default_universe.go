@@ -2,8 +2,8 @@ package cli
 
 import "github.com/petherin/onto/internal/domain/universe"
 
-func buildDefaultUniverse() *universe.UniverseAggregate {
-	u := universe.NewUniverseAggregate()
+func buildDefaultUniverse() *universe.Aggregate {
+	u := universe.NewAggregate()
 	base := universe.DefaultCoordinateVO()
 
 	u.AddLocation(universe.LocationEntity{ID: "home", Name: "Home", Description: "A quiet residential location.", Coordinate: base})

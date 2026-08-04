@@ -19,7 +19,7 @@ type InteractiveHandler struct {
 
 // Handle prompts the user to auto-generate, skip, or manually create a new
 // outgoing location when a dead end is reached.
-func (h *InteractiveHandler) Handle(u *universe.UniverseAggregate, id string, coord universe.CoordinateVO) bool {
+func (h *InteractiveHandler) Handle(u *universe.Aggregate, id string, coord universe.CoordinateVO) bool {
 	name := locationDisplayName(u, id)
 	fmt.Printf("No outgoing journeys from %s.\n", name)
 	fmt.Println("Options: (a)uto-generate, (s)kip, (c)reate custom")
@@ -46,7 +46,7 @@ func (h *InteractiveHandler) Handle(u *universe.UniverseAggregate, id string, co
 	return false
 }
 
-func (h *InteractiveHandler) createCustomLocation(u *universe.UniverseAggregate, id string, coord universe.CoordinateVO) bool {
+func (h *InteractiveHandler) createCustomLocation(u *universe.Aggregate, id string, coord universe.CoordinateVO) bool {
 	suggested := ""
 	for i := 1; i < 1000; i++ {
 		candidate := fmt.Sprintf("%s-%d", id, i)
@@ -102,7 +102,7 @@ func (h *InteractiveHandler) createCustomLocation(u *universe.UniverseAggregate,
 	return true
 }
 
-func locationDisplayName(u *universe.UniverseAggregate, id string) string {
+func locationDisplayName(u *universe.Aggregate, id string) string {
 	if loc, ok := u.GetLocation(id); ok && loc.Name != "" {
 		return loc.Name
 	}

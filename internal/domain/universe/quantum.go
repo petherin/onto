@@ -5,7 +5,7 @@ import "fmt"
 // BranchQuantumService creates a new quantum branch from the given location
 // into the aggregate, adding bidirectional QuantumShift edges. It is
 // idempotent — if destID already exists in the aggregate, it does nothing.
-func BranchQuantumService(u *UniverseAggregate, fromID string, fromCoord CoordinateVO, fromName, destID, nextQ string) {
+func BranchQuantumService(u *Aggregate, fromID string, fromCoord CoordinateVO, fromName, destID, nextQ string) {
 	if _, exists := u.GetLocation(destID); exists {
 		return
 	}

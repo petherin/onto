@@ -24,9 +24,9 @@ import (
 // App is the top-level CLI object. It holds the wired-up universe, session,
 // repository, and pathfinder and exposes one method per user command.
 type App struct {
-	universe          *universe.UniverseAggregate
-	session           *exploration.ExplorationEntity
-	repo              universe.UniverseRepository
+	universe          *universe.Aggregate
+	session           *exploration.Entity
+	repo              universe.Repository
 	pathfinder        navigation.PathfinderService
 	interactiveReader *bufio.Reader
 }
@@ -55,7 +55,7 @@ func NewApp() *App {
 	loc, _ := u.GetLocation(start)
 	return &App{
 		universe:   u,
-		session:    exploration.NewExplorationEntity(start, loc.Coordinate),
+		session:    exploration.NewEntity(start, loc.Coordinate),
 		repo:       repo,
 		pathfinder: infranav.NewBFSPathfinder(),
 	}

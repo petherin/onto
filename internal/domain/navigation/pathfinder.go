@@ -1,6 +1,6 @@
 // Package navigation defines the PathfinderService interface and the pure graph
 // functions (FindRoute, PathDistance, PathCost) used to plan routes through a
-// UniverseAggregate. Concrete algorithm implementations live in
+// universe.Aggregate. Concrete algorithm implementations live in
 // internal/infrastructure/navigation so that the domain stays free of
 // technical dependencies.
 package navigation
@@ -10,11 +10,11 @@ import "github.com/petherin/onto/internal/domain/universe"
 // PathfinderService is a domain service interface that finds a route between
 // two locations in a universe. Implementations are free to use any graph algorithm.
 type PathfinderService interface {
-	FindRoute(u *universe.UniverseAggregate, from, to string) ([]universe.EdgeVO, bool)
+	FindRoute(u *universe.Aggregate, from, to string) ([]universe.EdgeVO, bool)
 }
 
 // FindRoute runs BFS from the `from` location to the `to` location across the universe graph.
-func FindRoute(u *universe.UniverseAggregate, from, to string) ([]universe.EdgeVO, bool) {
+func FindRoute(u *universe.Aggregate, from, to string) ([]universe.EdgeVO, bool) {
 	if from == to {
 		return nil, true
 	}

@@ -23,8 +23,8 @@ type RouteResult struct {
 
 // RouteQuery plans a route from the current session position to a target.
 type RouteQuery struct {
-	Universe   *universe.UniverseAggregate
-	Session    *exploration.ExplorationEntity
+	Universe   *universe.Aggregate
+	Session    *exploration.Entity
 	Pathfinder navigation.PathfinderService
 }
 

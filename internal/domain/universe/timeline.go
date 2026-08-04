@@ -5,7 +5,7 @@ import "fmt"
 // BranchTimelineService creates a new timeline branch from the given location
 // into the aggregate, adding bidirectional TimelineShift edges. It is
 // idempotent — if destID already exists in the aggregate, it does nothing.
-func BranchTimelineService(u *UniverseAggregate, fromID string, fromCoord CoordinateVO, fromName, destID, nextT string) {
+func BranchTimelineService(u *Aggregate, fromID string, fromCoord CoordinateVO, fromName, destID, nextT string) {
 	if _, exists := u.GetLocation(destID); exists {
 		return
 	}

@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newJumpFixture(t *testing.T) (*universe.UniverseAggregate, *exploration.ExplorationEntity, *mocks.MockRepository) {
+func newJumpFixture(t *testing.T) (*universe.Aggregate, *exploration.Entity, *mocks.MockRepository) {
 	u := mocks.NewTestUniverse()
 	loc, _ := u.GetLocation("home")
-	sess := exploration.NewExplorationEntity("home", loc.Coordinate)
+	sess := exploration.NewEntity("home", loc.Coordinate)
 	repo := mocks.NewMockRepository(t)
 	return u, sess, repo
 }
@@ -92,7 +92,7 @@ func TestJumpCommand_TimelineIncrements(t *testing.T) {
 	t1Coord := universe.DefaultCoordinateVO()
 	t1Coord.Timeline = "T1"
 	u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
-	sess := exploration.NewExplorationEntity("home-t1", t1Coord)
+	sess := exploration.NewEntity("home-t1", t1Coord)
 
 	repo.EXPECT().Save(u).Return(nil)
 
@@ -150,7 +150,7 @@ func TestJumpBack_ReturnsToLowerBranch(t *testing.T) {
 	t1Coord.Timeline = "T1"
 	u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
 	u.AddEdge(universe.EdgeVO{From: "home-t1", To: "home", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost})
-	sess := exploration.NewExplorationEntity("home-t1", t1Coord)
+	sess := exploration.NewEntity("home-t1", t1Coord)
 
 	repo.EXPECT().Save(u).Return(nil)
 
@@ -182,7 +182,7 @@ func TestJumpBack_NoReverseEdge_ReturnsError(t *testing.T) {
 	t1Coord := universe.DefaultCoordinateVO()
 	t1Coord.Timeline = "T1"
 	u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
-	sess := exploration.NewExplorationEntity("home-t1", t1Coord)
+	sess := exploration.NewEntity("home-t1", t1Coord)
 
 	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo, Back: true}
 	_, err := cmd.Execute()

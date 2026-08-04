@@ -22,7 +22,7 @@ func New() *NearbyGenerator {
 
 // Handle creates a new nearby location with bidirectional walk edges and adds
 // it to the aggregate. Returns true if a new location was created.
-func (g *NearbyGenerator) Handle(u *universe.UniverseAggregate, id string, coord universe.CoordinateVO) bool {
+func (g *NearbyGenerator) Handle(u *universe.Aggregate, id string, coord universe.CoordinateVO) bool {
 	for i := 1; i < 1000; i++ {
 		candidate := fmt.Sprintf("%s-%d", id, i)
 		if _, ok := u.GetLocation(candidate); !ok {

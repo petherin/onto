@@ -30,8 +30,8 @@ type ListResult struct {
 
 // LookupQuery handles Where, Look, and List reads against the universe and session.
 type LookupQuery struct {
-	Universe *universe.UniverseAggregate
-	Session  *exploration.ExplorationEntity
+	Universe *universe.Aggregate
+	Session  *exploration.Entity
 }
 
 // Where returns the current reality coordinate, outgoing edges, and travel history.

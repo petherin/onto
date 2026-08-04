@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newShiftFixture(t *testing.T) (*universe.UniverseAggregate, *exploration.ExplorationEntity, *mocks.MockRepository) {
+func newShiftFixture(t *testing.T) (*universe.Aggregate, *exploration.Entity, *mocks.MockRepository) {
 	u := mocks.NewTestUniverse()
 	loc, _ := u.GetLocation("home")
-	sess := exploration.NewExplorationEntity("home", loc.Coordinate)
+	sess := exploration.NewEntity("home", loc.Coordinate)
 	repo := mocks.NewMockRepository(t)
 	return u, sess, repo
 }
@@ -92,7 +92,7 @@ func TestShiftCommand_QuantumIncrements(t *testing.T) {
 	q1Coord := universe.DefaultCoordinateVO()
 	q1Coord.Quantum = "Q1"
 	u.AddLocation(universe.LocationEntity{ID: "home-q1", Name: "Home (Q1)", Coordinate: q1Coord})
-	sess := exploration.NewExplorationEntity("home-q1", q1Coord)
+	sess := exploration.NewEntity("home-q1", q1Coord)
 
 	repo.EXPECT().Save(u).Return(nil)
 
@@ -150,7 +150,7 @@ func TestShiftBack_ReturnsToLowerBranch(t *testing.T) {
 	q1Coord.Quantum = "Q1"
 	u.AddLocation(universe.LocationEntity{ID: "home-q1", Name: "Home (Q1)", Coordinate: q1Coord})
 	u.AddEdge(universe.EdgeVO{From: "home-q1", To: "home", Mode: universe.QuantumShift, Cost: universe.QuantumShiftCost})
-	sess := exploration.NewExplorationEntity("home-q1", q1Coord)
+	sess := exploration.NewEntity("home-q1", q1Coord)
 
 	repo.EXPECT().Save(u).Return(nil)
 
@@ -182,7 +182,7 @@ func TestShiftBack_NoReverseEdge_ReturnsError(t *testing.T) {
 	q1Coord := universe.DefaultCoordinateVO()
 	q1Coord.Quantum = "Q1"
 	u.AddLocation(universe.LocationEntity{ID: "home-q1", Name: "Home (Q1)", Coordinate: q1Coord})
-	sess := exploration.NewExplorationEntity("home-q1", q1Coord)
+	sess := exploration.NewEntity("home-q1", q1Coord)
 
 	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Repo: repo, Back: true}
 	_, err := cmd.Execute()

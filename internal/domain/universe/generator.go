@@ -4,5 +4,5 @@ package universe
 // outgoing locations when a dead end is reached.
 // Implementations live in the infrastructure and interface layers.
 type LocationGeneratorService interface {
-	Handle(u *UniverseAggregate, id string, coord CoordinateVO) bool
+	Handle(u *Aggregate, id string, coord CoordinateVO) bool
 }

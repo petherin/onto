@@ -21,9 +21,9 @@ type ShiftResult struct {
 // ShiftCommand moves the session to the next (or previous) quantum branch of
 // the current location, creating the branch if it does not yet exist.
 type ShiftCommand struct {
-	Universe *universe.UniverseAggregate
-	Session  *exploration.ExplorationEntity
-	Repo     universe.UniverseRepository
+	Universe *universe.Aggregate
+	Session  *exploration.Entity
+	Repo     universe.Repository
 	Back     bool // if true, traverse the reverse quantum edge instead of creating a new branch
 }
 
@@ -69,7 +69,7 @@ func (c *ShiftCommand) shiftBack() (*ShiftResult, error) {
 
 func (c *ShiftCommand) completeShift(destID, quantum string, reversed bool) (*ShiftResult, error) {
 	loc, _ := c.Universe.GetLocation(destID)
-	c.Session.ShiftTo(loc)
+	c.Session.ShiftTo(loc, universe.QuantumShiftCost)
 
 	result := &ShiftResult{
 		NextQuantum: quantum,
@@ -87,7 +87,7 @@ func (c *ShiftCommand) completeShift(destID, quantum string, reversed bool) (*Sh
 	return result, nil
 }
 
-func locationName(u *universe.UniverseAggregate, id string) string {
+func locationName(u *universe.Aggregate, id string) string {
 	if loc, ok := u.GetLocation(id); ok && loc.Name != "" {
 		return loc.Name
 	}

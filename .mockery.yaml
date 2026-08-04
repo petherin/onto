@@ -10,7 +10,7 @@ packages:
   github.com/petherin/onto/internal/domain/universe:
     interfaces:
       Repository:
-      LocationGenerator:
+      LocationGeneratorService:
   github.com/petherin/onto/internal/domain/navigation:
     interfaces:
-      Pathfinder:
+      PathfinderService:

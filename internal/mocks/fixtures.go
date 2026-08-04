@@ -8,8 +8,8 @@ import "github.com/petherin/onto/internal/domain/universe"
 // NewTestUniverse builds a minimal two-location universe suitable for most tests.
 //
 //	home --walk--> station --walk--> home
-func NewTestUniverse() *universe.UniverseAggregate {
-	u := universe.NewUniverseAggregate()
+func NewTestUniverse() *universe.Aggregate {
+	u := universe.NewAggregate()
 	base := universe.DefaultCoordinateVO()
 	station := base
 	station.Location = "Station"

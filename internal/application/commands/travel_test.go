@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTravelFixture(t *testing.T) (*universe.UniverseAggregate, *exploration.ExplorationEntity, *mocks.MockRepository, *mocks.MockPathfinder) {
+func newTravelFixture(t *testing.T) (*universe.Aggregate, *exploration.Entity, *mocks.MockRepository, *mocks.MockPathfinderService) {
 	u := mocks.NewTestUniverse()
 	loc, _ := u.GetLocation("home")
-	sess := exploration.NewExplorationEntity("home", loc.Coordinate)
+	sess := exploration.NewEntity("home", loc.Coordinate)
 	repo := mocks.NewMockRepository(t)
-	pf := mocks.NewMockPathfinder(t)
+	pf := mocks.NewMockPathfinderService(t)
 	return u, sess, repo, pf
 }
 
@@ -91,7 +91,7 @@ func TestTravelCommand_DeadEnd_HandlerCalled_RepoSaved(t *testing.T) {
 	route := []universe.EdgeVO{{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "deadend").Return(route, true)
 
-	gen := mocks.NewMockLocationGenerator(t)
+	gen := mocks.NewMockLocationGeneratorService(t)
 	gen.EXPECT().Handle(u, "deadend", deadCoord).Return(true)
 	repo.EXPECT().Save(u).Return(nil)
 
@@ -115,7 +115,7 @@ func TestTravelCommand_DeadEnd_SaveError(t *testing.T) {
 	route := []universe.EdgeVO{{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "deadend").Return(route, true)
 
-	gen := mocks.NewMockLocationGenerator(t)
+	gen := mocks.NewMockLocationGeneratorService(t)
 	gen.EXPECT().Handle(u, "deadend", deadCoord).Return(true)
 	repo.EXPECT().Save(u).Return(errors.New("disk full"))
 

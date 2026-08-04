@@ -21,9 +21,9 @@ type JumpResult struct {
 // JumpCommand moves the session to the next (or previous) timeline branch of
 // the current location, creating the branch if it does not yet exist.
 type JumpCommand struct {
-	Universe *universe.UniverseAggregate
-	Session  *exploration.ExplorationEntity
-	Repo     universe.UniverseRepository
+	Universe *universe.Aggregate
+	Session  *exploration.Entity
+	Repo     universe.Repository
 	Back     bool // if true, traverse the reverse timeline edge instead of creating a new branch
 }
 
@@ -69,7 +69,7 @@ func (c *JumpCommand) jumpBack() (*JumpResult, error) {
 
 func (c *JumpCommand) completeJump(destID, timeline string, reversed bool) (*JumpResult, error) {
 	loc, _ := c.Universe.GetLocation(destID)
-	c.Session.JumpTo(loc)
+	c.Session.JumpTo(loc, universe.TimelineShiftCost)
 
 	result := &JumpResult{
 		NextTimeline: timeline,

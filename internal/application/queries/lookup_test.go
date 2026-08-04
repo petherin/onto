@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newLookupFixture() (*universe.UniverseAggregate, *exploration.ExplorationEntity) {
+func newLookupFixture() (*universe.Aggregate, *exploration.Entity) {
 	u := mocks.NewTestUniverse()
 	loc, _ := u.GetLocation("home")
-	sess := exploration.NewExplorationEntity("home", loc.Coordinate)
+	sess := exploration.NewEntity("home", loc.Coordinate)
 	return u, sess
 }
 
@@ -50,9 +50,9 @@ func TestLookupQuery_Where_ReturnsHistory(t *testing.T) {
 
 	// simulate one prior move
 	stationLoc, _ := u.GetLocation("station")
-	sess.MoveTo(stationLoc)
+	sess.MoveTo(stationLoc, 1)
 	homeLoc, _ := u.GetLocation("home")
-	sess.MoveTo(homeLoc)
+	sess.MoveTo(homeLoc, 1)
 
 	q := &queries.LookupQuery{Universe: u, Session: sess}
 	result := q.Where()
@@ -76,7 +76,7 @@ func TestLookupQuery_Look_ReturnsNameAndDescription(t *testing.T) {
 func TestLookupQuery_Look_NotFound(t *testing.T) {
 	u := mocks.NewTestUniverse()
 	// create a session pointing at a location not in the universe
-	sess := exploration.NewExplorationEntity("ghost", universe.DefaultCoordinateVO())
+	sess := exploration.NewEntity("ghost", universe.DefaultCoordinateVO())
 
 	q := &queries.LookupQuery{Universe: u, Session: sess}
 	result, ok := q.Look()
@@ -99,7 +99,7 @@ func TestLookupQuery_List_AfterTravel(t *testing.T) {
 	u, sess := newLookupFixture()
 
 	stationLoc, _ := u.GetLocation("station")
-	sess.MoveTo(stationLoc)
+	sess.MoveTo(stationLoc, 1)
 
 	q := &queries.LookupQuery{Universe: u, Session: sess}
 	result := q.List()

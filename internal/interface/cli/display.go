@@ -15,9 +15,10 @@ func (a *App) Where() string {
 	r := q.Where()
 	coord := r.Coordinate
 	return fmt.Sprintf(
-		"Reality Coordinate\nUniverse : %s\nTimeline : %s\nQuantum  : %s\nPlanet   : %s\nCountry  : %s\nRegion   : %s\nCity     : %s\nLocation : %s\nObserver : %s\n\nPossible journeys\n%s\n\nRecent travel history\n%s",
+		"Reality Coordinate\nUniverse : %s\nTimeline : %s\nQuantum  : %s\nPlanet   : %s\nCountry  : %s\nRegion   : %s\nCity     : %s\nLocation : %s\nObserver : %s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s\n\nRecent travel history\n%s",
 		coord.Universe, coord.Timeline, coord.Quantum,
 		coord.Planet, coord.Country, coord.Region, coord.City, coord.Location, coord.Observer,
+		a.session.CumulativeCost,
 		a.formatEdges(r.Edges),
 		a.formatHistory(r.History),
 	)
@@ -41,9 +42,10 @@ func (a *App) List() string {
 }
 
 func (a *App) formatTravelResult(r *commands.TravelResult) string {
-	base := fmt.Sprintf("%s\n\nArrived.\n\nCurrent Location\n%s\n\nPossible journeys\n%s\n\nTravel history\n%s",
+	base := fmt.Sprintf("%s\n\nArrived.\n\nCurrent Location\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s\n\nTravel history\n%s",
 		travelVerb(r.Path),
 		r.Location.Name,
+		a.session.CumulativeCost,
 		a.formatEdges(r.Edges),
 		a.formatHistory(r.History),
 	)
@@ -61,8 +63,9 @@ func (a *App) formatShiftResult(r *commands.ShiftResult) string {
 	if r.Reversed {
 		verb = "Quantum branch exited"
 	}
-	base := fmt.Sprintf("Shifting...\n\n%s: %s\n\nCurrent Location\n%s\n\n%s\n\nPossible journeys\n%s\n\nTravel history\n%s",
+	base := fmt.Sprintf("Shifting...\n\n%s: %s\n\nCurrent Location\n%s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s\n\nTravel history\n%s",
 		verb, r.NextQuantum, r.Location.Name, r.Location.Description,
+		a.session.CumulativeCost,
 		a.formatEdges(r.Edges),
 		a.formatHistory(r.History),
 	)
@@ -77,8 +80,9 @@ func (a *App) formatJumpResult(r *commands.JumpResult) string {
 	if r.Reversed {
 		verb = "Timeline branch exited"
 	}
-	base := fmt.Sprintf("Jumping...\n\n%s: %s\n\nCurrent Location\n%s\n\n%s\n\nPossible journeys\n%s\n\nTravel history\n%s",
+	base := fmt.Sprintf("Jumping...\n\n%s: %s\n\nCurrent Location\n%s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s\n\nTravel history\n%s",
 		verb, r.NextTimeline, r.Location.Name, r.Location.Description,
+		a.session.CumulativeCost,
 		a.formatEdges(r.Edges),
 		a.formatHistory(r.History),
 	)

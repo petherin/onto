@@ -33,9 +33,9 @@ type TravelResult struct {
 // that cross non-physical boundaries (quantum, timeline) and optionally
 // invokes a LocationGeneratorService when the destination is a dead end.
 type TravelCommand struct {
-	Universe       *universe.UniverseAggregate
-	Session        *exploration.ExplorationEntity
-	Repo           universe.UniverseRepository
+	Universe       *universe.Aggregate
+	Session        *exploration.Entity
+	Repo           universe.Repository
 	Pathfinder     navigation.PathfinderService
 	DeadEndHandler universe.LocationGeneratorService
 }
@@ -60,7 +60,11 @@ func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 
 	loc, _ := c.Universe.GetLocation(norm)
 	previous := c.Session.CurrentLocation
-	c.Session.MoveTo(loc)
+	var pathCost float64
+	for _, e := range path {
+		pathCost += e.Cost
+	}
+	c.Session.MoveTo(loc, pathCost)
 
 	deadEndHandled := false
 	if c.DeadEndHandler != nil {
@@ -87,7 +91,7 @@ func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 }
 
 // ensureOutgoing returns true if the location is a dead end and the handler created new edges.
-func ensureOutgoing(u *universe.UniverseAggregate, id, cameFrom string, handler universe.LocationGeneratorService) bool {
+func ensureOutgoing(u *universe.Aggregate, id, cameFrom string, handler universe.LocationGeneratorService) bool {
 	for _, e := range u.EdgesFrom(id) {
 		if e.To != cameFrom {
 			return false

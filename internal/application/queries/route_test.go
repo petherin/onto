@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newRouteFixture(t *testing.T) (*universe.UniverseAggregate, *exploration.ExplorationEntity, *mocks.MockPathfinder) {
+func newRouteFixture(t *testing.T) (*universe.Aggregate, *exploration.Entity, *mocks.MockPathfinderService) {
 	u := mocks.NewTestUniverse()
 	loc, _ := u.GetLocation("home")
-	sess := exploration.NewExplorationEntity("home", loc.Coordinate)
-	pf := mocks.NewMockPathfinder(t)
+	sess := exploration.NewEntity("home", loc.Coordinate)
+	pf := mocks.NewMockPathfinderService(t)
 	return u, sess, pf
 }
 

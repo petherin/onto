@@ -16,6 +16,6 @@ type BFSPathfinder struct{}
 func NewBFSPathfinder() *BFSPathfinder { return &BFSPathfinder{} }
 
 // FindRoute delegates to the domain-layer BFS implementation.
-func (p *BFSPathfinder) FindRoute(u *universe.UniverseAggregate, from, to string) ([]universe.EdgeVO, bool) {
+func (p *BFSPathfinder) FindRoute(u *universe.Aggregate, from, to string) ([]universe.EdgeVO, bool) {
 	return domainnavigation.FindRoute(u, from, to)
 }
