@@ -112,8 +112,7 @@ func TestShiftCommand_PersistsAfterShift(t *testing.T) {
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)
-	assert.True(t, result.Persisted)
-	assert.NoError(t, result.SaveErr)
+	require.NotNil(t, result)
 }
 
 func TestShiftCommand_SaveError(t *testing.T) {
@@ -123,9 +122,9 @@ func TestShiftCommand_SaveError(t *testing.T) {
 	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Repo: repo}
 	result, err := cmd.Execute()
 
-	require.NoError(t, err)
-	assert.False(t, result.Persisted)
-	assert.EqualError(t, result.SaveErr, "write failed")
+	// Shift succeeded but persistence failed — both result and err are non-nil.
+	require.NotNil(t, result)
+	assert.EqualError(t, err, "write failed")
 }
 
 func TestShiftCommand_UpdatesSession(t *testing.T) {
@@ -136,8 +135,8 @@ func TestShiftCommand_UpdatesSession(t *testing.T) {
 	_, err := cmd.Execute()
 
 	require.NoError(t, err)
-	assert.Equal(t, "home-q1", sess.CurrentLocation)
-	assert.Contains(t, sess.TravelHistory, "home -> home-q1 (quantum shift)")
+	assert.Equal(t, "home-q1", sess.Location())
+	assert.Contains(t, sess.History(), "home -> home-q1 (quantum shift)")
 }
 
 // ── Shift back ────────────────────────────────────────────────────────────────
@@ -161,7 +160,7 @@ func TestShiftBack_ReturnsToLowerBranch(t *testing.T) {
 	assert.Equal(t, "home", result.Location.ID)
 	assert.Equal(t, "Q0", result.NextQuantum)
 	assert.True(t, result.Reversed)
-	assert.Equal(t, "home", sess.CurrentLocation)
+	assert.Equal(t, "home", sess.Location())
 }
 
 func TestShiftBack_AtBaseLevel_ReturnsError(t *testing.T) {
@@ -170,8 +169,7 @@ func TestShiftBack_AtBaseLevel_ReturnsError(t *testing.T) {
 	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Repo: repo, Back: true}
 	_, err := cmd.Execute()
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Q0")
+	require.ErrorIs(t, err, commands.ErrAlreadyAtBaseQuantum)
 	repo.AssertNotCalled(t, "Save")
 }
 
@@ -187,7 +185,6 @@ func TestShiftBack_NoReverseEdge_ReturnsError(t *testing.T) {
 	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Repo: repo, Back: true}
 	_, err := cmd.Execute()
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no quantum path back")
+	require.ErrorIs(t, err, commands.ErrNoQuantumPathBack)
 	repo.AssertNotCalled(t, "Save")
 }

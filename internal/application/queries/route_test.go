@@ -5,6 +5,7 @@ import (
 
 	"github.com/petherin/onto/internal/application/queries"
 	"github.com/petherin/onto/internal/domain/exploration"
+	"github.com/petherin/onto/internal/domain/navigation"
 	"github.com/petherin/onto/internal/domain/universe"
 	"github.com/petherin/onto/internal/mocks"
 	"github.com/stretchr/testify/assert"
@@ -57,8 +58,7 @@ func TestRouteQuery_UnknownDestination(t *testing.T) {
 	q := &queries.RouteQuery{Universe: u, Session: sess, Pathfinder: pf}
 	_, err := q.Execute("atlantis")
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown destination")
+	require.ErrorIs(t, err, navigation.ErrUnknownDestination)
 }
 
 func TestRouteQuery_NoPath(t *testing.T) {
@@ -71,8 +71,7 @@ func TestRouteQuery_NoPath(t *testing.T) {
 	q := &queries.RouteQuery{Universe: u, Session: sess, Pathfinder: pf}
 	_, err := q.Execute("island")
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no route")
+	require.ErrorIs(t, err, navigation.ErrNoRoute)
 }
 
 func TestRouteQuery_CaseNormalised(t *testing.T) {

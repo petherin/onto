@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/chzyer/readline"
 	"github.com/petherin/onto/internal/application/commands"
 	"github.com/petherin/onto/internal/application/queries"
 	"github.com/petherin/onto/internal/domain/exploration"
@@ -96,6 +97,8 @@ func (a *App) Execute(input string) string {
 		}
 		return a.Travel(args)
 	case cmdHome:
+		// GoHome returns the plan string; confirmation and execution are handled
+		// by the run loops (Run / runPlain) to keep I/O out of this method.
 		return a.GoHome()
 	case cmdCost:
 		return a.Cost()
@@ -165,10 +168,19 @@ func (a *App) Travel(target string) string {
 		DeadEndHandler: handler,
 	}
 
-	result, err := cmd.Execute(target)
-	if err != nil {
+	result, saveErr := cmd.Execute(target)
+	if result == nil {
+		// Domain error — no movement occurred.
 		norm := strings.ToLower(strings.ReplaceAll(target, " ", "-"))
 		if _, known := a.universe.GetLocation(norm); !known {
+			// Check if the target is the next quantum or timeline branch (not yet
+			// created — it only exists after 'shift' or 'jump' runs).
+			if norm == a.session.NextQuantumID() {
+				return fmt.Sprintf("%s is a quantum branch — use 'shift' to enter it", target)
+			}
+			if norm == a.session.NextTimelineID() {
+				return fmt.Sprintf("%s is a timeline branch — use 'jump' to enter it", target)
+			}
 			// Destination not found — try a fuzzy suggestion.
 			if suggestion := a.suggestDestination(target); suggestion != "" {
 				return fmt.Sprintf(fmtUnknownDestSuggest, target, suggestion)
@@ -176,63 +188,65 @@ func (a *App) Travel(target string) string {
 			return a.routeUnavailableDiagnostics(target)
 		}
 		// Destination exists but is unreachable — surface the real reason.
-		return err.Error()
+		return saveErr.Error()
 	}
 
-	return a.formatTravelResult(result)
+	// Travel succeeded; saveErr is non-nil only when auto-generated routes
+	// could not be persisted — the formatter appends a warning in that case.
+	return a.formatTravelResult(result, saveErr)
 }
 
 // Shift jumps the session forward to the next quantum branch of the current location.
 func (a *App) Shift() string {
 	cmd := &commands.ShiftCommand{Universe: a.universe, Session: a.session, Repo: a.repo}
-	result, err := cmd.Execute()
-	if err != nil {
-		return fmt.Sprintf("Shift failed: %v", err)
+	result, saveErr := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Shift failed: %v", saveErr)
 	}
-	return a.formatShiftResult(result)
+	return a.formatShiftResult(result, saveErr)
 }
 
 // ShiftBack returns the session to the previous quantum branch.
 func (a *App) ShiftBack() string {
 	cmd := &commands.ShiftCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
-	result, err := cmd.Execute()
-	if err != nil {
-		return fmt.Sprintf("Cannot shift back: %v", err)
+	result, saveErr := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot shift back: %v", saveErr)
 	}
-	return a.formatShiftResult(result)
+	return a.formatShiftResult(result, saveErr)
 }
 
 // Jump moves the session forward to the next timeline branch of the current location.
 func (a *App) Jump() string {
 	cmd := &commands.JumpCommand{Universe: a.universe, Session: a.session, Repo: a.repo}
-	result, err := cmd.Execute()
-	if err != nil {
-		return fmt.Sprintf("Jump failed: %v", err)
+	result, saveErr := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Jump failed: %v", saveErr)
 	}
-	return a.formatJumpResult(result)
+	return a.formatJumpResult(result, saveErr)
 }
 
 // JumpBack returns the session to the previous timeline branch.
 func (a *App) JumpBack() string {
 	cmd := &commands.JumpCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
-	result, err := cmd.Execute()
-	if err != nil {
-		return fmt.Sprintf("Cannot jump back: %v", err)
+	result, saveErr := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot jump back: %v", saveErr)
 	}
-	return a.formatJumpResult(result)
+	return a.formatJumpResult(result, saveErr)
 }
 
-// GoHome returns the session to the start location, unwinding timeline jumps
-// then quantum shifts then travelling physically. It first shows the plan and
-// estimated cost and asks for confirmation before doing anything.
+// GoHome builds and returns the route plan for returning the session to the
+// start location (no movement occurs). The run loop is responsible for
+// printing the plan, reading the user's confirmation, and calling
+// GoHomeConfirm to execute it.
 func (a *App) GoHome() string {
-	if a.session.CurrentLocation == defaultStartLocation &&
+	if a.session.Location() == defaultStartLocation &&
 		a.session.QuantumLevel() == 0 &&
 		a.session.TimelineLevel() == 0 {
-		return "You are already home."
+		return msgAlreadyHome
 	}
 
-	// --- Build the plan (read-only, nothing moves yet) ---
 	var planLines []string
 	estimatedCost := 0.0
 
@@ -248,8 +262,8 @@ func (a *App) GoHome() string {
 		estimatedCost += universe.QuantumShiftCost
 	}
 
-	// Estimate physical leg cost via the route query (doesn't move the session).
-	if a.session.CurrentLocation != defaultStartLocation {
+	// Estimate physical leg cost via the route query (read-only, no movement).
+	if a.session.Location() != defaultStartLocation {
 		q := &queries.RouteQuery{Universe: a.universe, Session: a.session, Pathfinder: a.pathfinder}
 		if rr, err := q.Execute(defaultStartLocation); err == nil {
 			for _, edge := range rr.Steps {
@@ -261,19 +275,13 @@ func (a *App) GoHome() string {
 		}
 	}
 
-	plan := strings.Join(planLines, "\n")
+	return fmt.Sprintf("Route home\n%s\n\nEstimated cost: %.0f\n\nProceed? [y/N]:", strings.Join(planLines, "\n"), estimatedCost)
+}
 
-	// Print the plan and prompt directly (same pattern as InteractiveHandler).
-	fmt.Printf("\nRoute home\n%s\n\nEstimated cost: %.0f\n\nProceed? [y/N]: ", plan, estimatedCost)
-
-	if a.interactiveReader != nil {
-		line, _ := a.interactiveReader.ReadString('\n')
-		if strings.ToLower(strings.TrimSpace(line)) != "y" {
-			return "Cancelled."
-		}
-	}
-
-	// --- Execute the plan ---
+// GoHomeConfirm executes the home journey plan produced by GoHome. It unwinds
+// timeline jumps, quantum shifts, and then travels physically to the start
+// location. The run loop calls this after the user confirms.
+func (a *App) GoHomeConfirm() string {
 	var steps []string
 
 	for a.session.TimelineLevel() > 0 {
@@ -294,13 +302,13 @@ func (a *App) GoHome() string {
 		steps = append(steps, fmt.Sprintf("Quantum shift back → %s at %s", result.NextQuantum, result.Location.Name))
 	}
 
-	if a.session.CurrentLocation != defaultStartLocation {
+	if a.session.Location() != defaultStartLocation {
 		travelResult := a.Travel(defaultStartLocation)
 		steps = append(steps, fmt.Sprintf("Travelled home → %s", defaultStartLocation))
 		return fmt.Sprintf("Heading home...\n\nSteps taken\n%s\n\n%s", strings.Join(steps, "\n"), travelResult)
 	}
 
-	return fmt.Sprintf("Heading home...\n\nSteps taken\n%s\n\nYou are home.\n\nCumulative journey cost\n%.0f", strings.Join(steps, "\n"), a.session.CumulativeCost)
+	return fmt.Sprintf("Heading home...\n\nSteps taken\n%s\n\nYou are home.\n\nCumulative journey cost\n%.0f", strings.Join(steps, "\n"), a.session.CumulativeCost())
 }
 
 // Route plans and displays a route to target without moving the session.
@@ -321,27 +329,57 @@ func (a *App) Cost() string {
 	return "Travel cost is estimated and currently local-only."
 }
 
-// Run starts the interactive read-eval-print loop, displaying the welcome
-// message and current position before reading lines from stdin.
+// Run starts the interactive read-eval-print loop with readline (tab
+// completion, history, arrow-key editing). Falls back to a plain bufio loop
+// when stdout is not a TTY (e.g. in tests or pipes).
 func (a *App) Run() {
-	fmt.Println(AppVersion)
-	fmt.Println()
-	fmt.Println("Type 'help' to see the available commands.")
-	fmt.Println("You can navigate between: home, station, park, city-centre")
-	fmt.Println()
-	fmt.Println("Current Position")
-	fmt.Println(a.Where())
-	fmt.Println()
+	a.printWelcome()
 
-	reader := bufio.NewReader(os.Stdin)
-	a.interactiveReader = reader
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:          a.Prompt(),
+		AutoComplete:    NewCompleter(a),
+		HistoryFile:     os.TempDir() + "/onto_history",
+		InterruptPrompt: "^C",
+		EOFPrompt:       cmdExit,
+	})
+	if err != nil {
+		// Not a TTY or readline unavailable — fall back to plain reader.
+		a.runPlain()
+		return
+	}
+	defer func() { _ = rl.Close() }()
+
+	// Use os.Stdin directly for the dead-end interactive handler; readline
+	// restores the terminal to cooked mode between Readline() calls, so plain
+	// bufio reads are safe at that point.
+	a.interactiveReader = bufio.NewReader(os.Stdin)
+
 	for {
-		fmt.Print(a.Prompt())
-		input, err := reader.ReadString('\n')
-		if err != nil {
+		rl.SetPrompt(a.Prompt())
+		line, err := rl.Readline()
+		if err != nil { // EOF or ^C
 			break
 		}
-		response := a.Execute(strings.TrimSpace(input))
+		trimmed := strings.TrimSpace(line)
+
+		// home requires a two-step confirm → execute pattern; handle it here
+		// so the plan and prompt are printed before reading the confirmation.
+		if fields := strings.Fields(trimmed); len(fields) > 0 && fields[0] == cmdHome {
+			plan := a.GoHome()
+			fmt.Println(plan)
+			if plan != msgAlreadyHome {
+				rl.SetPrompt("")
+				confirm, _ := rl.Readline()
+				if strings.ToLower(strings.TrimSpace(confirm)) == "y" {
+					fmt.Println(a.GoHomeConfirm())
+				} else {
+					fmt.Println("Cancelled.")
+				}
+			}
+			continue
+		}
+
+		response := a.Execute(trimmed)
 		if response == msgGoodbye {
 			fmt.Println(response)
 			break
@@ -350,4 +388,53 @@ func (a *App) Run() {
 			fmt.Println(response)
 		}
 	}
+}
+
+// runPlain is the non-readline fallback REPL used when stdin is not a TTY.
+func (a *App) runPlain() {
+	reader := bufio.NewReader(os.Stdin)
+	a.interactiveReader = reader
+	for {
+		fmt.Print(a.Prompt())
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			break
+		}
+		trimmed := strings.TrimSpace(input)
+
+		// home requires a two-step confirm → execute pattern; handle it here
+		// so the plan and prompt are printed before reading the confirmation.
+		if fields := strings.Fields(trimmed); len(fields) > 0 && fields[0] == cmdHome {
+			plan := a.GoHome()
+			fmt.Println(plan)
+			if plan != msgAlreadyHome {
+				confirm, _ := reader.ReadString('\n')
+				if strings.ToLower(strings.TrimSpace(confirm)) == "y" {
+					fmt.Println(a.GoHomeConfirm())
+				} else {
+					fmt.Println("Cancelled.")
+				}
+			}
+			continue
+		}
+
+		response := a.Execute(trimmed)
+		if response == msgGoodbye {
+			fmt.Println(response)
+			break
+		}
+		if response != "" {
+			fmt.Println(response)
+		}
+	}
+}
+
+func (a *App) printWelcome() {
+	fmt.Println(AppVersion)
+	fmt.Println()
+	fmt.Println("Type 'help' to see the available commands. Press Tab to complete commands and destinations.")
+	fmt.Println()
+	fmt.Println("Current Position")
+	fmt.Println(a.Where())
+	fmt.Println()
 }

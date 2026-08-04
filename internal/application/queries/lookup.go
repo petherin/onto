@@ -37,17 +37,17 @@ type LookupQuery struct {
 // Where returns the current reality coordinate, outgoing edges, and travel history.
 func (q *LookupQuery) Where() *WhereResult {
 	return &WhereResult{
-		Coordinate:  q.Session.CurrentCoordinate,
-		Edges:       q.Universe.EdgesFrom(q.Session.CurrentLocation),
+		Coordinate:  q.Session.Coordinate(),
+		Edges:       q.Universe.EdgesFrom(q.Session.Location()),
 		NextQuantum: q.Session.NextQuantumID(),
-		History:     q.Session.TravelHistory,
+		History:     q.Session.History(),
 	}
 }
 
 // Look returns the name and description of the current location, or false if
 // the location cannot be found in the universe.
 func (q *LookupQuery) Look() (*LookResult, bool) {
-	loc, ok := q.Universe.GetLocation(q.Session.CurrentLocation)
+	loc, ok := q.Universe.GetLocation(q.Session.Location())
 	if !ok {
 		return nil, false
 	}
@@ -57,7 +57,7 @@ func (q *LookupQuery) Look() (*LookResult, bool) {
 // List returns the outgoing edges from the current location.
 func (q *LookupQuery) List() *ListResult {
 	return &ListResult{
-		Edges:       q.Universe.EdgesFrom(q.Session.CurrentLocation),
+		Edges:       q.Universe.EdgesFrom(q.Session.Location()),
 		NextQuantum: q.Session.NextQuantumID(),
 	}
 }

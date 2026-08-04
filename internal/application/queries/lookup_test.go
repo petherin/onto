@@ -24,7 +24,7 @@ func TestLookupQuery_Where_ReturnsCoordinate(t *testing.T) {
 
 	result := q.Where()
 
-	assert.Equal(t, sess.CurrentCoordinate, result.Coordinate)
+	assert.Equal(t, sess.Coordinate(), result.Coordinate)
 }
 
 func TestLookupQuery_Where_ReturnsEdges(t *testing.T) {

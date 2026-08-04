@@ -126,17 +126,36 @@ Origin
                              @ 2026-08-02 18:37
 ```
 
-Compact coordinate (ID-based):
+Canonical onto:// address (implemented)
+
+Every coordinate serialises to a deterministic, parseable `onto://` address. Two forms are supported:
+
+**Full address** — all axes always present, unset fields rendered as `_`:
 
 ```
-R0:T0:U1:G42:S3:P1:L118
+onto://<meta>.<math>/<universe>/<timeline>/<quantum>/sim:<n>/<galaxy>/<system>/<planet>/<country>/<region>/<city>/<location>@<observer>+<RFC3339>
 ```
 
-Filesystem-like path (CLI-friendly):
+- `sim:<n>` is omitted when simulation depth is 0
+- `+<RFC3339>` is omitted when time is the zero value
+- Spaces in field values are encoded as `_` (e.g. `United_Kingdom`)
+
+Example (default position):
 
 ```
-/origin/timeline0/earth/uk/yorkshire/leeds/home
+onto://Origin.Classical/Origin/Prime/Q0/Milky_Way/Solar_System/Earth/United_Kingdom/Yorkshire/Leeds/Home@Human
 ```
+
+**Short address** — only non-default axes included, in order. Used in the CLI prompt and route summaries:
+
+```
+onto://Leeds/Home
+onto://Q1/Leeds/Station
+onto://T2/Leeds/Home@Machine
+onto://Andromeda/Kepler-22/Kepler-22b/New_Athens/Home
+```
+
+Both forms are parseable with `ParseOntoAddress()`. The full address round-trips exactly; the short address populates whichever axes are present.
 
 Multidimensional structure
 

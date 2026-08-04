@@ -1,10 +1,17 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/petherin/onto/internal/domain/exploration"
 	"github.com/petherin/onto/internal/domain/universe"
+)
+
+// Sentinel errors for JumpCommand. Callers may use errors.Is for precise handling.
+var (
+	ErrAlreadyAtBaseTimeline = errors.New("already at base timeline (Prime) — cannot jump back further")
+	ErrNoTimelinePathBack    = errors.New("no timeline path back from here")
 )
 
 // JumpResult is the value returned by a successful JumpCommand execution.
@@ -13,9 +20,7 @@ type JumpResult struct {
 	Location     universe.LocationEntity
 	Edges        []universe.EdgeVO
 	History      []string
-	Persisted    bool
 	Reversed     bool // true when jumping back to a lower timeline level
-	SaveErr      error
 }
 
 // JumpCommand moves the session to the next (or previous) timeline branch of
@@ -39,19 +44,19 @@ func (c *JumpCommand) Execute() (*JumpResult, error) {
 func (c *JumpCommand) jumpForward() (*JumpResult, error) {
 	nextT := fmt.Sprintf("T%d", c.Session.TimelineLevel()+1)
 	destID := c.Session.NextTimelineID()
-	currentName := locationName(c.Universe, c.Session.CurrentLocation)
-	universe.BranchTimelineService(c.Universe, c.Session.CurrentLocation, c.Session.CurrentCoordinate, currentName, destID, nextT)
+	currentName := locationName(c.Universe, c.Session.Location())
+	universe.BranchTimelineService(c.Universe, c.Session.Location(), c.Session.Coordinate(), currentName, destID, nextT)
 	return c.completeJump(destID, nextT, false)
 }
 
 func (c *JumpCommand) jumpBack() (*JumpResult, error) {
 	currentLevel := c.Session.TimelineLevel()
 	if currentLevel == 0 {
-		return nil, fmt.Errorf("already at base timeline (Prime) — cannot jump back further")
+		return nil, ErrAlreadyAtBaseTimeline
 	}
 
 	// Find the timeline edge that leads to a lower timeline level.
-	for _, e := range c.Universe.EdgesFrom(c.Session.CurrentLocation) {
+	for _, e := range c.Universe.EdgesFrom(c.Session.Location()) {
 		if e.Mode != universe.TimelineShift {
 			continue
 		}
@@ -64,7 +69,7 @@ func (c *JumpCommand) jumpBack() (*JumpResult, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no timeline path back from here")
+	return nil, ErrNoTimelinePathBack
 }
 
 func (c *JumpCommand) completeJump(destID, timeline string, reversed bool) (*JumpResult, error) {
@@ -75,14 +80,13 @@ func (c *JumpCommand) completeJump(destID, timeline string, reversed bool) (*Jum
 		NextTimeline: timeline,
 		Location:     loc,
 		Edges:        c.Universe.EdgesFrom(destID),
-		History:      c.Session.TravelHistory,
+		History:      c.Session.History(),
 		Reversed:     reversed,
 	}
 
 	if err := c.Repo.Save(c.Universe); err != nil {
-		result.SaveErr = err
-	} else {
-		result.Persisted = true
+		// Jump succeeded; return the result alongside the save error.
+		return result, err
 	}
 	return result, nil
 }

@@ -15,10 +15,11 @@ func (a *App) Where() string {
 	r := q.Where()
 	coord := r.Coordinate
 	return fmt.Sprintf(
-		"Reality Coordinate\nUniverse : %s\nTimeline : %s\nQuantum  : %s\nPlanet   : %s\nCountry  : %s\nRegion   : %s\nCity     : %s\nLocation : %s\nObserver : %s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s\n\nRecent travel history\n%s",
+		"Reality Coordinate\n%s\n\nUniverse : %s\nTimeline : %s\nQuantum  : %s\nPlanet   : %s\nCountry  : %s\nRegion   : %s\nCity     : %s\nLocation : %s\nObserver : %s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s\n\nRecent travel history\n%s",
+		coord.OntoAddress(),
 		coord.Universe, coord.Timeline, coord.Quantum,
 		coord.Planet, coord.Country, coord.Region, coord.City, coord.Location, coord.Observer,
-		a.session.CumulativeCost,
+		a.session.CumulativeCost(),
 		a.formatEdges(r.Edges),
 		a.formatHistory(r.History),
 	)
@@ -41,53 +42,53 @@ func (a *App) List() string {
 	return a.formatEdges(r.Edges)
 }
 
-func (a *App) formatTravelResult(r *commands.TravelResult) string {
+func (a *App) formatTravelResult(r *commands.TravelResult, saveErr error) string {
 	base := fmt.Sprintf("%s\n\nArrived.\n\nCurrent Location\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s\n\nTravel history\n%s",
 		travelVerb(r.Path),
 		r.Location.Name,
-		a.session.CumulativeCost,
+		a.session.CumulativeCost(),
 		a.formatEdges(r.Edges),
 		a.formatHistory(r.History),
 	)
 	if r.DeadEndHandled {
-		if r.SaveErr != nil {
-			return base + fmt.Sprintf(fmtSaveWarning, r.SaveErr)
+		if saveErr != nil {
+			return base + fmt.Sprintf(fmtSaveWarning, saveErr)
 		}
 		return base + fmt.Sprintf("\n\nPersisted auto-generated route(s) to %s", dataFile())
 	}
 	return base
 }
 
-func (a *App) formatShiftResult(r *commands.ShiftResult) string {
+func (a *App) formatShiftResult(r *commands.ShiftResult, saveErr error) string {
 	verb := "Quantum branch entered"
 	if r.Reversed {
 		verb = "Quantum branch exited"
 	}
 	base := fmt.Sprintf("Shifting...\n\n%s: %s\n\nCurrent Location\n%s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s\n\nTravel history\n%s",
 		verb, r.NextQuantum, r.Location.Name, r.Location.Description,
-		a.session.CumulativeCost,
+		a.session.CumulativeCost(),
 		a.formatEdges(r.Edges),
 		a.formatHistory(r.History),
 	)
-	if r.SaveErr != nil {
-		return base + fmt.Sprintf(fmtSaveWarning, r.SaveErr)
+	if saveErr != nil {
+		return base + fmt.Sprintf(fmtSaveWarning, saveErr)
 	}
 	return base + fmt.Sprintf("\n\nPersisted to %s", dataFile())
 }
 
-func (a *App) formatJumpResult(r *commands.JumpResult) string {
+func (a *App) formatJumpResult(r *commands.JumpResult, saveErr error) string {
 	verb := "Timeline branch entered"
 	if r.Reversed {
 		verb = "Timeline branch exited"
 	}
 	base := fmt.Sprintf("Jumping...\n\n%s: %s\n\nCurrent Location\n%s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s\n\nTravel history\n%s",
 		verb, r.NextTimeline, r.Location.Name, r.Location.Description,
-		a.session.CumulativeCost,
+		a.session.CumulativeCost(),
 		a.formatEdges(r.Edges),
 		a.formatHistory(r.History),
 	)
-	if r.SaveErr != nil {
-		return base + fmt.Sprintf(fmtSaveWarning, r.SaveErr)
+	if saveErr != nil {
+		return base + fmt.Sprintf(fmtSaveWarning, saveErr)
 	}
 	return base + fmt.Sprintf("\n\nPersisted to %s", dataFile())
 }
@@ -190,7 +191,7 @@ func (a *App) locationName(id string) string {
 func (a *App) routeUnavailableDiagnostics(target string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Route unavailable to %s.\n", target)
-	fmt.Fprintf(&b, "Current location id: %s\n", a.session.CurrentLocation)
+	fmt.Fprintf(&b, "Current location id: %s\n", a.session.Location())
 	sl := startLocation()
 	if _, ok := a.universe.GetLocation(sl); ok {
 		fmt.Fprintf(&b, "%s is present in universe\n", sl)
@@ -198,7 +199,7 @@ func (a *App) routeUnavailableDiagnostics(target string) string {
 		fmt.Fprintf(&b, "%s is NOT present in universe\n", sl)
 	}
 	b.WriteString("Outgoing from current location:\n")
-	for _, e := range a.universe.EdgesFrom(a.session.CurrentLocation) {
+	for _, e := range a.universe.EdgesFrom(a.session.Location()) {
 		fmt.Fprintf(&b, "- %s (%s)\n", e.To, e.Mode)
 	}
 	b.WriteString("\nKnown location IDs:\n")

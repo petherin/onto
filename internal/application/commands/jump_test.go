@@ -112,8 +112,7 @@ func TestJumpCommand_PersistsAfterJump(t *testing.T) {
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)
-	assert.True(t, result.Persisted)
-	assert.NoError(t, result.SaveErr)
+	require.NotNil(t, result)
 }
 
 func TestJumpCommand_SaveError(t *testing.T) {
@@ -123,9 +122,9 @@ func TestJumpCommand_SaveError(t *testing.T) {
 	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo}
 	result, err := cmd.Execute()
 
-	require.NoError(t, err)
-	assert.False(t, result.Persisted)
-	assert.EqualError(t, result.SaveErr, "write failed")
+	// Jump succeeded but persistence failed — both result and err are non-nil.
+	require.NotNil(t, result)
+	assert.EqualError(t, err, "write failed")
 }
 
 func TestJumpCommand_UpdatesSession(t *testing.T) {
@@ -136,8 +135,8 @@ func TestJumpCommand_UpdatesSession(t *testing.T) {
 	_, err := cmd.Execute()
 
 	require.NoError(t, err)
-	assert.Equal(t, "home-t1", sess.CurrentLocation)
-	assert.Contains(t, sess.TravelHistory, "home -> home-t1 (timeline shift)")
+	assert.Equal(t, "home-t1", sess.Location())
+	assert.Contains(t, sess.History(), "home -> home-t1 (timeline shift)")
 }
 
 // ── Jump back ────────────────────────────────────────────────────────────────
@@ -161,7 +160,7 @@ func TestJumpBack_ReturnsToLowerBranch(t *testing.T) {
 	assert.Equal(t, "home", result.Location.ID)
 	assert.Equal(t, "Prime", result.NextTimeline)
 	assert.True(t, result.Reversed)
-	assert.Equal(t, "home", sess.CurrentLocation)
+	assert.Equal(t, "home", sess.Location())
 }
 
 func TestJumpBack_AtBaseLevel_ReturnsError(t *testing.T) {
@@ -170,8 +169,7 @@ func TestJumpBack_AtBaseLevel_ReturnsError(t *testing.T) {
 	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo, Back: true}
 	_, err := cmd.Execute()
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Prime")
+	require.ErrorIs(t, err, commands.ErrAlreadyAtBaseTimeline)
 	repo.AssertNotCalled(t, "Save")
 }
 
@@ -187,7 +185,6 @@ func TestJumpBack_NoReverseEdge_ReturnsError(t *testing.T) {
 	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo, Back: true}
 	_, err := cmd.Execute()
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no timeline path back")
+	require.ErrorIs(t, err, commands.ErrNoTimelinePathBack)
 	repo.AssertNotCalled(t, "Save")
 }

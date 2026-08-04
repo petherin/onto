@@ -98,3 +98,52 @@ func TestAppList_ShowsQuantumOption(t *testing.T) {
 
 	assert.Contains(t, output, "shift")
 }
+
+func TestGoHome_WhenAlreadyHome_ReportsIt(t *testing.T) {
+	app := NewApp()
+	output := app.Execute("home")
+
+	assert.Contains(t, output, "already home")
+}
+
+func TestGoHome_FromStation_ReturnsPlan(t *testing.T) {
+	app := NewApp()
+	app.Execute("travel station")
+	output := app.Execute("home")
+
+	// Should show the plan and ask for confirmation; no movement yet.
+	assert.Contains(t, output, "home")
+}
+
+func TestTravel_ToQuantumBranchID_SuggestsShift(t *testing.T) {
+	app := NewApp()
+	// home-q1 doesn't exist yet; it's the next quantum branch.
+	output := app.Execute("travel home-q1")
+
+	assert.Contains(t, output, "shift")
+}
+
+func TestTravel_ToTimelineBranchID_SuggestsJump(t *testing.T) {
+	app := NewApp()
+	// home-t1 doesn't exist yet; it's the next timeline branch.
+	output := app.Execute("travel home-t1")
+
+	assert.Contains(t, output, "jump")
+}
+
+func TestShift_BranchHasPhysicalDestinations(t *testing.T) {
+	app := NewApp()
+	app.Execute("shift")
+	output := app.Execute("ls")
+
+	// home-q1 should inherit physical edges from home (walk to station etc.)
+	assert.Contains(t, output, "walk")
+}
+
+func TestJump_BranchHasPhysicalDestinations(t *testing.T) {
+	app := NewApp()
+	app.Execute("jump")
+	output := app.Execute("ls")
+
+	assert.Contains(t, output, "walk")
+}

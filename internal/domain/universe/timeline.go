@@ -20,6 +20,15 @@ func BranchTimelineService(u *Aggregate, fromID string, fromCoord CoordinateVO, 
 		Description: fmt.Sprintf("An alternate timeline branch of %s. History diverged at some point — the differences may be subtle or catastrophic.", fromName),
 		Coordinate:  coord,
 	})
+
+	// Mirror physical outgoing edges from the source so the branch is
+	// immediately explorable on foot without needing further jumps.
+	for _, e := range u.EdgesFrom(fromID) {
+		if e.Mode.IsPhysical() {
+			u.AddEdge(EdgeVO{From: destID, To: e.To, Mode: e.Mode, Distance: e.Distance, Cost: e.Cost, Description: e.Description})
+		}
+	}
+
 	u.AddEdge(EdgeVO{
 		From:        fromID,
 		To:          destID,

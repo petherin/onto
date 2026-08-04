@@ -13,11 +13,6 @@ import (
 	"github.com/petherin/onto/internal/domain/universe"
 )
 
-const (
-	errFmtUnknownDest = "unknown destination: %s"
-	errFmtNoRoute     = "no route: %s"
-)
-
 // TravelResult is the value returned by a successful TravelCommand execution.
 type TravelResult struct {
 	Location       universe.LocationEntity
@@ -25,8 +20,6 @@ type TravelResult struct {
 	Edges          []universe.EdgeVO
 	History        []string
 	DeadEndHandled bool
-	Persisted      bool
-	SaveErr        error
 }
 
 // TravelCommand moves the session to a physical destination. It rejects paths
@@ -45,12 +38,12 @@ type TravelCommand struct {
 func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 	norm := strings.ToLower(strings.ReplaceAll(target, " ", "-"))
 	if _, ok := c.Universe.GetLocation(norm); !ok {
-		return nil, fmt.Errorf(errFmtUnknownDest, target)
+		return nil, fmt.Errorf("%w: %s", navigation.ErrUnknownDestination, target)
 	}
 
-	path, ok := c.Pathfinder.FindRoute(c.Universe, c.Session.CurrentLocation, norm)
+	path, ok := c.Pathfinder.FindRoute(c.Universe, c.Session.Location(), norm)
 	if !ok {
-		return nil, fmt.Errorf(errFmtNoRoute, target)
+		return nil, fmt.Errorf("%w: %s", navigation.ErrNoRoute, target)
 	}
 	for _, e := range path {
 		if !e.Mode.IsPhysical() {
@@ -59,7 +52,7 @@ func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 	}
 
 	loc, _ := c.Universe.GetLocation(norm)
-	previous := c.Session.CurrentLocation
+	previous := c.Session.Location()
 	var pathCost float64
 	for _, e := range path {
 		pathCost += e.Cost
@@ -75,15 +68,15 @@ func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 		Location:       loc,
 		Path:           path,
 		Edges:          c.Universe.EdgesFrom(norm),
-		History:        c.Session.TravelHistory,
+		History:        c.Session.History(),
 		DeadEndHandled: deadEndHandled,
 	}
 
 	if deadEndHandled {
 		if err := c.Repo.Save(c.Universe); err != nil {
-			result.SaveErr = err
-		} else {
-			result.Persisted = true
+			// Return the result (travel succeeded) alongside the save error so
+			// callers can display output and warn about the persistence failure.
+			return result, err
 		}
 	}
 

@@ -1,6 +1,9 @@
 package cli
 
-import "strings"
+import (
+	"math"
+	"strings"
+)
 
 func (a *App) suggestDestination(target string) string {
 	if target == "" {
@@ -8,7 +11,7 @@ func (a *App) suggestDestination(target string) string {
 	}
 
 	best := ""
-	bestDistance := 999
+	bestDistance := math.MaxInt
 	lowerTarget := strings.ToLower(target)
 	compactTarget := strings.ReplaceAll(lowerTarget, " ", "")
 
@@ -46,7 +49,7 @@ func (a *App) suggestCommand(input string) string {
 
 	candidates := []string{cmdHelp, cmdWhere, cmdLook, cmdList, cmdRoute, cmdTravel, cmdCost, cmdShift, cmdJump, cmdExit}
 	best := ""
-	bestDistance := 999
+	bestDistance := math.MaxInt
 	for _, candidate := range candidates {
 		if d := levenshteinDistance(input, candidate); d < bestDistance {
 			bestDistance = d

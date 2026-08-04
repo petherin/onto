@@ -9,11 +9,6 @@ import (
 	"github.com/petherin/onto/internal/domain/universe"
 )
 
-const (
-	errFmtUnknownDest = "unknown destination: %s"
-	errFmtNoRoute     = "no route: %s"
-)
-
 // RouteResult holds the data returned by a Route query.
 type RouteResult struct {
 	Steps    []universe.EdgeVO
@@ -33,12 +28,12 @@ type RouteQuery struct {
 func (q *RouteQuery) Execute(target string) (*RouteResult, error) {
 	norm := strings.ToLower(strings.ReplaceAll(target, " ", "-"))
 	if _, ok := q.Universe.GetLocation(norm); !ok {
-		return nil, fmt.Errorf(errFmtUnknownDest, target)
+		return nil, fmt.Errorf("%w: %s", navigation.ErrUnknownDestination, target)
 	}
 
-	path, ok := q.Pathfinder.FindRoute(q.Universe, q.Session.CurrentLocation, norm)
+	path, ok := q.Pathfinder.FindRoute(q.Universe, q.Session.Location(), norm)
 	if !ok {
-		return nil, fmt.Errorf(errFmtNoRoute, target)
+		return nil, fmt.Errorf("%w: %s", navigation.ErrNoRoute, target)
 	}
 
 	return &RouteResult{

@@ -10,6 +10,7 @@ const (
 	defaultStartLocation = "home"
 
 	msgGoodbye            = "Goodbye."
+	msgAlreadyHome        = "You are already home."
 	fmtUnknownDestSuggest = "Unknown destination: %s\n\nDid you mean '%s'?"
 	fmtSaveWarning        = "\n\nWarning: failed to save config: %v"
 

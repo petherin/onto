@@ -1,10 +1,17 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/petherin/onto/internal/domain/exploration"
 	"github.com/petherin/onto/internal/domain/universe"
+)
+
+// Sentinel errors for ShiftCommand. Callers may use errors.Is for precise handling.
+var (
+	ErrAlreadyAtBaseQuantum = errors.New("already at base quantum level (Q0) — cannot shift back further")
+	ErrNoQuantumPathBack    = errors.New("no quantum path back from here")
 )
 
 // ShiftResult is the value returned by a successful ShiftCommand execution.
@@ -13,9 +20,7 @@ type ShiftResult struct {
 	Location    universe.LocationEntity
 	Edges       []universe.EdgeVO
 	History     []string
-	Persisted   bool
 	Reversed    bool // true when shifting back to a lower quantum level
-	SaveErr     error
 }
 
 // ShiftCommand moves the session to the next (or previous) quantum branch of
@@ -39,19 +44,19 @@ func (c *ShiftCommand) Execute() (*ShiftResult, error) {
 func (c *ShiftCommand) shiftForward() (*ShiftResult, error) {
 	nextQ := fmt.Sprintf("Q%d", c.Session.QuantumLevel()+1)
 	destID := c.Session.NextQuantumID()
-	currentName := locationName(c.Universe, c.Session.CurrentLocation)
-	universe.BranchQuantumService(c.Universe, c.Session.CurrentLocation, c.Session.CurrentCoordinate, currentName, destID, nextQ)
+	currentName := locationName(c.Universe, c.Session.Location())
+	universe.BranchQuantumService(c.Universe, c.Session.Location(), c.Session.Coordinate(), currentName, destID, nextQ)
 	return c.completeShift(destID, nextQ, false)
 }
 
 func (c *ShiftCommand) shiftBack() (*ShiftResult, error) {
 	currentLevel := c.Session.QuantumLevel()
 	if currentLevel == 0 {
-		return nil, fmt.Errorf("already at base quantum level (Q0) — cannot shift back further")
+		return nil, ErrAlreadyAtBaseQuantum
 	}
 
 	// Find the quantum edge that leads to a lower quantum level.
-	for _, e := range c.Universe.EdgesFrom(c.Session.CurrentLocation) {
+	for _, e := range c.Universe.EdgesFrom(c.Session.Location()) {
 		if e.Mode != universe.QuantumShift {
 			continue
 		}
@@ -64,7 +69,7 @@ func (c *ShiftCommand) shiftBack() (*ShiftResult, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no quantum path back from here")
+	return nil, ErrNoQuantumPathBack
 }
 
 func (c *ShiftCommand) completeShift(destID, quantum string, reversed bool) (*ShiftResult, error) {
@@ -75,14 +80,13 @@ func (c *ShiftCommand) completeShift(destID, quantum string, reversed bool) (*Sh
 		NextQuantum: quantum,
 		Location:    loc,
 		Edges:       c.Universe.EdgesFrom(destID),
-		History:     c.Session.TravelHistory,
+		History:     c.Session.History(),
 		Reversed:    reversed,
 	}
 
 	if err := c.Repo.Save(c.Universe); err != nil {
-		result.SaveErr = err
-	} else {
-		result.Persisted = true
+		// Shift succeeded; return the result alongside the save error.
+		return result, err
 	}
 	return result, nil
 }

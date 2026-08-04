@@ -12,65 +12,83 @@ import (
 
 // Entity is a domain entity that tracks the user's position within
 // the universe across physical travel, quantum shifts, and timeline jumps.
+// Fields are unexported to ensure all mutations go through the movement
+// methods (MoveTo, ShiftTo, JumpTo), keeping history and cost consistent.
 type Entity struct {
-	CurrentLocation   string
-	CurrentCoordinate universe.CoordinateVO
-	TravelHistory     []string
-	CumulativeCost    float64
+	currentLocation   string
+	currentCoordinate universe.CoordinateVO
+	travelHistory     []string
+	cumulativeCost    float64
 }
 
 // NewEntity creates an Entity positioned at the given location and coordinate.
 func NewEntity(location string, coord universe.CoordinateVO) *Entity {
 	return &Entity{
-		CurrentLocation:   location,
-		CurrentCoordinate: coord,
-		TravelHistory:     []string{},
+		currentLocation:   location,
+		currentCoordinate: coord,
+		travelHistory:     []string{},
 	}
 }
 
+// Location returns the ID of the current location.
+func (s *Entity) Location() string { return s.currentLocation }
+
+// Coordinate returns the coordinate of the current position.
+func (s *Entity) Coordinate() universe.CoordinateVO { return s.currentCoordinate }
+
+// History returns a snapshot of the travel history slice.
+func (s *Entity) History() []string {
+	out := make([]string, len(s.travelHistory))
+	copy(out, s.travelHistory)
+	return out
+}
+
+// CumulativeCost returns the total cost accumulated across all movements.
+func (s *Entity) CumulativeCost() float64 { return s.cumulativeCost }
+
 // MoveTo updates position, adds cost to the cumulative total, and records the move in travel history.
 func (s *Entity) MoveTo(loc universe.LocationEntity, cost float64) {
-	prev := s.CurrentLocation
-	s.CurrentLocation = loc.ID
-	s.CurrentCoordinate = loc.Coordinate
-	s.CumulativeCost += cost
-	s.TravelHistory = append(s.TravelHistory, fmt.Sprintf("%s -> %s", prev, loc.ID))
+	prev := s.currentLocation
+	s.currentLocation = loc.ID
+	s.currentCoordinate = loc.Coordinate
+	s.cumulativeCost += cost
+	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s", prev, loc.ID))
 }
 
 // ShiftTo updates position for a quantum shift, adds cost, and records it in travel history.
 func (s *Entity) ShiftTo(loc universe.LocationEntity, cost float64) {
-	prev := s.CurrentLocation
-	s.CurrentLocation = loc.ID
-	s.CurrentCoordinate = loc.Coordinate
-	s.CumulativeCost += cost
-	s.TravelHistory = append(s.TravelHistory, fmt.Sprintf("%s -> %s (quantum shift)", prev, loc.ID))
-}
-
-// QuantumLevel returns the numeric quantum level of the current position (Q0 → 0, Q1 → 1, …).
-func (s *Entity) QuantumLevel() int {
-	return s.CurrentCoordinate.QuantumLevel()
-}
-
-// NextQuantumID returns the location ID that 'shift' would move to from the current position.
-func (s *Entity) NextQuantumID() string {
-	return fmt.Sprintf("%s-q%d", s.CurrentLocation, s.QuantumLevel()+1)
+	prev := s.currentLocation
+	s.currentLocation = loc.ID
+	s.currentCoordinate = loc.Coordinate
+	s.cumulativeCost += cost
+	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (quantum shift)", prev, loc.ID))
 }
 
 // JumpTo updates position for a timeline shift, adds cost, and records it in travel history.
 func (s *Entity) JumpTo(loc universe.LocationEntity, cost float64) {
-	prev := s.CurrentLocation
-	s.CurrentLocation = loc.ID
-	s.CurrentCoordinate = loc.Coordinate
-	s.CumulativeCost += cost
-	s.TravelHistory = append(s.TravelHistory, fmt.Sprintf("%s -> %s (timeline shift)", prev, loc.ID))
+	prev := s.currentLocation
+	s.currentLocation = loc.ID
+	s.currentCoordinate = loc.Coordinate
+	s.cumulativeCost += cost
+	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (timeline shift)", prev, loc.ID))
+}
+
+// QuantumLevel returns the numeric quantum level of the current position (Q0 → 0, Q1 → 1, …).
+func (s *Entity) QuantumLevel() int {
+	return s.currentCoordinate.QuantumLevel()
+}
+
+// NextQuantumID returns the location ID that 'shift' would move to from the current position.
+func (s *Entity) NextQuantumID() string {
+	return fmt.Sprintf("%s-q%d", s.currentLocation, s.QuantumLevel()+1)
 }
 
 // TimelineLevel returns the numeric timeline level of the current position ("Prime" → 0, "T1" → 1, …).
 func (s *Entity) TimelineLevel() int {
-	return s.CurrentCoordinate.TimelineLevel()
+	return s.currentCoordinate.TimelineLevel()
 }
 
 // NextTimelineID returns the location ID that 'jump' would move to from the current position.
 func (s *Entity) NextTimelineID() string {
-	return fmt.Sprintf("%s-t%d", s.CurrentLocation, s.TimelineLevel()+1)
+	return fmt.Sprintf("%s-t%d", s.currentLocation, s.TimelineLevel()+1)
 }

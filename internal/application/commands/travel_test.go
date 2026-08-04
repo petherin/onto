@@ -6,6 +6,7 @@ import (
 
 	"github.com/petherin/onto/internal/application/commands"
 	"github.com/petherin/onto/internal/domain/exploration"
+	"github.com/petherin/onto/internal/domain/navigation"
 	"github.com/petherin/onto/internal/domain/universe"
 	"github.com/petherin/onto/internal/mocks"
 	"github.com/stretchr/testify/assert"
@@ -42,8 +43,7 @@ func TestTravelCommand_UnknownDestination(t *testing.T) {
 	cmd := &commands.TravelCommand{Universe: u, Session: sess, Repo: repo, Pathfinder: pf}
 	_, err := cmd.Execute("nowhere")
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown destination")
+	require.ErrorIs(t, err, navigation.ErrUnknownDestination)
 }
 
 func TestTravelCommand_NoRoute(t *testing.T) {
@@ -56,8 +56,7 @@ func TestTravelCommand_NoRoute(t *testing.T) {
 	cmd := &commands.TravelCommand{Universe: u, Session: sess, Repo: repo, Pathfinder: pf}
 	_, err := cmd.Execute("island")
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no route")
+	require.ErrorIs(t, err, navigation.ErrNoRoute)
 }
 
 func TestTravelCommand_QuantumEdge_Rejected(t *testing.T) {
@@ -100,8 +99,6 @@ func TestTravelCommand_DeadEnd_HandlerCalled_RepoSaved(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, result.DeadEndHandled)
-	assert.True(t, result.Persisted)
-	assert.NoError(t, result.SaveErr)
 }
 
 func TestTravelCommand_DeadEnd_SaveError(t *testing.T) {
@@ -122,10 +119,10 @@ func TestTravelCommand_DeadEnd_SaveError(t *testing.T) {
 	cmd := &commands.TravelCommand{Universe: u, Session: sess, Repo: repo, Pathfinder: pf, DeadEndHandler: gen}
 	result, err := cmd.Execute("deadend")
 
-	require.NoError(t, err)
+	// Travel succeeded but persistence failed — both result and err are non-nil.
+	require.NotNil(t, result)
 	assert.True(t, result.DeadEndHandled)
-	assert.False(t, result.Persisted)
-	assert.EqualError(t, result.SaveErr, "disk full")
+	assert.EqualError(t, err, "disk full")
 }
 
 func TestTravelCommand_NonDeadEnd_RepoNotCalled(t *testing.T) {

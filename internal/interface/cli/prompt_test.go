@@ -8,31 +8,31 @@ import (
 
 func TestPrompt_AtHome(t *testing.T) {
 	app := NewApp()
-	// Default start: Earth / United Kingdom / Leeds / Home, Q0, Prime.
-	assert.Equal(t, "[Earth/United Kingdom/Leeds/Home] > ", app.Prompt())
+	// Default start: all standard defaults — ShortAddress omits Planet/Country/Region.
+	assert.Equal(t, "[Leeds/Home] > ", app.Prompt())
 }
 
 func TestPrompt_AfterTravelToStation(t *testing.T) {
 	app := NewApp()
 	app.Execute("travel station")
 
-	assert.Equal(t, "[Earth/United Kingdom/Leeds/Station] > ", app.Prompt())
+	assert.Equal(t, "[Leeds/Station] > ", app.Prompt())
 }
 
 func TestPrompt_AfterQuantumShift(t *testing.T) {
 	app := NewApp()
 	app.Execute("shift")
 
-	// Q1 is non-default, so it appears in the prompt.
-	assert.Equal(t, "[Earth/United Kingdom/Leeds/Home/Q1] > ", app.Prompt())
+	// Q1 is non-default; appears before spatial segments.
+	assert.Equal(t, "[Q1/Leeds/Home] > ", app.Prompt())
 }
 
 func TestPrompt_AfterTimelineJump(t *testing.T) {
 	app := NewApp()
 	app.Execute("jump")
 
-	// T1 is non-default, so it appears in the prompt.
-	assert.Equal(t, "[Earth/United Kingdom/Leeds/Home/T1] > ", app.Prompt())
+	// T1 is non-default; appears before spatial segments.
+	assert.Equal(t, "[T1/Leeds/Home] > ", app.Prompt())
 }
 
 func TestPrompt_AfterQuantumShiftAndTimelineJump(t *testing.T) {
@@ -40,8 +40,8 @@ func TestPrompt_AfterQuantumShiftAndTimelineJump(t *testing.T) {
 	app.Execute("shift")
 	app.Execute("jump")
 
-	// Entering a new timeline resets quantum to Q0, so only T1 appears.
-	assert.Equal(t, "[Earth/United Kingdom/Leeds/Home/T1] > ", app.Prompt())
+	// Timeline jump resets quantum to Q0; only T1 appears.
+	assert.Equal(t, "[T1/Leeds/Home] > ", app.Prompt())
 }
 
 func TestPrompt_AfterTravelThenShiftThenJump(t *testing.T) {
@@ -50,8 +50,8 @@ func TestPrompt_AfterTravelThenShiftThenJump(t *testing.T) {
 	app.Execute("shift")
 	app.Execute("jump")
 
-	// Timeline jump resets quantum — only T1 appears, not Q1.
-	assert.Equal(t, "[Earth/United Kingdom/Leeds/Station/T1] > ", app.Prompt())
+	// Timeline jump resets quantum — only T1.
+	assert.Equal(t, "[T1/Leeds/Station] > ", app.Prompt())
 }
 
 func TestPrompt_ShiftBackResetsQuantum(t *testing.T) {
@@ -59,8 +59,8 @@ func TestPrompt_ShiftBackResetsQuantum(t *testing.T) {
 	app.Execute("shift")
 	app.Execute("shift back")
 
-	// Back at Q0 — quantum should not appear in prompt.
-	assert.Equal(t, "[Earth/United Kingdom/Leeds/Home] > ", app.Prompt())
+	// Back at Q0 — no exotic axes in prompt.
+	assert.Equal(t, "[Leeds/Home] > ", app.Prompt())
 }
 
 func TestPrompt_JumpBackResetsTimeline(t *testing.T) {
@@ -68,8 +68,8 @@ func TestPrompt_JumpBackResetsTimeline(t *testing.T) {
 	app.Execute("jump")
 	app.Execute("jump back")
 
-	// Back at Prime — timeline should not appear in prompt.
-	assert.Equal(t, "[Earth/United Kingdom/Leeds/Home] > ", app.Prompt())
+	// Back at Prime — no exotic axes in prompt.
+	assert.Equal(t, "[Leeds/Home] > ", app.Prompt())
 }
 
 func TestPrompt_WhereShowsFullCoordinateAfterShiftBack(t *testing.T) {

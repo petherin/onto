@@ -7,7 +7,7 @@ run:                   ## Run the app natively (requires Go installed)
 	go run ./cmd/onto
 
 .PHONY: docker-run
-docker-run:            ## Run the app in Docker (requires Docker installed)
+docker-run: docker-build  ## Build (if needed) and run the app in Docker
 	docker compose run --rm onto
 
 ## ── Build ────────────────────────────────────────────────────────────────────

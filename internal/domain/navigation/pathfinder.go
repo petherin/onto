@@ -5,7 +5,18 @@
 // technical dependencies.
 package navigation
 
-import "github.com/petherin/onto/internal/domain/universe"
+import (
+	"errors"
+
+	"github.com/petherin/onto/internal/domain/universe"
+)
+
+// Sentinel errors returned by routing operations. Callers may use errors.Is
+// to distinguish between an unknown destination and an unreachable one.
+var (
+	ErrUnknownDestination = errors.New("unknown destination")
+	ErrNoRoute            = errors.New("no route")
+)
 
 // PathfinderService is a domain service interface that finds a route between
 // two locations in a universe. Implementations are free to use any graph algorithm.
