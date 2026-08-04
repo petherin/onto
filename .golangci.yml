@@ -10,20 +10,19 @@ linters:
     - revive         # general style and correctness rules
     - staticcheck    # static analysis (deprecated APIs, unreachable code, etc.)
     - unused         # exported and unexported identifiers that are never used
-
-linters-settings:
-  revive:
-    rules:
-      - name: exported
-        arguments:
-          - "checkPrivateReceivers"
-          - "sayRepetitiveInsteadOfStutters"
-  errcheck:
-    # Ignore errors from fmt.Sscanf (used for best-effort int parsing in coordinates)
-    # and bufio.Reader.ReadString (interactive prompts where partial input is acceptable).
-    exclude-functions:
-      - fmt.Sscanf
-      - (*bufio.Reader).ReadString
+  settings:
+    revive:
+      rules:
+        - name: exported
+          arguments:
+            - "checkPrivateReceivers"
+            - "sayRepetitiveInsteadOfStutters"
+    errcheck:
+      # Ignore errors from fmt.Sscanf (used for best-effort int parsing in coordinates)
+      # and bufio.Reader.ReadString (interactive prompts where partial input is acceptable).
+      exclude-functions:
+        - fmt.Sscanf
+        - (*bufio.Reader).ReadString
 
 issues:
   max-issues-per-linter: 0
