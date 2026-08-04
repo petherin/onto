@@ -69,34 +69,27 @@ Reality
 
 4. After local navigation is solid, add higher-dimension transports (quantum shifts, timeline shifts, universe jumps). The commands remain the same; only the underlying graph and edge types change.
 
-CLI commands (early set)
+CLI commands (current)
 
 ```
-where    — current coordinate
-look     — describe location
-ls       — adjacent nodes
-cd       — move (alias: travel)
-route    — compute route
-scan     — nearby reachable nodes
-cost     — show energy/cost
-history  — visited
-map      — ascii map
+where                  — current reality coordinate and cumulative journey cost
+look                   — describe the current location
+ls                     — adjacent locations and available transitions
+route <destination>    — plan a route without moving
+travel <destination>   — move to a destination (physical edges only)
+home                   — show the plan and cost to return home, confirm, then execute
+shift                  — jump forward to the next quantum branch (Q0 → Q1 → …)
+shift back             — return to the previous quantum branch
+jump                   — jump forward to the next timeline branch (Prime → T1 → …)
+jump back              — return to the previous timeline branch
+cost                   — show travel cost information
+help                   — list all commands
+exit                   — leave the CLI
 ```
 
-Quantum shift commands are now implemented:
+`travel` enforces physical-only routing — it rejects any path that contains a quantum or timeline edge. Exotic transitions require their own dedicated commands (`shift`, `jump`).
 
-```
-shift           // jump forward to the next quantum branch (Q0 → Q1 → …)
-shift back      // return to the previous quantum branch
-```
-
-`travel` enforces physical-only routing — it rejects any path that contains a quantum or timeline edge. Exotic transitions require their own dedicated command.
-
-Still to add: `route` variants and shift commands for timeline and universe layers, for example:
-
-```
-route "Roman Empire survives"  // route to an alternate-history node
-```
+`home` is a composite operation: it shows the full unwind plan (timeline jumps back, quantum shifts back, physical travel), displays the estimated cost, and asks for confirmation before executing. Each step uses the same underlying commands and incurs the same cost as doing it manually.
 
 The key UX principle: the same navigation commands work at all layers; only the graph and edge semantics change. This continuity is what makes the interface feel like an "operating system for reality" rather than a collection of separate features.
 
@@ -150,7 +143,7 @@ Multidimensional structure
 The model can be represented as a structured value rather than a single string. The current implementation in `internal/domain/universe/coordinate.go`:
 
 ```go
-type Coordinate struct {
+type CoordinateVO struct {
     Meta        string    // Ontological layer
     Mathematics string    // Mathematical framework
     Universe    string    // Which universe

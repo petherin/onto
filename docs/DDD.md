@@ -26,17 +26,17 @@ A few terms come up constantly.
 
 ## How DDD is applied here
 
-### The aggregate root — `UniverseAggregate`
+### The aggregate root — `universe.Aggregate`
 
-`UniverseAggregate` in `internal/domain/universe/universe.go` is the aggregate root. It owns every `LocationEntity` and `EdgeVO` in the graph. Both internal maps are unexported, so nothing outside the struct can add, remove, or corrupt a location or edge directly. All mutations go through `AddLocation` and `AddEdge`; all reads go through `GetLocation`, `EdgesFrom`, `AllLocations`, and `AllEdgesFlat`.
+`universe.Aggregate` in `internal/domain/universe/universe.go` is the aggregate root. It owns every `LocationEntity` and `EdgeVO` in the graph. Both internal maps are unexported, so nothing outside the struct can add, remove, or corrupt a location or edge directly. All mutations go through `AddLocation` and `AddEdge`; all reads go through `GetLocation`, `EdgesFrom`, `AllLocations`, and `AllEdgesFlat`.
 
 This means the graph can never be left in a half-constructed state by a caller that forgets a step.
 
-### Entities — `LocationEntity`, `ExplorationEntity`
+### Entities — `LocationEntity`, `exploration.Entity`
 
 `LocationEntity` has a stable ID (lowercase-hyphenated, e.g. `home`, `home-q1`). Two locations with the same coordinates but different IDs are different places. The ID is the identity.
 
-`ExplorationEntity` in `internal/domain/exploration/session.go` tracks where the user is right now — current location ID, current coordinate, and travel history. It is an entity because it has a clear identity (it is *this* user's session) and its state changes over time as the user moves.
+`exploration.Entity` in `internal/domain/exploration/session.go` tracks where the user is right now — current location ID, current coordinate, travel history, and cumulative journey cost. It is an entity because it has a clear identity (it is *this* user's session) and its state changes over time as the user moves. The three movement methods — `MoveTo`, `ShiftTo`, `JumpTo` — each accept a cost and accumulate it into `CumulativeCost`.
 
 ### Value objects — `CoordinateVO`, `EdgeVO`, `TravelModeVO`
 
@@ -54,9 +54,9 @@ Creating a quantum branch is not something a `LocationEntity` does to itself, an
 
 `LocationGeneratorService` is a domain service interface that handles dead ends. The domain defines what it means to handle a dead end; the infrastructure and interface layers provide the two concrete behaviours (auto-generate nearby, or ask the user).
 
-### Repository — `UniverseRepository`
+### Repository — `universe.Repository`
 
-The interface is defined in `internal/domain/universe/repository.go`. It has two methods: `Load` and `Save`. The domain knows it can persist and retrieve a `UniverseAggregate`; it does not know that the current implementation serialises to JSON.
+The interface is defined in `internal/domain/universe/repository.go`. It has two methods: `Load` and `Save`. The domain knows it can persist and retrieve a `universe.Aggregate`; it does not know that the current implementation serialises to JSON.
 
 `JSONRepository` in `internal/infrastructure/persistence/json_repository.go` is the only implementation. Swapping it for a database implementation would not touch a single line of domain code.
 
@@ -65,13 +65,15 @@ The interface is defined in `internal/domain/universe/repository.go`. It has two
 The application layer in `internal/application/` contains use cases, not business rules.
 
 **Commands** (in `commands/`) mutate state and persist the result:
-- `TravelCommand` — validates a physical route, moves the session, handles dead ends, saves.
-- `ShiftCommand` — calls `BranchQuantumService`, moves the session, saves.
-- `JumpCommand` — calls `BranchTimelineService`, moves the session, saves.
+- `TravelCommand` — validates a physical route, moves the session, accumulates cost, handles dead ends, saves.
+- `ShiftCommand` — calls `BranchQuantumService`, moves the session, accumulates quantum shift cost, saves.
+- `JumpCommand` — calls `BranchTimelineService`, moves the session, accumulates timeline shift cost, saves.
 
 **Queries** (in `queries/`) are pure reads with no side effects:
 - `LookupQuery` — `Where`, `Look`, `List`.
-- `RouteQuery` — plans a route without moving the session.
+- `RouteQuery` — plans a route without moving the session. Also used by the `home` command to preview the physical leg cost before confirmation.
+
+The `home` command in the interface layer orchestrates multiple commands in sequence (repeated `JumpCommand` back, repeated `ShiftCommand` back, then `TravelCommand` to the start location). It is not an application-layer command itself — the coordination logic lives in the CLI's `App.GoHome` method, which calls existing commands and prints a plan for confirmation before executing.
 
 Commands and queries each return a result struct. The interface layer formats that struct for the terminal; the application layer never touches a string.
 

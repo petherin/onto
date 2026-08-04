@@ -19,6 +19,7 @@ const (
 	cmdList   = "ls"
 	cmdRoute  = "route"
 	cmdTravel = "travel"
+	cmdHome   = "home"
 	cmdCost   = "cost"
 	cmdShift  = "shift"
 	cmdJump   = "jump"

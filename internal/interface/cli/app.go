@@ -95,6 +95,8 @@ func (a *App) Execute(input string) string {
 			return "Usage: travel <destination>"
 		}
 		return a.Travel(args)
+	case cmdHome:
+		return a.GoHome()
 	case cmdCost:
 		return a.Cost()
 	case cmdShift:
@@ -127,6 +129,7 @@ func (a *App) Help() string {
 		"ls                     List nearby connected locations",
 		"route <destination>    Plan a route to a known place",
 		"travel <destination>   Move to a known place",
+		"home                   Return home (jumps back timelines, shifts back quantum, then travels)",
 		"cost                   Show travel cost information",
 		"shift                  Jump forward to the next quantum branch",
 		"shift back             Return to the previous quantum branch",
@@ -217,6 +220,87 @@ func (a *App) JumpBack() string {
 		return fmt.Sprintf("Cannot jump back: %v", err)
 	}
 	return a.formatJumpResult(result)
+}
+
+// GoHome returns the session to the start location, unwinding timeline jumps
+// then quantum shifts then travelling physically. It first shows the plan and
+// estimated cost and asks for confirmation before doing anything.
+func (a *App) GoHome() string {
+	if a.session.CurrentLocation == defaultStartLocation &&
+		a.session.QuantumLevel() == 0 &&
+		a.session.TimelineLevel() == 0 {
+		return "You are already home."
+	}
+
+	// --- Build the plan (read-only, nothing moves yet) ---
+	var planLines []string
+	estimatedCost := 0.0
+
+	tl := a.session.TimelineLevel()
+	for i := tl; i > 0; i-- {
+		planLines = append(planLines, fmt.Sprintf("  jump back  (timeline %s → T%d)  cost %.0f", fmt.Sprintf("T%d", i), i-1, universe.TimelineShiftCost))
+		estimatedCost += universe.TimelineShiftCost
+	}
+
+	ql := a.session.QuantumLevel()
+	for i := ql; i > 0; i-- {
+		planLines = append(planLines, fmt.Sprintf("  shift back (quantum Q%d → Q%d)  cost %.0f", i, i-1, universe.QuantumShiftCost))
+		estimatedCost += universe.QuantumShiftCost
+	}
+
+	// Estimate physical leg cost via the route query (doesn't move the session).
+	if a.session.CurrentLocation != defaultStartLocation {
+		q := &queries.RouteQuery{Universe: a.universe, Session: a.session, Pathfinder: a.pathfinder}
+		if rr, err := q.Execute(defaultStartLocation); err == nil {
+			for _, edge := range rr.Steps {
+				planLines = append(planLines, fmt.Sprintf("  travel     %s → %s (%s)  cost %.0f", a.locationName(edge.From), a.locationName(edge.To), edge.Mode, edge.Cost))
+			}
+			estimatedCost += rr.Cost
+		} else {
+			planLines = append(planLines, fmt.Sprintf("  travel     home (route unavailable: %v)", err))
+		}
+	}
+
+	plan := strings.Join(planLines, "\n")
+
+	// Print the plan and prompt directly (same pattern as InteractiveHandler).
+	fmt.Printf("\nRoute home\n%s\n\nEstimated cost: %.0f\n\nProceed? [y/N]: ", plan, estimatedCost)
+
+	if a.interactiveReader != nil {
+		line, _ := a.interactiveReader.ReadString('\n')
+		if strings.ToLower(strings.TrimSpace(line)) != "y" {
+			return "Cancelled."
+		}
+	}
+
+	// --- Execute the plan ---
+	var steps []string
+
+	for a.session.TimelineLevel() > 0 {
+		cmd := &commands.JumpCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
+		result, err := cmd.Execute()
+		if err != nil {
+			return fmt.Sprintf("Failed while jumping back to base timeline: %v\n\nSteps taken so far:\n%s", err, strings.Join(steps, "\n"))
+		}
+		steps = append(steps, fmt.Sprintf("Timeline jump back → %s at %s", result.NextTimeline, result.Location.Name))
+	}
+
+	for a.session.QuantumLevel() > 0 {
+		cmd := &commands.ShiftCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
+		result, err := cmd.Execute()
+		if err != nil {
+			return fmt.Sprintf("Failed while shifting back to base quantum: %v\n\nSteps taken so far:\n%s", err, strings.Join(steps, "\n"))
+		}
+		steps = append(steps, fmt.Sprintf("Quantum shift back → %s at %s", result.NextQuantum, result.Location.Name))
+	}
+
+	if a.session.CurrentLocation != defaultStartLocation {
+		travelResult := a.Travel(defaultStartLocation)
+		steps = append(steps, fmt.Sprintf("Travelled home → %s", defaultStartLocation))
+		return fmt.Sprintf("Heading home...\n\nSteps taken\n%s\n\n%s", strings.Join(steps, "\n"), travelResult)
+	}
+
+	return fmt.Sprintf("Heading home...\n\nSteps taken\n%s\n\nYou are home.\n\nCumulative journey cost\n%.0f", strings.Join(steps, "\n"), a.session.CumulativeCost)
 }
 
 // Route plans and displays a route to target without moving the session.

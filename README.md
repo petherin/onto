@@ -73,7 +73,7 @@ How you exist:   Timeline → Point in time → Simulation depth → Observer
 Where locally:   Galaxy → System → Planet → Country → Region → City → Location
 ```
 
-Some commands move you within a reality (`travel`, `jump`). Others move you between realities (`shift`, `universe`). The CLI surface stays the same; only the edge types and costs change.
+Some commands move you within a reality (`travel`, `jump`, `home`). Others move you between realities (`shift`, `universe`). The CLI surface stays the same; only the edge types and costs change.
 
 The CLI does not implement every axis immediately. It starts with physical navigation and expands outward.
 
@@ -98,10 +98,10 @@ From the CLI's point of view, these are all just different edge types in a graph
 
 ## Coordinate model
 
-The project is building toward a coordinate-based representation like this:
+The full position vector is implemented as `universe.CoordinateVO` in `internal/domain/universe/coordinate.go`:
 
 ```go
-type Coordinate struct {
+type CoordinateVO struct {
     Meta        string
     Mathematics string
     Universe    string
@@ -120,40 +120,48 @@ type Coordinate struct {
 }
 ```
 
-For the current version, the scaffold focuses on the physical and local layers, with Earth and simple location data as a starting point.
+The current implementation populates the physical layers (planet through location) and the quantum and timeline axes. The higher axes (mathematics, universe, simulation) are present in the struct and ready to be navigated once higher-cost edge types are introduced.
 
 ## Example CLI experience
 
-The prompt should eventually feel like this:
+The prompt reflects your current position, including any non-default quantum or timeline level:
 
 ```text
-[Earth/UK/Leeds/Home] >
+[Earth/United Kingdom/Leeds/Home] >
+[Earth/United Kingdom/Leeds/Station/Q1] >
+[Earth/United Kingdom/Leeds/Station/Q1/T2] >
 ```
 
-And commands such as:
+Current commands:
 
 ```text
-where
-look
-ls
-route station
-travel station
-cost
-exit
+where                  Show your current reality coordinate and cumulative journey cost
+look                   Describe your current location
+ls                     List connected locations and available transitions
+route <destination>    Plan a route without moving
+travel <destination>   Move to a destination (physical edges only)
+home                   Show the route home and estimated cost, then confirm before executing
+shift                  Jump to the next quantum branch (cost 20)
+shift back             Return to the previous quantum branch
+jump                   Jump to the next timeline branch (cost 800)
+jump back              Return to the previous timeline branch
+cost                   Show travel cost information
+help                   List all commands
+exit                   Leave the CLI
 ```
-
-These commands are intended to grow from a simple local-navigation prototype into a much broader reality traversal interface.
 
 ## Current status
 
 The app is functional. It includes:
 
 - a command entrypoint in `cmd/onto`
-- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `cost`, `shift`, `shift back`, `jump`, `jump back`, and `exit` commands
+- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `home`, `cost`, `shift`, `shift back`, `jump`, `jump back`, and `exit` commands
 - BFS-based graph routing across locations with travel modes (walk, rail, etc.)
 - quantum branch navigation: `shift` jumps forward to the next branch (cost 20); `shift back` returns to the previous one
 - timeline branch navigation: `jump` jumps forward to the next alternate history (cost 800); `jump back` returns to the previous one
 - `travel` rejects routes that cross quantum or timeline boundaries — physical and non-physical travel are kept separate
+- `home` command: shows the full plan and estimated cost to unwind all timeline jumps, quantum shifts, and physical travel back to the start location, then asks for confirmation before executing
+- cumulative journey cost tracked across the session and shown in `where` output and after every move
 - a full coordinate model covering universe, timeline, quantum, planet, country, region, city, and location
 - location and edge data loaded from `data/locations.json`, with a built-in fallback map
 - interactive prompting to create new locations when arriving at a dead-end node
@@ -223,12 +231,13 @@ make mocks
 
 1. ~~Implement a simple local-world graph for Earth.~~ ✓
 2. ~~Add location lookup and basic routing.~~ ✓
-3. Introduce full cost calculations (currently a stub).
-4. Expand the coordinate model with more layers.
-5. ~~Support quantum transitions.~~ ✓ (`shift` / `shift back` implemented)
-6. ~~Support timeline transitions.~~ ✓ (`jump` / `jump back` implemented)
+3. ~~Track cumulative journey cost across the session.~~ ✓
+4. ~~Support quantum transitions.~~ ✓ (`shift` / `shift back`)
+5. ~~Support timeline transitions.~~ ✓ (`jump` / `jump back`)
+6. ~~Add `home` command to return to start, unwinding all branches with confirmation.~~ ✓
 7. Support universe transitions (higher-cost exotic modes).
-7. Evolve the CLI into a true reality navigator.
+8. Expand the coordinate model with more layers (simulation depth, observer shifts).
+9. Evolve the CLI into a true reality navigator.
 
 ## Notes
 
