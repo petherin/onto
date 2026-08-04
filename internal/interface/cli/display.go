@@ -189,21 +189,21 @@ func (a *App) locationName(id string) string {
 
 func (a *App) routeUnavailableDiagnostics(target string) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("Route unavailable to %s.\n", target))
-	b.WriteString(fmt.Sprintf("Current location id: %s\n", a.session.CurrentLocation))
+	fmt.Fprintf(&b, "Route unavailable to %s.\n", target)
+	fmt.Fprintf(&b, "Current location id: %s\n", a.session.CurrentLocation)
 	sl := startLocation()
 	if _, ok := a.universe.GetLocation(sl); ok {
-		b.WriteString(fmt.Sprintf("%s is present in universe\n", sl))
+		fmt.Fprintf(&b, "%s is present in universe\n", sl)
 	} else {
-		b.WriteString(fmt.Sprintf("%s is NOT present in universe\n", sl))
+		fmt.Fprintf(&b, "%s is NOT present in universe\n", sl)
 	}
 	b.WriteString("Outgoing from current location:\n")
 	for _, e := range a.universe.EdgesFrom(a.session.CurrentLocation) {
-		b.WriteString(fmt.Sprintf("- %s (%s)\n", e.To, e.Mode))
+		fmt.Fprintf(&b, "- %s (%s)\n", e.To, e.Mode)
 	}
 	b.WriteString("\nKnown location IDs:\n")
 	for _, id := range a.universe.AllLocationIDs() {
-		b.WriteString(fmt.Sprintf("- %s\n", id))
+		fmt.Fprintf(&b, "- %s\n", id)
 	}
 	return b.String()
 }
