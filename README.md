@@ -277,6 +277,27 @@ type CoordinateVO struct {
 
 The current implementation navigates the physical layers (planet through location), quantum, timeline, and consensus axes. A non-spatial transition materializes coordinate-matched copies of reachable physical locations, so local travel remains within that context. The higher axes (mathematics, universe, simulation, and observer) are present in the struct and ready to be navigated once their edge types are introduced.
 
+### Contextual transition rules
+
+Contextual travel stacks by default: a transition changes only its own axis and
+preserves every other active context.
+
+| Transition | Preserves | Resets |
+|---|---|---|
+| `shift` | Timeline, consensus, simulation, observer, and physical location | Nothing |
+| `jump` | Quantum, consensus, simulation, observer, and physical location | Nothing |
+| `drift` | Quantum, timeline, simulation, observer, and physical location | Nothing |
+| Observer shift | Every other axis | Nothing |
+| Time travel | Every other axis | Nothing |
+| Simulation entry | Observer and consensus | The simulated world's universe, timeline, quantum, and physical map |
+| Universe transition | Mathematics and applicable observer/experience overlays | Universe-local timeline, quantum, and physical map |
+| Mathematical-structure transition | Nothing below the mathematical layer | Universe and every lower axis |
+
+`shift`, `jump`, and `drift` are implemented. The remaining rows define the
+intended behavior for future transition types. `home` is the explicit unwind
+operation: it returns consensus, timeline, and quantum axes to their base
+levels before travelling physically to the start location.
+
 ## Example CLI experience
 
 The prompt reflects your current position, including non-default quantum, timeline, and consensus levels:
