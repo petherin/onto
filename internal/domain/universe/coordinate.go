@@ -18,6 +18,7 @@ type CoordinateVO struct {
 	Timeline    string
 	Quantum     string
 	Simulation  int
+	Consensus   int
 	Galaxy      string
 	System      string
 	Planet      string
@@ -30,7 +31,8 @@ type CoordinateVO struct {
 }
 
 // DefaultCoordinateVO returns the default starting CoordinateVO: Earth, United
-// Kingdom, Yorkshire, Leeds, Home, Observer: Human, Prime timeline, Q0 quantum level.
+// Kingdom, Yorkshire, Leeds, Home, Observer: Human, Prime timeline, Q0 quantum level,
+// consensus reality (0).
 func DefaultCoordinateVO() CoordinateVO {
 	return CoordinateVO{
 		Meta:        "Origin",
@@ -39,6 +41,7 @@ func DefaultCoordinateVO() CoordinateVO {
 		Timeline:    "Prime",
 		Quantum:     "Q0",
 		Simulation:  0,
+		Consensus:   0,
 		Galaxy:      "Milky Way",
 		System:      "Solar System",
 		Planet:      "Earth",
@@ -82,24 +85,25 @@ func (c CoordinateVO) TimelineLevel() int {
 //
 // Format:
 //
-//	onto://<meta>.<math>/<universe>/<timeline>/<quantum>/sim:<n>/<galaxy>/<system>/<planet>/<country>/<region>/<city>/<location>@<observer>+<time>
+//	onto://<meta>.<math>/<universe>/<timeline>/<quantum>/<galaxy>/<system>/<planet>/<country>/<region>/<city>/<location>/sim:<n>/cons:<n>@<observer>+<time>
 //
-// sim:<n> is omitted when n == 0.
+// sim:<n> and cons:<n> are omitted when n == 0.
 // The +<time> suffix is omitted when Time is the zero value.
 func (c CoordinateVO) OntoAddress() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "onto://%s.%s/%s/%s/%s",
+	fmt.Fprintf(&b, "onto://%s.%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s",
 		segEncode(c.Meta), segEncode(c.Mathematics),
 		segEncode(c.Universe), segEncode(c.Timeline), segEncode(c.Quantum),
+		segEncode(c.Galaxy), segEncode(c.System), segEncode(c.Planet),
+		segEncode(c.Country), segEncode(c.Region), segEncode(c.City), segEncode(c.Location),
 	)
 	if c.Simulation != 0 {
 		fmt.Fprintf(&b, "/sim:%d", c.Simulation)
 	}
-	fmt.Fprintf(&b, "/%s/%s/%s/%s/%s/%s/%s@%s",
-		segEncode(c.Galaxy), segEncode(c.System), segEncode(c.Planet),
-		segEncode(c.Country), segEncode(c.Region), segEncode(c.City), segEncode(c.Location),
-		segEncode(c.Observer),
-	)
+	if c.Consensus != 0 {
+		fmt.Fprintf(&b, "/cons:%d", c.Consensus)
+	}
+	fmt.Fprintf(&b, "@%s", segEncode(c.Observer))
 	if !c.Time.IsZero() {
 		fmt.Fprintf(&b, "+%s", c.Time.UTC().Format(time.RFC3339))
 	}
@@ -134,6 +138,9 @@ func (c CoordinateVO) ShortOntoAddress() string {
 	}
 	if c.Simulation != 0 {
 		parts = append(parts, fmt.Sprintf("sim:%d", c.Simulation))
+	}
+	if c.Consensus != 0 {
+		parts = append(parts, fmt.Sprintf("cons:%d", c.Consensus))
 	}
 	if c.Galaxy != "" && c.Galaxy != d.Galaxy {
 		parts = append(parts, segEncode(c.Galaxy))
@@ -195,34 +202,38 @@ func ParseOntoAddress(addr string) (CoordinateVO, error) {
 
 	// Full address has a fixed structure:
 	// [0] meta.math  [1] universe  [2] timeline  [3] quantum
-	// [4] (sim:n | galaxy)  ...
+	// [4..10] galaxy, system, planet, country, region, city, location
+	// [11+] sim:n and/or cons:n
 	// We detect full vs short by checking if segment[0] contains a dot
-	// (meta.math pair) and segment count is at least 9.
-	if len(segments) >= 9 && strings.Contains(segments[0], ".") {
+	// (meta.math pair) and segment count is at least 11.
+	if len(segments) >= 11 && strings.Contains(segments[0], ".") {
 		dot := strings.SplitN(segments[0], ".", 2)
 		c.Meta = segDecode(dot[0])
 		c.Mathematics = segDecode(dot[1])
 		c.Universe = segDecode(segments[1])
 		c.Timeline = segDecode(segments[2])
 		c.Quantum = segDecode(segments[3])
-		rest := segments[4:]
-		if len(rest) > 0 && strings.HasPrefix(rest[0], "sim:") {
-			n, err := strconv.Atoi(strings.TrimPrefix(rest[0], "sim:"))
-			if err == nil {
-				c.Simulation = n
+		c.Galaxy = segDecode(segments[4])
+		c.System = segDecode(segments[5])
+		c.Planet = segDecode(segments[6])
+		c.Country = segDecode(segments[7])
+		c.Region = segDecode(segments[8])
+		c.City = segDecode(segments[9])
+		c.Location = segDecode(segments[10])
+		
+		// Parse sim:n and cons:n from remaining segments
+		for i := 11; i < len(segments); i++ {
+			if strings.HasPrefix(segments[i], "sim:") {
+				n, err := strconv.Atoi(strings.TrimPrefix(segments[i], "sim:"))
+				if err == nil {
+					c.Simulation = n
+				}
+			} else if strings.HasPrefix(segments[i], "cons:") {
+				n, err := strconv.Atoi(strings.TrimPrefix(segments[i], "cons:"))
+				if err == nil {
+					c.Consensus = n
+				}
 			}
-			rest = rest[1:]
-		}
-		if len(rest) >= 6 {
-			c.Galaxy = segDecode(rest[0])
-			c.System = segDecode(rest[1])
-			c.Planet = segDecode(rest[2])
-			c.Country = segDecode(rest[3])
-			c.Region = segDecode(rest[4])
-			c.City = segDecode(rest[5])
-		}
-		if len(rest) >= 7 {
-			c.Location = segDecode(rest[6])
 		}
 		return c, nil
 	}
@@ -239,6 +250,13 @@ func ParseOntoAddress(addr string) (CoordinateVO, error) {
 			n, err := strconv.Atoi(strings.TrimPrefix(s, "sim:"))
 			if err == nil {
 				c.Simulation = n
+			}
+			continue
+		}
+		if strings.HasPrefix(s, "cons:") {
+			n, err := strconv.Atoi(strings.TrimPrefix(s, "cons:"))
+			if err == nil {
+				c.Consensus = n
 			}
 			continue
 		}
