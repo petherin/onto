@@ -127,18 +127,6 @@ The design unifies all navigation under a single principle: *routing through a g
 
 ---
 
-### The full coordinate
-
-A complete position in Onto combines all these axes:
-
-```
-Which universe?     Level IV (mathematics) → Level II (bubble) → Level I (spatial) ⊕ Level III (quantum)
-How you exist?      Timeline ⊕ Time ⊕ Simulation depth ⊕ Observer
-Where locally?      Galaxy → System → Planet → Country → Region → City → Location
-```
-
----
-
 ### Coordinate diagram
 
 Here's the complete coordinate space visualized:
@@ -244,41 +232,6 @@ LOCAL COORDINATES (nested within Level I region)
 - **The four experience axes** (Timeline, Time, Simulation, Observer) can all change independently. You can be at the same location in multiple different combinations of these.
 
 - **The local hierarchy** (Galaxy → Location) exists entirely within your Level I region and is the same across all quantum branches, timelines, and observer perspectives (only your perception changes).
-
----
-
-### Navigation in practice
-
-Some commands move you through the orthogonal axes:
-- `travel <destination>` — moves you in Level I (spatially)
-- `shift` — moves you in Level III (quantum branch)
-- `jump` — moves you in Timeline (historical branch)
-- (Time, Simulation depth, and Observer shifts come later)
-
-Other commands move you between exclusive Tegmark levels:
-- `universe` — moves you between Level II bubbles (very expensive)
-- (Level IV transitions come much later, if ever)
-
-The CLI does not implement every axis immediately. It starts with physical navigation (`travel`) and quantum shifts (`shift`/`jump`), and expands outward.
-
-## Core idea
-
-A location is not just a place. It is a coordinate in a larger structure.
-
-At the center of the design is a navigation engine that computes routes between points, regardless of whether those routes are:
-
-- walking
-- driving
-- rail travel
-- flight
-- orbital travel
-- quantum shifts
-- timeline shifts
-- universe shifts
-- simulation entry
-- observer shifts
-
-From the CLI's point of view, these are all just different edge types in a graph.
 
 ## Coordinate model
 
