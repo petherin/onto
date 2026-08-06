@@ -23,59 +23,243 @@ This project begins small, but it is designed to grow into a reality navigator r
 
 ## Vision
 
-Instead of treating reality as a single fixed map, Onto models existence as a coordinate system with two distinct kinds of axis: **which reality you are in**, and **how you exist within it**.
+Instead of treating reality as a single fixed map, Onto models existence as a coordinate system with nested and orthogonal axes. At the foundation: **which exclusive universe you inhabit** (the strict Tegmark hierarchy), and woven through it: **how you exist within that universe** (orthogonal dimensions of branching and perception).
 
 ---
 
-### Part 1 — Which reality? (Tegmark levels)
+### Part 1 — Which universe? The strict Tegmark hierarchy
 
-The Tegmark hierarchy classifies realities by what produces them. Each level is strictly more exotic than the last, and each requires a more expensive transition to cross.
+The Tegmark hierarchy is exclusively nested: you belong to exactly one mathematical structure, and within it, one bubble universe, and within that, you navigate two orthogonal dimensions of location (space and quantum branch). Moving up this hierarchy is extremely expensive because it means leaving your entire universe.
+
+```
+Level IV: Mathematical structures (most exotic)
+    ↓ contains
+Level II: Bubble universes (different physical constants)
+    ↓ contains
+Level I + Level III: Spatial regions with quantum branching (same physics, different locations and outcomes)
+```
+
+**The key insight:** Level III (quantum branches) is not a separate level in the hierarchy above Level I. Instead, Level III and Level I are **orthogonal dimensions of the same universe**. Every location in space (Level I) has quantum branches threading through it (Level III). You do not move to "Level III space" — rather, you shift to a different quantum branch *at your current location*.
 
 #### Spatial regions _(Tegmark Level I)_
 Distant regions of our own universe beyond the observable horizon. Same physical laws, same constants — just unreachably far away. Local travel (walking, driving, flying) operates entirely within this level. `travel` is the command.
 
 #### Bubble universes _(Tegmark Level II)_
-Other universes produced by the same inflationary process as ours, but with different physical constants — a different speed of light, different fundamental forces. Not quantum branches; entirely separate bubbles. A `universe` shift crosses into one. Cost: very high.
+Other universes produced by the same inflationary process as ours, but with different physical constants — a different speed of light, different fundamental forces. Not quantum branches; entirely separate bubbles. Each bubble has its own Level I spatial structure, and quantum branches (Level III) thread through all of it. A `universe` shift moves between bubbles. Cost: very high.
 
-#### Quantum branches _(Tegmark Level III)_
-Every quantum event that could have gone differently spawns a parallel branch — the many-worlds interpretation. Physics identical, history diverging from a single branching point. `shift` steps into an adjacent branch; `shift back` returns. Cost: 20.
+#### Quantum branches _(Tegmark Level III — orthogonal to Level I, not hierarchically above it)_
+Every quantum event that could have gone differently spawns a parallel branch — the many-worlds interpretation. **Level III branches exist within the same physical universe as Level I regions.** You can occupy the same spatial location (Level I) in different quantum branches (Level III), each with a different history of outcomes. Physics identical, branching trajectories from quantum decisions. `shift` steps into an adjacent branch; `shift back` returns. Cost: 20.
 
 #### Mathematical structures _(Tegmark Level IV)_
-Every self-consistent mathematical structure exists as its own reality. Different numbers of spatial dimensions, different rules of logic, laws of nature unrecognisable from ours. Crossing here is not a physical journey; it is a transition into a different formal system. Cost: extreme.
+Every self-consistent mathematical structure exists as its own reality. Different numbers of spatial dimensions, different rules of logic, laws of nature unrecognisable from ours. Each structure contains all its bubbles and all their Level I regions and Level III branches. Crossing here is not a physical journey; it is a transition into a fundamentally different formal system. Cost: extreme.
 
 ---
 
-### Part 2 — How you exist within a reality (modes of existence)
+### Part 2 — How you exist within that universe (orthogonal branching and perception axes)
 
-The Tegmark level tells you *which* reality you are in. It says nothing about *how* you exist inside it. These axes are independent overlays — you can change them without changing which Tegmark reality you are in.
+You have identified your bubble and mathematical structure (Tegmark II and IV). Within that bubble's Level I universe, you occupy:
+- A location in space (Level I)
+- A quantum branch (Level III)
+
+On top of these, four more independent dimensions allow you to navigate *how* you exist:
 
 #### Timeline
-A coarser kind of branching than quantum. A timeline marks where a significant historical event went differently — a war, a technology, a civilisation. `jump` moves forward into an alternate history; `jump back` returns. Cost: 800. _(A timeline is not a Tegmark level — it is a branch within a Level I or III reality, not a separate universe.)_
+A coarser historical fork than quantum mechanics — a macroscopic divergence point. A timeline marks where a significant historical event went differently — a war, a technology, a civilisation. Multiple timelines can exist within a single quantum branch. `jump` moves forward into an alternate history; `jump back` returns. Cost: 800. _(Not a Tegmark level: it branches within a single Level I + III address.)_
 
 #### Time
-Every reality has its own timeline of events. Navigating to a different point in time within the same reality — past or future — is cheaper than changing realities, but increasingly expensive the further you travel.
+Every universe has a temporal dimension. Navigating to a different point in time within the same location, branch, and timeline — past or future — is cheaper than most transitions, but increasingly expensive the further you travel.
 
 #### Simulation depth
-If a reality can be computed, it can be nested. Simulation depth tracks whether you are in base reality or inside a computed world running on top of it. Entering a simulation is relatively cheap; the boundary is designed to be crossed. Exiting requires finding or constructing a way out.
+If a reality can be computed, it can be nested. Simulation depth tracks whether you are in base reality or inside a computed world running on top of it. A simulated reality contains its own complete universe: its own Level I spatial regions, Level III quantum branches, and all the branching/temporal axes within. Entering a simulation is relatively cheap; the boundary is designed to be crossed. Exiting requires finding or constructing a way out.
 
 #### Observer (umwelt)
-Reality is never perceived directly — it is filtered through the senses and cognition of an observer. Two observers in the same physical location can inhabit entirely different experienced worlds. A bat, a human, and an AI standing in the same room share the same Tegmark address but different umwelts. An observer shift changes whose perceptual frame you occupy. Cost: low, but hard to reverse.
+Reality is never perceived directly — it is filtered through the senses and cognition of an observer. Two observers in the same location, same quantum branch, same timeline, same time, same simulation depth can inhabit entirely different experienced worlds. A bat, a human, and an AI standing in the same room share the same full coordinate but different umwelts. An observer shift changes whose perceptual frame you occupy. Cost: low, but hard to reverse.
+
+---
+
+### How it all hangs together
+
+**Your address has three layers:**
+
+1. **Exclusive hierarchy** (you occupy exactly one position):
+   - Which mathematical structure (Level IV)?
+   - Which bubble universe (Level II)?
+   - These determine your fundamental physics.
+
+2. **Universe coordinates** (two orthogonal dimensions of the same universe):
+   - Which spatial region (Level I)?
+   - Which quantum branch within that region (Level III)?
+   - These determine your *where* and *which outcome*.
+
+3. **Experience overlays** (four independent axes you navigate within your universe):
+   - Which timeline (macroscopic history branch)?
+   - Which time (temporal position)?
+   - Which simulation depth (base or nested)?
+   - Which observer (perceptual frame)?
+
+**How they interact:**
+
+- **Levels IV and II are permanent anchors.** Moving between them is expensive and rare. Once you commit to a bubble universe, you stay within it unless you pay the extreme cost.
+
+- **Level I and Level III are orthogonal coordinates of the same space.** Shifting quantum branches doesn't move you physically; moving physically doesn't change your quantum branch. A "position" requires both: "Earth, Quantum branch Q3" is different from "Earth, Quantum branch Q1," but both are still Earth.
+
+- **Timeline, Time, Simulation, and Observer are independent overlays.** You can:
+  - Shift quantum branches without changing your timeline
+  - Jump to a different timeline without changing your location or branch
+  - Move through time without leaving your timeline
+  - Enter a simulation while staying in the same branch, location, and timeline (the simulation contains its own nested Level I/III structure)
+  - Change observer without any physical or temporal movement
+
+- **Local coordinates (galaxy, planet, city, location) are always nested within your current Level I region**, regardless of which quantum branch, timeline, time, or simulation depth you occupy.
+
+**Cost hierarchy (cheapest to most expensive):**
+- **Cheapest**: physical travel (walking/driving within one region)
+- **Very cheap**: observer shifts (changing perceptual perspective)
+- **Low**: time travel (short distances), simulation boundary crossings
+- **Moderate**: timeline jumps (macroscopic history shifts)
+- **Expensive**: quantum shifts (Level III branches)
+- **Very expensive**: universe shifts (Level II bubbles)
+- **Extreme**: mathematical structure transitions (Level IV)
+
+**Why this model works:**
+
+The design unifies all navigation under a single principle: *routing through a graph*. Whether you're walking to a store, shifting to a different quantum outcome, jumping to an alternate history, or entering a simulation, the CLI treats it as the same operation: move from coordinate A to coordinate B. The difference is the edge type (physical, quantum, temporal, etc.) and its cost.
 
 ---
 
 ### The full coordinate
 
-A complete position in Onto combines both kinds of axis:
+A complete position in Onto combines all these axes:
 
 ```
-Which reality:   Mathematical structure → Bubble universe → Quantum branch → Spatial region
-How you exist:   Timeline → Point in time → Simulation depth → Observer
-Where locally:   Galaxy → System → Planet → Country → Region → City → Location
+Which universe?     Level IV (mathematics) → Level II (bubble) → Level I (spatial) ⊕ Level III (quantum)
+How you exist?      Timeline ⊕ Time ⊕ Simulation depth ⊕ Observer
+Where locally?      Galaxy → System → Planet → Country → Region → City → Location
 ```
 
-Some commands move you within a reality (`travel`, `jump`, `home`). Others move you between realities (`shift`, `universe`). The CLI surface stays the same; only the edge types and costs change.
+---
 
-The CLI does not implement every axis immediately. It starts with physical navigation and expands outward.
+### Coordinate diagram
+
+Here's the complete coordinate space visualized:
+
+```
+═══════════════════════════════════════════════════════════════════════════════
+                    THE TEGMARK HIERARCHY (Exclusive)
+═══════════════════════════════════════════════════════════════════════════════
+
+                        ┌──────────────────────┐
+                        │  Level IV: Which     │
+                        │  Mathematical        │
+                        │  Structure?          │
+                        │  (extreme cost)      │
+                        └──────────┬───────────┘
+                                   │
+                        ┌──────────┴───────────┐
+                        │  Level II: Which     │
+                        │  Bubble Universe?    │
+                        │  (very high cost)    │
+                        └──────────┬───────────┘
+                                   │
+    ═══════════════════════════════╩══════════════════════════════════════════════
+
+          AT THIS POINT, YOU ARE IN A SPECIFIC UNIVERSE.
+    YOU MUST NOW LOCATE YOURSELF IN TWO ORTHOGONAL DIMENSIONS:
+
+    ┌─────────────────────────────────┬──────────────────────────────────┐
+    │   Level I: Which Spatial Region?│ Level III: Which Quantum Branch? │
+    │   (within that universe)         │ (within that location)           │
+    │   e.g., "Earth"                 │ e.g., "Q3" (Schrödinger branch) │
+    │                                 │                                  │
+    │   Galaxy → System → Planet       │ Outcome of quantum branching     │
+    │   (local hierarchy below)        │ at this location and time        │
+    └─────────────────────────────────┴──────────────────────────────────┘
+                         ⊕ (orthogonal to each other)
+
+    ═══════════════════════════════════╦═════════════════════════════════════════
+
+          NOW, LAYER THESE FOUR INDEPENDENT EXPERIENCE AXES:
+
+         ┌──────────────┬──────────────┬─────────────┬────────────────┐
+         │  Timeline    │  Time        │  Simulation │  Observer      │
+         │  Which hist? │  When?       │  Depth?     │  Whose eyes?   │
+         │  (cost 800)  │  (cost var)  │  (cost low) │  (cost low)    │
+         │              │              │             │                │
+         │  T1, T2, T3  │  timestamp   │  0, 1, 2... │  human, bat,   │
+         │  (branches)  │  (position)  │  (nesting)  │  ai, ...       │
+         └──────────────┴──────────────┴─────────────┴────────────────┘
+              ⊕            ⊕               ⊕              ⊕
+         (all orthogonal, mix and match independently)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+EXAMPLE COMPLETE COORDINATES:
+
+  [MathA / BubbleX / Earth / Q3 / T2 / 2025-08-06 / depth=0 / human]
+  "Earth in MathStructure A's Bubble X, quantum branch Q3, alternate timeline T2,
+   August 6th 2025, base reality, perceived through human senses"
+
+  [MathA / BubbleX / Earth / Q1 / T2 / 2024-01-01 / depth=1 / bat]
+  "Same universe, same location, DIFFERENT quantum branch Q1, different timeline T2,
+   different time (2024), INSIDE a simulation (depth=1), bat's perspective"
+   
+  Both are on "Earth" in the same bubble and math structure, but they're
+  completely different experiences in different branching dimensions.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+LOCAL COORDINATES (nested within Level I region)
+
+                        Your current region (e.g., "Earth")
+                                   │
+                    ┌──────────────┼──────────────┐
+                    │              │              │
+                 Galaxy A       Galaxy B       Galaxy C
+                    │
+                 System 1
+                    │
+                 Planet 1
+                    │
+          ┌─────────┼─────────┐
+          │         │         │
+       Country1  Country2  Country3
+          │
+        Region A
+          │
+        City 1
+          │
+      Location: Home
+           ↓
+      `[Earth/Country/Region/City/Home] >` (appears in CLI prompt)
+
+═══════════════════════════════════════════════════════════════════════════════
+```
+
+**Reading this diagram:**
+
+- The **top box** (Level IV → Level II) is the exclusive hierarchy: you pick a mathematical structure and a bubble universe, and you stay there.
+
+- **Level I ⊕ Level III** are orthogonal: "Earth in Q3" is different from "Earth in Q1," but both are Earth. Shifting branches doesn't move you spatially.
+
+- **The four experience axes** (Timeline, Time, Simulation, Observer) can all change independently. You can be at the same location in multiple different combinations of these.
+
+- **The local hierarchy** (Galaxy → Location) exists entirely within your Level I region and is the same across all quantum branches, timelines, and observer perspectives (only your perception changes).
+
+---
+
+### Navigation in practice
+
+Some commands move you through the orthogonal axes:
+- `travel <destination>` — moves you in Level I (spatially)
+- `shift` — moves you in Level III (quantum branch)
+- `jump` — moves you in Timeline (historical branch)
+- (Time, Simulation depth, and Observer shifts come later)
+
+Other commands move you between exclusive Tegmark levels:
+- `universe` — moves you between Level II bubbles (very expensive)
+- (Level IV transitions come much later, if ever)
+
+The CLI does not implement every axis immediately. It starts with physical navigation (`travel`) and quantum shifts (`shift`/`jump`), and expands outward.
 
 ## Core idea
 
