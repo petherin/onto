@@ -45,7 +45,9 @@ func (c *ShiftCommand) shiftForward() (*ShiftResult, error) {
 	nextQ := fmt.Sprintf("Q%d", c.Session.QuantumLevel()+1)
 	destID := c.Session.NextQuantumID()
 	currentName := locationName(c.Universe, c.Session.Location())
-	universe.BranchQuantumService(c.Universe, c.Session.Location(), c.Session.Coordinate(), currentName, destID, nextQ)
+	if err := universe.BranchQuantumService(c.Universe, c.Session.Location(), c.Session.Coordinate(), currentName, destID, nextQ); err != nil {
+		return nil, err
+	}
 	return c.completeShift(destID, nextQ, false)
 }
 
@@ -74,7 +76,7 @@ func (c *ShiftCommand) shiftBack() (*ShiftResult, error) {
 
 func (c *ShiftCommand) completeShift(destID, quantum string, reversed bool) (*ShiftResult, error) {
 	loc, _ := c.Universe.GetLocation(destID)
-	c.Session.ShiftTo(loc, universe.QuantumShiftCost)
+	c.Session.TransitionTo(loc, universe.QuantumShiftCost, universe.QuantumShift, reversed)
 
 	result := &ShiftResult{
 		NextQuantum: quantum,

@@ -24,6 +24,7 @@ const (
 	SimulationEntry   TravelModeVO = "simulation" // enter or exit a simulation layer
 	ObserverShift     TravelModeVO = "observer"   // change observer perspective
 	ConsensusShift    TravelModeVO = "consensus"  // enter or exit a consensus divergence
+	TimeShift         TravelModeVO = "time"       // move to another point in time
 	MathematicalShift TravelModeVO = "math"       // traverse a mathematical abstraction
 )
 
@@ -38,6 +39,9 @@ const ConsensusShiftCost = 5.0
 
 // ObserverShiftCost is the cost of changing observer perspective.
 const ObserverShiftCost = 2.0
+
+// TimeShiftCost is the cost of changing the temporal coordinate.
+const TimeShiftCost = 100.0
 
 // IsPhysical reports whether a TravelModeVO can be used with the travel command.
 // Non-physical modes (quantum, timeline, etc.) require dedicated commands.
@@ -54,7 +58,7 @@ func (m TravelModeVO) IsKnown() bool {
 	switch m {
 	case Walk, Cycle, Drive, Rail, Flight, Orbit, Warp,
 		QuantumShift, TimelineShift, UniverseShift, SimulationEntry,
-		ObserverShift, ConsensusShift, MathematicalShift:
+		ObserverShift, ConsensusShift, TimeShift, MathematicalShift:
 		return true
 	}
 	return false

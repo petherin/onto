@@ -70,9 +70,9 @@ func TestJumpCommand_JumpsToExistingTimelineLocation(t *testing.T) {
 	// pre-populate T1 location
 	t1Coord := universe.DefaultCoordinateVO()
 	t1Coord.Timeline = "T1"
-	u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
-	u.AddEdge(universe.EdgeVO{From: "home", To: "home-t1", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost})
-	u.AddEdge(universe.EdgeVO{From: "home-t1", To: "home", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "home-t1", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home-t1", To: "home", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost}))
 
 	initialEdgeCount := len(u.EdgesFrom("home"))
 	repo.EXPECT().Save(u).Return(nil)
@@ -91,7 +91,7 @@ func TestJumpCommand_TimelineIncrements(t *testing.T) {
 	// simulate already being in T1
 	t1Coord := universe.DefaultCoordinateVO()
 	t1Coord.Timeline = "T1"
-	u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord}))
 	sess := exploration.NewEntity("home-t1", t1Coord)
 
 	repo.EXPECT().Save(u).Return(nil)
@@ -147,8 +147,8 @@ func TestJumpBack_ReturnsToLowerBranch(t *testing.T) {
 	// Place session in T1
 	t1Coord := universe.DefaultCoordinateVO()
 	t1Coord.Timeline = "T1"
-	u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
-	u.AddEdge(universe.EdgeVO{From: "home-t1", To: "home", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home-t1", To: "home", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost}))
 	sess := exploration.NewEntity("home-t1", t1Coord)
 
 	repo.EXPECT().Save(u).Return(nil)
@@ -179,7 +179,7 @@ func TestJumpBack_NoReverseEdge_ReturnsError(t *testing.T) {
 	// T1 session but no reverse timeline edge in the graph
 	t1Coord := universe.DefaultCoordinateVO()
 	t1Coord.Timeline = "T1"
-	u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord}))
 	sess := exploration.NewEntity("home-t1", t1Coord)
 
 	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo, Back: true}

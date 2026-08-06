@@ -22,6 +22,7 @@ func (a *App) Commands() []Command {
 		{Name: cmdDrift, Description: "Enter the next consensus divergence"},
 		{Name: cmdAlign, Description: "Return one level toward shared consensus"},
 		{Name: cmdObserve, Description: "Change observer perspective"},
+		{Name: cmdTime, Description: "Enter a temporal branch at an RFC3339 timestamp"},
 		{Name: cmdExit, Description: "Exit the CLI"},
 	}
 }

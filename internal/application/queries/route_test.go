@@ -40,7 +40,7 @@ func TestRouteQuery_Success_CalculatesDistanceAndCost(t *testing.T) {
 		{From: "home", To: "station", Mode: universe.Walk, Distance: 1.6, Cost: 1},
 		{From: "station", To: "city", Mode: universe.Rail, Distance: 3.0, Cost: 3},
 	}
-	u.AddLocation(universe.LocationEntity{ID: "city", Name: "City", Coordinate: universe.DefaultCoordinateVO()})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "city", Name: "City", Coordinate: universe.DefaultCoordinateVO()}))
 	pf.EXPECT().FindRoute(u, "home", "city").Return(route, true)
 
 	q := &queries.RouteQuery{Universe: u, Session: sess, Pathfinder: pf}
@@ -65,7 +65,7 @@ func TestRouteQuery_NoPath(t *testing.T) {
 	u, sess, pf := newRouteFixture(t)
 
 	// island exists in universe but pathfinder finds no route
-	u.AddLocation(universe.LocationEntity{ID: "island", Name: "Island", Coordinate: universe.DefaultCoordinateVO()})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "island", Name: "Island", Coordinate: universe.DefaultCoordinateVO()}))
 	pf.EXPECT().FindRoute(u, "home", "island").Return(nil, false)
 
 	q := &queries.RouteQuery{Universe: u, Session: sess, Pathfinder: pf}

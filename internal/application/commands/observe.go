@@ -47,7 +47,9 @@ func (c *ObserveCommand) Execute() (*ObserveResult, error) {
 
 	observer := strings.TrimSpace(c.Observer)
 	destID := fmt.Sprintf("%s-o-%s", c.Session.Location(), observerID(observer))
-	universe.BranchObserverService(c.Universe, c.Session.Location(), c.Session.Coordinate(), locationName(c.Universe, c.Session.Location()), destID, observer)
+	if err := universe.BranchObserverService(c.Universe, c.Session.Location(), c.Session.Coordinate(), locationName(c.Universe, c.Session.Location()), destID, observer); err != nil {
+		return nil, err
+	}
 	return c.completeObserve(destID, observer, false)
 }
 
@@ -66,7 +68,7 @@ func (c *ObserveCommand) observeBack() (*ObserveResult, error) {
 
 func (c *ObserveCommand) completeObserve(destID, observer string, reversed bool) (*ObserveResult, error) {
 	loc, _ := c.Universe.GetLocation(destID)
-	c.Session.ObserveTo(loc, universe.ObserverShiftCost)
+	c.Session.TransitionTo(loc, universe.ObserverShiftCost, universe.ObserverShift, reversed)
 	result := &ObserveResult{
 		Observer: observer,
 		Location: loc,

@@ -13,12 +13,18 @@ import (
 )
 
 var (
-	ErrInvalidLocation       = errors.New("invalid location")
+	// ErrInvalidLocation reports a location with an invalid identifier.
+	ErrInvalidLocation = errors.New("invalid location")
+	// ErrLocationAlreadyExists reports a duplicate location identity.
 	ErrLocationAlreadyExists = errors.New("location already exists")
-	ErrInvalidEdge           = errors.New("invalid edge")
-	ErrUnknownEdgeEndpoint   = errors.New("edge endpoint does not exist")
-	ErrDuplicateEdge         = errors.New("duplicate edge")
-	ErrPhysicalRealityCross  = errors.New("physical edge crosses reality boundary")
+	// ErrInvalidEdge reports an edge with invalid values.
+	ErrInvalidEdge = errors.New("invalid edge")
+	// ErrUnknownEdgeEndpoint reports an edge whose endpoint is absent.
+	ErrUnknownEdgeEndpoint = errors.New("edge endpoint does not exist")
+	// ErrDuplicateEdge reports an existing edge with the same source, target, and mode.
+	ErrDuplicateEdge = errors.New("duplicate edge")
+	// ErrPhysicalRealityCross reports physical travel between different reality contexts.
+	ErrPhysicalRealityCross = errors.New("physical edge crosses reality boundary")
 )
 
 // Aggregate is the aggregate root of the domain. It owns all
@@ -77,7 +83,7 @@ func validLocationID(id string) bool {
 		return false
 	}
 	for _, r := range id {
-		if !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9') && r != '-' {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' {
 			return false
 		}
 	}

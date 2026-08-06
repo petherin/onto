@@ -8,17 +8,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newBaseUniverse() (*universe.Aggregate, universe.CoordinateVO) {
+func newBaseUniverse(t *testing.T) (*universe.Aggregate, universe.CoordinateVO) {
 	u := universe.NewAggregate()
 	coord := universe.DefaultCoordinateVO()
-	u.AddLocation(universe.LocationEntity{ID: "home", Name: "Home", Coordinate: coord})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home", Name: "Home", Coordinate: coord}))
 	return u, coord
 }
 
 func TestBranchQuantumService_CreatesLocationWithCorrectQuantum(t *testing.T) {
-	u, coord := newBaseUniverse()
+	u, coord := newBaseUniverse(t)
 
-	universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1")
+	require.NoError(t, universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1"))
 
 	loc, ok := u.GetLocation("home-q1")
 	require.True(t, ok)
@@ -27,9 +27,9 @@ func TestBranchQuantumService_CreatesLocationWithCorrectQuantum(t *testing.T) {
 }
 
 func TestBranchQuantumService_AddsBidirectionalQuantumEdges(t *testing.T) {
-	u, coord := newBaseUniverse()
+	u, coord := newBaseUniverse(t)
 
-	universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1")
+	require.NoError(t, universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1"))
 
 	assert.True(t, edgeTo(u.EdgesFrom("home"), "home-q1", universe.QuantumShift),
 		"source should have forward quantum edge")
@@ -38,11 +38,11 @@ func TestBranchQuantumService_AddsBidirectionalQuantumEdges(t *testing.T) {
 }
 
 func TestBranchQuantumService_MirrorsPhysicalEdges(t *testing.T) {
-	u, coord := newBaseUniverse()
-	u.AddLocation(universe.LocationEntity{ID: "station", Coordinate: coord})
-	u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk, Distance: 1.5, Cost: 1})
+	u, coord := newBaseUniverse(t)
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "station", Coordinate: coord}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk, Distance: 1.5, Cost: 1}))
 
-	universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1")
+	require.NoError(t, universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1"))
 
 	assert.True(t, edgeTo(u.EdgesFrom("home-q1"), "station-q1", universe.Walk),
 		"quantum branch should be able to walk to station")
@@ -53,10 +53,11 @@ func TestBranchQuantumService_MirrorsPhysicalEdges(t *testing.T) {
 }
 
 func TestBranchQuantumService_DoesNotMirrorQuantumEdges(t *testing.T) {
-	u, coord := newBaseUniverse()
-	u.AddEdge(universe.EdgeVO{From: "home", To: "other-branch", Mode: universe.QuantumShift})
+	u, coord := newBaseUniverse(t)
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "other-branch", Coordinate: coord}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "other-branch", Mode: universe.QuantumShift}))
 
-	universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1")
+	require.NoError(t, universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1"))
 
 	for _, e := range u.EdgesFrom("home-q1") {
 		assert.NotEqual(t, "other-branch", e.To, "non-physical edges must not be mirrored")
@@ -64,19 +65,19 @@ func TestBranchQuantumService_DoesNotMirrorQuantumEdges(t *testing.T) {
 }
 
 func TestBranchQuantumService_Idempotent(t *testing.T) {
-	u, coord := newBaseUniverse()
+	u, coord := newBaseUniverse(t)
 
-	universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1")
-	universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1")
+	require.NoError(t, universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1"))
+	require.NoError(t, universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1"))
 
 	// Second call is a no-op — only home and home-q1 should exist.
 	assert.Len(t, u.AllLocations(), 2)
 }
 
 func TestBranchQuantumService_PreservesOtherCoordinateFields(t *testing.T) {
-	u, coord := newBaseUniverse()
+	u, coord := newBaseUniverse(t)
 
-	universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1")
+	require.NoError(t, universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1"))
 
 	loc, _ := u.GetLocation("home-q1")
 	assert.Equal(t, coord.Planet, loc.Coordinate.Planet)

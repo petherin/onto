@@ -293,9 +293,9 @@ preserves every other active context.
 | Universe transition | Mathematics and applicable observer/experience overlays | Universe-local timeline, quantum, and physical map |
 | Mathematical-structure transition | Nothing below the mathematical layer | Universe and every lower axis |
 
-`shift`, `jump`, `drift`, and observer shifts are implemented. The remaining rows define the
+`shift`, `jump`, `drift`, observer shifts, and time shifts are implemented. The remaining rows define the
 intended behavior for future transition types. `home` is the explicit unwind
-operation: it returns consensus, timeline, and quantum axes to their base
+operation: it returns consensus, time, timeline, and quantum axes to their base
 levels and restores the default observer before travelling physically to the
 start location.
 
@@ -327,6 +327,8 @@ drift                  Enter the next consensus divergence (cost 5)
 align                  Return one level toward shared consensus
 observe <observer>     Change observer perspective (cost 2)
 observe back           Return to the previous observer perspective
+time <RFC3339>         Enter a temporal branch (cost 100)
+time back               Return to the previous temporal branch
 <number>               Take the corresponding numbered possible journey
 cost                   Show travel cost information
 help                   List all commands
@@ -338,15 +340,16 @@ exit                   Leave the CLI
 The app is functional. It includes:
 
 - a command entrypoint in `cmd/onto`
-- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `home`, `cost`, `shift`, `shift back`, `jump`, `jump back`, `drift`, `align`, `observe`, `observe back`, and `exit` commands
+- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `home`, `cost`, `shift`, `shift back`, `jump`, `jump back`, `drift`, `align`, `observe`, `observe back`, `time`, `time back`, and `exit` commands
 - BFS-based graph routing across locations with travel modes (walk, rail, etc.)
 - quantum branch navigation: `shift` jumps forward to the next branch (cost 20); `shift back` returns to the previous one
 - timeline branch navigation: `jump` jumps forward to the next alternate history (cost 800); `jump back` returns to the previous one
 - consensus divergence navigation: `drift` enters the next divergent state (cost 5); `align` returns one level toward shared consensus
 - observer navigation: `observe <observer>` changes perception (cost 2); `observe back` returns to the prior perspective
+- temporal navigation: `time <RFC3339>` enters a timestamped branch (cost 100); `time back` returns to the prior temporal branch
 - each non-spatial transition creates coordinate-matched physical locations and contextual return edges, so local travel and returning remain available throughout a branch
 - `travel` rejects routes that cross any reality boundary (quantum, timeline, consensus, simulation, observer, or universe) — physical and non-physical travel are kept separate
-- `home` command: shows the full plan and estimated cost to restore the observer, align consensus, unwind timeline jumps and quantum shifts, then travel back to the start location before asking for confirmation
+- `home` command: shows the full plan and estimated cost to restore the observer, align consensus, unwind temporal, timeline, and quantum shifts, then travel back to the start location before asking for confirmation
 - cumulative journey cost tracked across the session and shown in `where` output and after every move
 - a full coordinate model covering mathematics, universe, timeline, quantum, simulation, consensus, physical location, observer, and time
 - location and edge data loaded from `data/locations.json`, with a built-in fallback map

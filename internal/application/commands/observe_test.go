@@ -31,24 +31,24 @@ func TestObserveCommand_ReturnsToPreviousPerspective(t *testing.T) {
 	base, _ := u.GetLocation("home")
 	machine := base.Coordinate
 	machine.Observer = "Machine"
-	u.AddLocation(universe.LocationEntity{ID: "home-o-machine", Coordinate: machine})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-o-machine", Coordinate: machine}))
 	bat := machine
 	bat.Observer = "Bat"
-	u.AddLocation(universe.LocationEntity{ID: "home-o-bat", Coordinate: bat})
-	u.AddEdge(universe.EdgeVO{
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-o-bat", Coordinate: bat}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{
 		From:        "home-o-machine",
 		To:          "home",
 		Mode:        universe.ObserverShift,
 		Cost:        universe.ObserverShiftCost,
 		Description: "Observer shift back to Human",
-	})
-	u.AddEdge(universe.EdgeVO{
+	}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{
 		From:        "home-o-machine",
 		To:          "home-o-bat",
 		Mode:        universe.ObserverShift,
 		Cost:        universe.ObserverShiftCost,
 		Description: "Observer shift to Bat",
-	})
+	}))
 	sess := exploration.NewEntity("home-o-machine", machine)
 	repo := mocks.NewMockRepository(t)
 	repo.EXPECT().Save(u).Return(nil)

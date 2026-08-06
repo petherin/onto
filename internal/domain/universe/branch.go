@@ -24,16 +24,18 @@ func BranchContextualService(
 	destCoord CoordinateVO,
 	fromName, destID, destinationDescription string,
 	spec ContextualTransitionSpec,
-) {
+) error {
 	if _, exists := u.GetLocation(destID); !exists {
-		u.AddLocation(LocationEntity{
+		if err := u.AddLocation(LocationEntity{
 			ID:          destID,
 			Name:        fmt.Sprintf("%s (%s)", fromName, spec.Label),
 			Description: destinationDescription,
 			Coordinate:  destCoord,
-		})
+		}); err != nil {
+			return err
+		}
 	}
-	materializePhysicalBranch(u, fromID, destID, destCoord, spec)
+	return materializePhysicalBranch(u, fromID, destID, destCoord, spec)
 }
 
 // materializePhysicalBranch copies the physical graph reachable from fromID
@@ -44,10 +46,10 @@ func materializePhysicalBranch(
 	fromID, destID string,
 	destCoord CoordinateVO,
 	spec ContextualTransitionSpec,
-) {
+) error {
 	suffix := strings.TrimPrefix(destID, fromID)
 	if suffix == "" {
-		return
+		return nil
 	}
 
 	ids := map[string]string{fromID: destID}
@@ -57,20 +59,24 @@ func materializePhysicalBranch(
 		queue = queue[1:]
 		currentBranchID := ids[currentID]
 
-		addEdgeOnce(u, EdgeVO{
+		if err := addEdgeOnce(u, EdgeVO{
 			From:        currentID,
 			To:          currentBranchID,
 			Mode:        spec.Mode,
 			Cost:        spec.Cost,
 			Description: spec.ForwardDescription,
-		})
-		addEdgeOnce(u, EdgeVO{
+		}); err != nil {
+			return err
+		}
+		if err := addEdgeOnce(u, EdgeVO{
 			From:        currentBranchID,
 			To:          currentID,
 			Mode:        spec.Mode,
 			Cost:        spec.Cost,
 			Description: spec.ReverseDescription,
-		})
+		}); err != nil {
+			return err
+		}
 
 		for _, edge := range u.EdgesFrom(currentID) {
 			if !edge.Mode.IsPhysical() {
@@ -88,29 +94,36 @@ func materializePhysicalBranch(
 						target.ID = targetID
 						target.Name = fmt.Sprintf("%s (%s)", target.Name, spec.Label)
 						target.Coordinate = withRealityContext(target.Coordinate, destCoord)
-						u.AddLocation(target)
+						if err := u.AddLocation(target); err != nil {
+							return err
+						}
 					}
 				}
 			}
 
-			addEdgeOnce(u, EdgeVO{
+			if err := addEdgeOnce(u, EdgeVO{
 				From:        currentBranchID,
 				To:          targetID,
 				Mode:        edge.Mode,
 				Distance:    edge.Distance,
 				Cost:        edge.Cost,
 				Description: edge.Description,
-			})
-			addEdgeOnce(u, EdgeVO{
+			}); err != nil {
+				return err
+			}
+			if err := addEdgeOnce(u, EdgeVO{
 				From:        targetID,
 				To:          currentBranchID,
 				Mode:        edge.Mode,
 				Distance:    edge.Distance,
 				Cost:        edge.Cost,
 				Description: fmt.Sprintf("Return via %s", edge.Description),
-			})
+			}); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 func withRealityContext(coord, context CoordinateVO) CoordinateVO {
@@ -126,11 +139,11 @@ func withRealityContext(coord, context CoordinateVO) CoordinateVO {
 	return coord
 }
 
-func addEdgeOnce(u *Aggregate, edge EdgeVO) {
+func addEdgeOnce(u *Aggregate, edge EdgeVO) error {
 	for _, existing := range u.EdgesFrom(edge.From) {
 		if existing.To == edge.To && existing.Mode == edge.Mode {
-			return
+			return nil
 		}
 	}
-	u.AddEdge(edge)
+	return u.AddEdge(edge)
 }

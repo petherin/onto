@@ -27,9 +27,9 @@ func TestSaveAndLoad_RoundTrip(t *testing.T) {
 
 	u := universe.NewAggregate()
 	coord := universe.DefaultCoordinateVO()
-	u.AddLocation(universe.LocationEntity{ID: "home", Name: "Home", Coordinate: coord})
-	u.AddLocation(universe.LocationEntity{ID: "station", Name: "Station", Coordinate: coord})
-	u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk, Distance: 1.6, Cost: 1})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home", Name: "Home", Coordinate: coord}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "station", Name: "Station", Coordinate: coord}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk, Distance: 1.6, Cost: 1}))
 
 	require.NoError(t, repo.Save(u))
 
@@ -97,7 +97,7 @@ func TestLoad_MergeCoordinate_PreservesExistingValues(t *testing.T) {
 	coord := universe.DefaultCoordinateVO()
 	coord.Planet = "Mars"
 	coord.Timeline = "T3"
-	u.AddLocation(universe.LocationEntity{ID: "base", Name: "Martian Base", Coordinate: coord})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "base", Name: "Martian Base", Coordinate: coord}))
 
 	path := filepath.Join(t.TempDir(), "mars.json")
 	repo := persistence.NewJSONRepository(path)

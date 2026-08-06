@@ -45,7 +45,9 @@ func (c *JumpCommand) jumpForward() (*JumpResult, error) {
 	nextT := fmt.Sprintf("T%d", c.Session.TimelineLevel()+1)
 	destID := c.Session.NextTimelineID()
 	currentName := locationName(c.Universe, c.Session.Location())
-	universe.BranchTimelineService(c.Universe, c.Session.Location(), c.Session.Coordinate(), currentName, destID, nextT)
+	if err := universe.BranchTimelineService(c.Universe, c.Session.Location(), c.Session.Coordinate(), currentName, destID, nextT); err != nil {
+		return nil, err
+	}
 	return c.completeJump(destID, nextT, false)
 }
 
@@ -74,7 +76,7 @@ func (c *JumpCommand) jumpBack() (*JumpResult, error) {
 
 func (c *JumpCommand) completeJump(destID, timeline string, reversed bool) (*JumpResult, error) {
 	loc, _ := c.Universe.GetLocation(destID)
-	c.Session.JumpTo(loc, universe.TimelineShiftCost)
+	c.Session.TransitionTo(loc, universe.TimelineShiftCost, universe.TimelineShift, reversed)
 
 	result := &JumpResult{
 		NextTimeline: timeline,

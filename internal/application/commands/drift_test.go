@@ -35,8 +35,8 @@ func TestDriftCommand_AlignsToLowerConsensusLevel(t *testing.T) {
 	u, _, repo := newDriftFixture(t)
 	coord := universe.DefaultCoordinateVO()
 	coord.Consensus = 1
-	u.AddLocation(universe.LocationEntity{ID: "home-c1", Coordinate: coord})
-	u.AddEdge(universe.EdgeVO{From: "home-c1", To: "home", Mode: universe.ConsensusShift, Cost: universe.ConsensusShiftCost})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-c1", Coordinate: coord}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home-c1", To: "home", Mode: universe.ConsensusShift, Cost: universe.ConsensusShiftCost}))
 	sess := exploration.NewEntity("home-c1", coord)
 	repo.EXPECT().Save(u).Return(nil)
 

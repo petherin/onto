@@ -49,7 +49,7 @@ func TestTravelCommand_NoRoute(t *testing.T) {
 	u, sess, repo, pf := newTravelFixture(t)
 
 	// island is reachable by name but has no graph path from home
-	u.AddLocation(universe.LocationEntity{ID: "island", Name: "Island", Coordinate: universe.DefaultCoordinateVO()})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "island", Name: "Island", Coordinate: universe.DefaultCoordinateVO()}))
 	pf.EXPECT().FindRoute(u, "home", "island").Return(nil, false)
 
 	cmd := &commands.TravelCommand{Universe: u, Session: sess, Repo: repo, Pathfinder: pf}
@@ -64,8 +64,8 @@ func TestTravelCommand_QuantumEdge_Rejected(t *testing.T) {
 	// home-q1 is connected only via a quantum edge — travel must not allow it
 	q1Coord := universe.DefaultCoordinateVO()
 	q1Coord.Quantum = "Q1"
-	u.AddLocation(universe.LocationEntity{ID: "home-q1", Name: "Home (Q1)", Coordinate: q1Coord})
-	u.AddEdge(universe.EdgeVO{From: "home", To: "home-q1", Mode: universe.QuantumShift, Cost: universe.QuantumShiftCost})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-q1", Name: "Home (Q1)", Coordinate: q1Coord}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "home-q1", Mode: universe.QuantumShift, Cost: universe.QuantumShiftCost}))
 
 	quantumRoute := []universe.EdgeVO{{From: "home", To: "home-q1", Mode: universe.QuantumShift, Cost: universe.QuantumShiftCost}}
 	pf.EXPECT().FindRoute(u, "home", "home-q1").Return(quantumRoute, true)
@@ -82,7 +82,7 @@ func TestTravelCommand_ConsensusBoundaryRejected(t *testing.T) {
 
 	divergent := universe.DefaultCoordinateVO()
 	divergent.Consensus = 1
-	u.AddLocation(universe.LocationEntity{ID: "divergent-station", Name: "Station", Coordinate: divergent})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "divergent-station", Name: "Station", Coordinate: divergent}))
 	route := []universe.EdgeVO{{From: "home", To: "divergent-station", Mode: universe.Walk, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "divergent-station").Return(route, true)
 
@@ -99,9 +99,12 @@ func TestTravelCommand_DeadEnd_IsReportedWithoutMutation(t *testing.T) {
 
 	// deadend has only a return edge back to home (no onward edges)
 	deadCoord := universe.DefaultCoordinateVO()
-	u.AddLocation(universe.LocationEntity{ID: "deadend", Name: "Dead End", Coordinate: deadCoord})
-	u.AddEdge(universe.EdgeVO{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1})
-	u.AddEdge(universe.EdgeVO{From: "deadend", To: "home", Mode: universe.Walk, Cost: 1})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "deadend", Name: "Dead End", Coordinate: deadCoord}))
+	q1Coord := deadCoord
+	q1Coord.Quantum = "Q1"
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "deadend-q1", Name: "Dead End (Q1)", Coordinate: q1Coord}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "deadend", To: "home", Mode: universe.Walk, Cost: 1}))
 
 	route := []universe.EdgeVO{{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "deadend").Return(route, true)
@@ -117,10 +120,13 @@ func TestTravelCommand_DeadEndWithContextualEdges_IsReported(t *testing.T) {
 	u, sess, repo, pf := newTravelFixture(t)
 
 	deadCoord := universe.DefaultCoordinateVO()
-	u.AddLocation(universe.LocationEntity{ID: "deadend", Name: "Dead End", Coordinate: deadCoord})
-	u.AddEdge(universe.EdgeVO{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1})
-	u.AddEdge(universe.EdgeVO{From: "deadend", To: "home", Mode: universe.Walk, Cost: 1})
-	u.AddEdge(universe.EdgeVO{From: "deadend", To: "deadend-q1", Mode: universe.QuantumShift, Cost: universe.QuantumShiftCost})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "deadend", Name: "Dead End", Coordinate: deadCoord}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "deadend", To: "home", Mode: universe.Walk, Cost: 1}))
+	branchCoord := deadCoord
+	branchCoord.Quantum = "Q1"
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "deadend-q1", Coordinate: branchCoord}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "deadend", To: "deadend-q1", Mode: universe.QuantumShift, Cost: universe.QuantumShiftCost}))
 
 	route := []universe.EdgeVO{{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "deadend").Return(route, true)
@@ -137,8 +143,8 @@ func TestTravelCommand_NonDeadEnd_RepoNotCalled(t *testing.T) {
 
 	// station has home→station and station→home already; add station→park so
 	// ensureOutgoing finds a non-home outgoing edge and skips the handler.
-	u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: universe.DefaultCoordinateVO()})
-	u.AddEdge(universe.EdgeVO{From: "station", To: "park", Mode: universe.Walk, Cost: 1})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: universe.DefaultCoordinateVO()}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "station", To: "park", Mode: universe.Walk, Cost: 1}))
 
 	route := []universe.EdgeVO{{From: "home", To: "station", Mode: universe.Walk, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "station").Return(route, true)

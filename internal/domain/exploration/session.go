@@ -19,6 +19,14 @@ type Entity struct {
 	currentCoordinate universe.CoordinateVO
 	travelHistory     []string
 	cumulativeCost    float64
+	contextStack      []ContextTransition
+}
+
+// ContextTransition records one entered contextual branch so it can be
+// unwound in the exact reverse order.
+type ContextTransition struct {
+	Mode     universe.TravelModeVO
+	OriginID string
 }
 
 // NewEntity creates an Entity positioned at the given location and coordinate.
@@ -45,6 +53,13 @@ func (s *Entity) History() []string {
 
 // CumulativeCost returns the total cost accumulated across all movements.
 func (s *Entity) CumulativeCost() float64 { return s.cumulativeCost }
+
+// ContextTransitions returns a snapshot of entered contextual branches.
+func (s *Entity) ContextTransitions() []ContextTransition {
+	out := make([]ContextTransition, len(s.contextStack))
+	copy(out, s.contextStack)
+	return out
+}
 
 // MoveTo updates position, adds cost to the cumulative total, and records the move in travel history.
 func (s *Entity) MoveTo(loc universe.LocationEntity, cost float64) {
@@ -91,6 +106,38 @@ func (s *Entity) ObserveTo(loc universe.LocationEntity, cost float64) {
 	s.currentCoordinate = loc.Coordinate
 	s.cumulativeCost += cost
 	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (observer shift)", prev, loc.ID))
+}
+
+// TimeTo updates position for a temporal shift, adds cost, and records it in
+// travel history.
+func (s *Entity) TimeTo(loc universe.LocationEntity, cost float64) {
+	prev := s.currentLocation
+	s.currentLocation = loc.ID
+	s.currentCoordinate = loc.Coordinate
+	s.cumulativeCost += cost
+	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (time shift)", prev, loc.ID))
+}
+
+// TransitionTo applies a contextual movement and records or removes its
+// ancestry entry. Reversed transitions only pop the matching latest entry.
+func (s *Entity) TransitionTo(loc universe.LocationEntity, cost float64, mode universe.TravelModeVO, reversed bool) {
+	prev := s.currentLocation
+	s.currentLocation = loc.ID
+	s.currentCoordinate = loc.Coordinate
+	s.cumulativeCost += cost
+	label := string(mode) + " shift"
+	if mode == universe.ConsensusShift {
+		label = "consensus drift"
+	}
+	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (%s)", prev, loc.ID, label))
+	if reversed {
+		last := len(s.contextStack) - 1
+		if last >= 0 && s.contextStack[last].Mode == mode {
+			s.contextStack = s.contextStack[:last]
+		}
+		return
+	}
+	s.contextStack = append(s.contextStack, ContextTransition{Mode: mode, OriginID: prev})
 }
 
 // QuantumLevel returns the numeric quantum level of the current position (Q0 → 0, Q1 → 1, …).

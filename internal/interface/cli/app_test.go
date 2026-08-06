@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -141,6 +142,18 @@ func TestAppObserveAndReturn(t *testing.T) {
 	assert.NotContains(t, app.Execute("ls"), "Return to the previous observer perspective")
 }
 
+func TestAppTimeAndReturn(t *testing.T) {
+	app := NewApp()
+
+	output := app.Execute("time 2042-01-02T03:04:05Z")
+	assert.Contains(t, output, "Temporal branch entered")
+	assert.Contains(t, app.Execute("where"), "2042-01-02T03:04:05Z")
+
+	output = app.Execute("time back")
+	assert.Contains(t, output, "Temporal branch exited")
+	assert.Equal(t, "home", app.session.Location())
+}
+
 func TestAppDrift_CanTravelWithinConsensusDivergence(t *testing.T) {
 	app := NewApp()
 	app.Execute("drift")
@@ -205,6 +218,38 @@ func TestGoHome_SeparatesConsensusAndPhysicalCosts(t *testing.T) {
 	assert.NotContains(t, plan, "Station (consensus 1) → Station")
 }
 
+func TestGoHome_UnwindsNestedContextsBeforeTime(t *testing.T) {
+	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
+	app := NewApp()
+	app.Execute("time 2027-01-01T00:00:00Z")
+	app.Execute("shift")
+	app.Execute("jump")
+	app.Execute("drift")
+	app.Execute("observe dog")
+
+	plan := app.GoHome()
+
+	assert.NotContains(t, plan, "return path unavailable")
+	assert.Contains(t, plan, "time back")
+}
+
+func TestGoHome_UnwindsRecordedTransitionOrder(t *testing.T) {
+	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
+	app := NewApp()
+	app.Execute("shift")
+	app.Execute("time 2027-01-01T00:00:00Z")
+	app.Execute("jump")
+	app.Execute("observe dog")
+
+	plan := app.GoHome()
+
+	observer := strings.Index(plan, "observe back")
+	jump := strings.Index(plan, "jump back")
+	time := strings.Index(plan, "time back")
+	shift := strings.Index(plan, "shift back")
+	assert.True(t, observer < jump && jump < time && time < shift, plan)
+}
+
 func TestAppHelp_ListsAllCommands(t *testing.T) {
 	app := NewApp()
 	output := app.Execute("help")
@@ -241,6 +286,7 @@ func TestAppList_ShowsQuantumOption(t *testing.T) {
 	output := app.Execute("ls")
 
 	assert.Contains(t, output, "shift")
+	assert.Contains(t, output, "time <RFC3339>")
 }
 
 func TestGoHome_WhenAlreadyHome_ReportsIt(t *testing.T) {

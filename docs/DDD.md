@@ -42,7 +42,7 @@ flowchart TB
     end
 
     subgraph Application["Application layer — orchestrates use cases"]
-        Commands["Commands: Travel, Shift, Jump, Drift,<br/>Observe, CreateLocation, ReturnHome<br/>Coordinate domain work and persistence"]
+        Commands["Commands: Travel, Shift, Jump, Drift, Observe,<br/>Time, CreateLocation, ReturnHome<br/>Coordinate domain work and persistence"]
         Queries["Queries: Lookup, Route<br/>Read domain state without mutation"]
     end
 
@@ -130,6 +130,7 @@ The application layer in `internal/application/` contains use cases, not busines
 - `JumpCommand` — calls `BranchTimelineService`, moves the session, accumulates timeline shift cost, saves.
 - `DriftCommand` — calls `BranchConsensusService`, moves the session, accumulates consensus-transition cost, saves.
 - `ObserveCommand` — calls `BranchObserverService`, moves the session, accumulates observer-shift cost, saves.
+- `TimeCommand` — calls `BranchTimeService`, moves the session to an RFC3339 timestamp, accumulates temporal-shift cost, saves.
 
 **Queries** (in `queries/`) are pure reads with no side effects:
 - `LookupQuery` — `Where`, `Look`, `List`.
@@ -137,7 +138,7 @@ The application layer in `internal/application/` contains use cases, not busines
 
 `ReturnHomeCommand` in the application layer orchestrates multiple commands in
 sequence (repeated `ObserveCommand` returns, `DriftCommand` alignment,
-`JumpCommand` back, `ShiftCommand` back, then `TravelCommand` to the start
+`TimeCommand` returns, `JumpCommand` back, `ShiftCommand` back, then `TravelCommand` to the start
 location). The CLI asks for confirmation and formats the command's plan and
 result, but contains none of the return-home workflow.
 

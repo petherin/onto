@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/petherin/onto/internal/application/commands"
 	"github.com/petherin/onto/internal/application/queries"
@@ -44,8 +45,24 @@ func (a *App) formatObserveResult(r *commands.ObserveResult, saveErr error) stri
 	if r.Reversed {
 		verb = "Observer perspective restored"
 	}
+
 	base := fmt.Sprintf("Observing...\n\n%s: %s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
 		verb, r.Observer, r.Location.Description,
+		a.session.CumulativeCost(), a.formatEdges(r.Edges),
+	)
+	if saveErr != nil {
+		return base + fmt.Sprintf(fmtSaveWarning, saveErr)
+	}
+	return base + fmt.Sprintf("\n\nPersisted to %s", dataFile())
+}
+
+func (a *App) formatTimeResult(r *commands.TimeResult, saveErr error) string {
+	verb := "Temporal branch entered"
+	if r.Reversed {
+		verb = "Temporal branch exited"
+	}
+	base := fmt.Sprintf("Time shifting...\n\n%s: %s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
+		verb, r.Time.Format(time.RFC3339), r.Location.Description,
 		a.session.CumulativeCost(), a.formatEdges(r.Edges),
 	)
 	if saveErr != nil {
@@ -135,6 +152,7 @@ func (a *App) formatEdges(edges []universe.EdgeVO) string {
 	}
 	if observerShiftAvailable {
 		lines = append(lines, "- observer perspective (2 cost — observe <observer>)")
+		lines = append(lines, "- temporal branch (100 cost — time <RFC3339>)")
 	}
 	return strings.Join(lines, "\n")
 }
@@ -150,6 +168,7 @@ const (
 	journeyDrift
 	journeyAlign
 	journeyObserveBack
+	journeyTimeBack
 )
 
 type journeyOption struct {
@@ -164,6 +183,7 @@ func (a *App) journeyOptions(edges []universe.EdgeVO) ([]journeyOption, bool) {
 	hasReverseTimeline := false
 	hasReverseConsensus := false
 	hasReverseObserver := false
+	hasReverseTime := false
 
 	for _, edge := range edges {
 		switch edge.Mode {
@@ -200,6 +220,10 @@ func (a *App) journeyOptions(edges []universe.EdgeVO) ([]journeyOption, bool) {
 		case universe.ObserverShift:
 			if edge.IsObserverReturn() {
 				hasReverseObserver = true
+			}
+		case universe.TimeShift:
+			if strings.HasPrefix(edge.Description, "Time shift back to ") {
+				hasReverseTime = true
 			}
 		}
 	}
@@ -238,6 +262,12 @@ func (a *App) journeyOptions(edges []universe.EdgeVO) ([]journeyOption, bool) {
 		options = append(options, journeyOption{
 			kind:        journeyObserveBack,
 			description: "Return to the previous observer perspective (observe back)",
+		})
+	}
+	if hasReverseTime {
+		options = append(options, journeyOption{
+			kind:        journeyTimeBack,
+			description: "Return to the previous temporal branch (time back)",
 		})
 	}
 	return options, true

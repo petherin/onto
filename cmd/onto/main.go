@@ -3,9 +3,16 @@
 // run loop in the cli package.
 package main
 
-import "github.com/petherin/onto/internal/interface/cli"
+import (
+	"log"
+
+	"github.com/petherin/onto/internal/interface/cli"
+)
 
 func main() {
-	app := cli.NewApp()
+	app, err := cli.NewAppWithError()
+	if err != nil {
+		log.Fatal(err)
+	}
 	app.Run()
 }

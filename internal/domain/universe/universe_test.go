@@ -20,7 +20,7 @@ func edgeTo(edges []universe.EdgeVO, to string, mode universe.TravelModeVO) bool
 
 func TestAggregate_AddAndGetLocation(t *testing.T) {
 	u := universe.NewAggregate()
-	u.AddLocation(universe.LocationEntity{ID: "home", Name: "Home"})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home", Name: "Home"}))
 
 	got, ok := u.GetLocation("home")
 
@@ -67,8 +67,8 @@ func TestAggregate_EdgesFrom_NoEdgesReturnsEmpty(t *testing.T) {
 
 func TestAggregate_AllLocations(t *testing.T) {
 	u := universe.NewAggregate()
-	u.AddLocation(universe.LocationEntity{ID: "a"})
-	u.AddLocation(universe.LocationEntity{ID: "b"})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "a"}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "b"}))
 
 	locs := u.AllLocations()
 	assert.Len(t, locs, 2)
@@ -76,8 +76,8 @@ func TestAggregate_AllLocations(t *testing.T) {
 
 func TestAggregate_AllLocationIDs(t *testing.T) {
 	u := universe.NewAggregate()
-	u.AddLocation(universe.LocationEntity{ID: "x"})
-	u.AddLocation(universe.LocationEntity{ID: "y"})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "x"}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "y"}))
 
 	ids := u.AllLocationIDs()
 	assert.ElementsMatch(t, []string{"x", "y"}, ids)

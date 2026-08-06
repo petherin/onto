@@ -5,6 +5,7 @@ package persistence
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/petherin/onto/internal/domain/universe"
@@ -41,10 +42,14 @@ func (r *JSONRepository) Load() (*universe.Aggregate, error) {
 	u := universe.NewAggregate()
 	for i := range s.Locations {
 		s.Locations[i].Coordinate = mergeCoordinate(s.Locations[i].Coordinate, defaults)
-		u.AddLocation(s.Locations[i])
+		if err := u.AddLocation(s.Locations[i]); err != nil {
+			return nil, fmt.Errorf("load location %q: %w", s.Locations[i].ID, err)
+		}
 	}
 	for _, e := range s.Edges {
-		u.AddEdge(e)
+		if err := u.AddEdge(e); err != nil {
+			return nil, fmt.Errorf("load edge %s -> %s: %w", e.From, e.To, err)
+		}
 	}
 	return u, nil
 }

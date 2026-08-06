@@ -27,6 +27,7 @@ const (
 	cmdDrift   = "drift"
 	cmdAlign   = "align"
 	cmdObserve = "observe"
+	cmdTime    = "time"
 	cmdExit    = "exit"
 	argBack    = "back"
 )

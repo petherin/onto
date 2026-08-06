@@ -9,9 +9,9 @@ import (
 )
 
 func TestBranchConsensusService_CreatesLocationWithCorrectLevel(t *testing.T) {
-	u, coord := newBaseUniverse()
+	u, coord := newBaseUniverse(t)
 
-	universe.BranchConsensusService(u, "home", coord, "Home", "home-c1", 1)
+	require.NoError(t, universe.BranchConsensusService(u, "home", coord, "Home", "home-c1", 1))
 
 	loc, ok := u.GetLocation("home-c1")
 	require.True(t, ok)
@@ -20,21 +20,22 @@ func TestBranchConsensusService_CreatesLocationWithCorrectLevel(t *testing.T) {
 }
 
 func TestBranchConsensusService_AddsBidirectionalConsensusEdges(t *testing.T) {
-	u, coord := newBaseUniverse()
+	u, coord := newBaseUniverse(t)
 
-	universe.BranchConsensusService(u, "home", coord, "Home", "home-c1", 1)
+	require.NoError(t, universe.BranchConsensusService(u, "home", coord, "Home", "home-c1", 1))
 
 	assert.True(t, edgeTo(u.EdgesFrom("home"), "home-c1", universe.ConsensusShift))
 	assert.True(t, edgeTo(u.EdgesFrom("home-c1"), "home", universe.ConsensusShift))
 }
 
 func TestBranchConsensusService_MirrorsOnlyPhysicalEdges(t *testing.T) {
-	u, coord := newBaseUniverse()
-	u.AddLocation(universe.LocationEntity{ID: "station", Coordinate: coord})
-	u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk, Distance: 1.5, Cost: 1})
-	u.AddEdge(universe.EdgeVO{From: "home", To: "other", Mode: universe.ConsensusShift})
+	u, coord := newBaseUniverse(t)
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "station", Coordinate: coord}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "other", Coordinate: coord}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk, Distance: 1.5, Cost: 1}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "other", Mode: universe.ConsensusShift}))
 
-	universe.BranchConsensusService(u, "home", coord, "Home", "home-c1", 1)
+	require.NoError(t, universe.BranchConsensusService(u, "home", coord, "Home", "home-c1", 1))
 
 	assert.True(t, edgeTo(u.EdgesFrom("home-c1"), "station-c1", universe.Walk))
 	assert.False(t, edgeTo(u.EdgesFrom("home-c1"), "other", universe.ConsensusShift))
@@ -45,32 +46,32 @@ func TestBranchConsensusService_MirrorsOnlyPhysicalEdges(t *testing.T) {
 }
 
 func TestBranchConsensusService_IsIdempotent(t *testing.T) {
-	u, coord := newBaseUniverse()
+	u, coord := newBaseUniverse(t)
 
-	universe.BranchConsensusService(u, "home", coord, "Home", "home-c1", 1)
-	universe.BranchConsensusService(u, "home", coord, "Home", "home-c1", 1)
+	require.NoError(t, universe.BranchConsensusService(u, "home", coord, "Home", "home-c1", 1))
+	require.NoError(t, universe.BranchConsensusService(u, "home", coord, "Home", "home-c1", 1))
 
 	assert.Len(t, u.AllLocations(), 2)
 }
 
 func TestBranchConsensusService_AddsAlignmentAtCopiedLocations(t *testing.T) {
-	u, coord := newBaseUniverse()
-	u.AddLocation(universe.LocationEntity{ID: "station", Coordinate: coord})
-	u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk})
+	u, coord := newBaseUniverse(t)
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "station", Coordinate: coord}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk}))
 
-	universe.BranchConsensusService(u, "home", coord, "Home", "home-c1", 1)
+	require.NoError(t, universe.BranchConsensusService(u, "home", coord, "Home", "home-c1", 1))
 
 	assert.True(t, edgeTo(u.EdgesFrom("station-c1"), "station", universe.ConsensusShift))
 }
 
 func TestBranchConsensusService_CopiedLocationsHavePhysicalAndContextualReturns(t *testing.T) {
-	u, coord := newBaseUniverse()
-	u.AddLocation(universe.LocationEntity{ID: "station", Coordinate: coord})
-	u.AddLocation(universe.LocationEntity{ID: "park", Coordinate: coord})
-	u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk, Cost: 1})
-	u.AddEdge(universe.EdgeVO{From: "home", To: "park", Mode: universe.Walk, Cost: 1})
+	u, coord := newBaseUniverse(t)
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "station", Coordinate: coord}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "park", Coordinate: coord}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk, Cost: 1}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "park", Mode: universe.Walk, Cost: 1}))
 
-	universe.BranchConsensusService(u, "home", coord, "Home", "home-c1", 1)
+	require.NoError(t, universe.BranchConsensusService(u, "home", coord, "Home", "home-c1", 1))
 
 	branchHome, _ := u.GetLocation("home-c1")
 	for _, id := range []string{"station-c1", "park-c1"} {

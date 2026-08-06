@@ -86,6 +86,8 @@ drift                  — enter the next consensus divergence (0 → 1 → …)
 align                  — return one level toward shared consensus
 observe <observer>     — change observer perspective
 observe back           — return to the previous observer perspective
+time <RFC3339>         — enter a temporal branch at an absolute timestamp
+time back               — return to the previous temporal branch
 <number>               — take the corresponding numbered possible journey
 cost                   — show travel cost information
 help                   — list all commands

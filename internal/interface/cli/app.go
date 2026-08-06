@@ -33,16 +33,30 @@ type App struct {
 
 // NewApp loads (or initialises) the universe from disk and returns a ready App.
 func NewApp() *App {
+	app, err := NewAppWithError()
+	if err != nil {
+		panic(err)
+	}
+	return app
+}
+
+// NewAppWithError loads (or initialises) the universe and returns a ready App.
+func NewAppWithError() (*App, error) {
 	repo := persistence.NewJSONRepository(dataFile())
 	u, err := repo.Load()
 	if err != nil {
-		u = buildDefaultUniverse()
+		u, err = buildDefaultUniverse()
+		if err != nil {
+			return nil, fmt.Errorf("build default universe: %w", err)
+		}
 	}
 
 	sl := startLocation()
 	if _, ok := u.GetLocation(sl); !ok {
 		base := universe.DefaultCoordinateVO()
-		u.AddLocation(universe.LocationEntity{ID: sl, Name: sl, Description: "Start location (auto-added)", Coordinate: base})
+		if err := u.AddLocation(universe.LocationEntity{ID: sl, Name: sl, Description: "Start location (auto-added)", Coordinate: base}); err != nil {
+			return nil, fmt.Errorf("add start location: %w", err)
+		}
 	}
 
 	start := sl
@@ -58,7 +72,7 @@ func NewApp() *App {
 		session:    exploration.NewEntity(start, loc.Coordinate),
 		repo:       repo,
 		pathfinder: navigation.NewBFSPathfinder(),
-	}
+	}, nil
 }
 
 // Execute dispatches a raw input string to the appropriate command handler and
@@ -129,6 +143,14 @@ func (a *App) Execute(input string) string {
 			return a.ObserveBack()
 		}
 		return a.Observe(args)
+	case cmdTime:
+		if args == "" {
+			return "Usage: time <RFC3339> or time back"
+		}
+		if args == argBack {
+			return a.TimeBack()
+		}
+		return a.Time(args)
 	case cmdExit:
 		return msgGoodbye
 	default:
@@ -159,6 +181,8 @@ func (a *App) Help() string {
 		"align                  Return one level toward shared consensus",
 		"observe <observer>     Change observer perspective",
 		"observe back           Return to the previous observer perspective",
+		"time <RFC3339>         Enter a temporal branch",
+		"time back              Return to the previous temporal branch",
 		"<number>               Take a numbered possible journey",
 		"exit                   Leave the CLI",
 		"",
@@ -300,6 +324,24 @@ func (a *App) ObserveBack() string {
 	return a.formatObserveResult(result, saveErr)
 }
 
+// Time enters the temporal branch at target.
+func (a *App) Time(target string) string {
+	result, saveErr := (&commands.TimeCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Target: target}).Execute()
+	if result == nil {
+		return fmt.Sprintf("Time shift failed: %v", saveErr)
+	}
+	return a.formatTimeResult(result, saveErr)
+}
+
+// TimeBack returns to the preceding temporal branch.
+func (a *App) TimeBack() string {
+	result, saveErr := (&commands.TimeCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}).Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot return through time: %v", saveErr)
+	}
+	return a.formatTimeResult(result, saveErr)
+}
+
 // ExecuteJourney executes the one-based journey option currently shown by ls.
 func (a *App) ExecuteJourney(number int) string {
 	options, _ := a.journeyOptions(a.universe.EdgesFrom(a.session.Location()))
@@ -325,6 +367,8 @@ func (a *App) ExecuteJourney(number int) string {
 		return a.Align()
 	case journeyObserveBack:
 		return a.ObserveBack()
+	case journeyTimeBack:
+		return a.TimeBack()
 	default:
 		return "Selected journey is unavailable."
 	}
@@ -359,118 +403,6 @@ func (a *App) GoHome() string {
 		lines = append(lines, line)
 	}
 	return fmt.Sprintf("Route home\n%s\n\nEstimated cost: %.0f\n\nProceed? [y/N]:", strings.Join(lines, "\n"), cost)
-
-	if a.session.Location() == defaultStartLocation &&
-		a.session.QuantumLevel() == 0 &&
-		a.session.TimelineLevel() == 0 &&
-		a.session.ConsensusLevel() == 0 &&
-		a.session.Coordinate().Observer == universe.DefaultCoordinateVO().Observer {
-		return msgAlreadyHome
-	}
-
-	var planLines []string
-	estimatedCost := 0.0
-	plannedLocation := a.session.Location()
-
-	for {
-		current, ok := a.universe.GetLocation(plannedLocation)
-		if !ok || current.Coordinate.Observer == universe.DefaultCoordinateVO().Observer {
-			break
-		}
-		next, ok := a.observerReturnDestination(plannedLocation)
-		if !ok {
-			planLines = append(planLines, "  observe back (return path unavailable)")
-			break
-		}
-		dest, _ := a.universe.GetLocation(next)
-		planLines = append(planLines, fmt.Sprintf("  observe back (%s → %s)  cost %.0f", current.Coordinate.Observer, dest.Coordinate.Observer, universe.ObserverShiftCost))
-		estimatedCost += universe.ObserverShiftCost
-		plannedLocation = next
-	}
-
-	consensus := a.session.ConsensusLevel()
-	for i := consensus; i > 0; i-- {
-		planLines = append(planLines, fmt.Sprintf("  align      (consensus %d → %d)  cost %.0f", i, i-1, universe.ConsensusShiftCost))
-		estimatedCost += universe.ConsensusShiftCost
-		if next, ok := a.lowerContextDestination(plannedLocation, universe.ConsensusShift); ok {
-			plannedLocation = next
-		}
-	}
-
-	tl := a.session.TimelineLevel()
-	for i := tl; i > 0; i-- {
-		planLines = append(planLines, fmt.Sprintf("  jump back  (timeline %s → T%d)  cost %.0f", fmt.Sprintf("T%d", i), i-1, universe.TimelineShiftCost))
-		estimatedCost += universe.TimelineShiftCost
-		if next, ok := a.lowerContextDestination(plannedLocation, universe.TimelineShift); ok {
-			plannedLocation = next
-		}
-	}
-
-	ql := a.session.QuantumLevel()
-	for i := ql; i > 0; i-- {
-		planLines = append(planLines, fmt.Sprintf("  shift back (quantum Q%d → Q%d)  cost %.0f", i, i-1, universe.QuantumShiftCost))
-		estimatedCost += universe.QuantumShiftCost
-		if next, ok := a.lowerContextDestination(plannedLocation, universe.QuantumShift); ok {
-			plannedLocation = next
-		}
-	}
-
-	// Estimate physical travel after all contextual returns have completed.
-	if plannedLocation != defaultStartLocation {
-		if path, ok := a.pathfinder.FindRoute(a.universe, plannedLocation, defaultStartLocation); ok {
-			for _, edge := range path {
-				if !edge.Mode.IsPhysical() {
-					planLines = append(planLines, "  travel     home (route unavailable after contextual returns)")
-					break
-				}
-				planLines = append(planLines, fmt.Sprintf("  travel     %s → %s (%s)  cost %.0f", a.locationName(edge.From), a.locationName(edge.To), edge.Mode, edge.Cost))
-				estimatedCost += edge.Cost
-			}
-		} else {
-			planLines = append(planLines, "  travel     home (route unavailable)")
-		}
-	}
-
-	return fmt.Sprintf("Route home\n%s\n\nEstimated cost: %.0f\n\nProceed? [y/N]:", strings.Join(planLines, "\n"), estimatedCost)
-}
-
-func (a *App) lowerContextDestination(from string, mode universe.TravelModeVO) (string, bool) {
-	current, ok := a.universe.GetLocation(from)
-	if !ok {
-		return "", false
-	}
-	for _, edge := range a.universe.EdgesFrom(from) {
-		if edge.Mode != mode {
-			continue
-		}
-		dest, ok := a.universe.GetLocation(edge.To)
-		if ok && isLowerContextTransition(mode, current.Coordinate, dest.Coordinate) {
-			return dest.ID, true
-		}
-	}
-	return "", false
-}
-
-func isLowerContextTransition(mode universe.TravelModeVO, current, dest universe.CoordinateVO) bool {
-	switch mode {
-	case universe.ConsensusShift:
-		return dest.Consensus < current.Consensus
-	case universe.TimelineShift:
-		return dest.TimelineLevel() < current.TimelineLevel()
-	case universe.QuantumShift:
-		return dest.QuantumLevel() < current.QuantumLevel()
-	default:
-		return false
-	}
-}
-
-func (a *App) observerReturnDestination(from string) (string, bool) {
-	for _, edge := range a.universe.EdgesFrom(from) {
-		if edge.IsObserverReturn() {
-			return edge.To, true
-		}
-	}
-	return "", false
 }
 
 // GoHomeConfirm executes the home journey plan produced by GoHome. It unwinds
@@ -501,52 +433,6 @@ func (a *App) GoHomeConfirm() string {
 		}
 	}
 	return fmt.Sprintf("Heading home...\n\nSteps taken\n%s\n\nYou are home.\n\nCumulative journey cost\n%.0f", strings.Join(lines, "\n"), a.session.CumulativeCost())
-
-	var steps []string
-
-	for a.session.Coordinate().Observer != universe.DefaultCoordinateVO().Observer {
-		cmd := &commands.ObserveCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
-		result, err := cmd.Execute()
-		if err != nil {
-			return fmt.Sprintf("Failed while returning to the default observer: %v\n\nSteps taken so far:\n%s", err, strings.Join(steps, "\n"))
-		}
-		steps = append(steps, fmt.Sprintf("Observer return → %s at %s", result.Observer, result.Location.Name))
-	}
-
-	for a.session.ConsensusLevel() > 0 {
-		cmd := &commands.DriftCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
-		result, err := cmd.Execute()
-		if err != nil {
-			return fmt.Sprintf("Failed while aligning with shared consensus: %v\n\nSteps taken so far:\n%s", err, strings.Join(steps, "\n"))
-		}
-		steps = append(steps, fmt.Sprintf("Consensus alignment → level %d at %s", result.Consensus, result.Location.Name))
-	}
-
-	for a.session.TimelineLevel() > 0 {
-		cmd := &commands.JumpCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
-		result, err := cmd.Execute()
-		if err != nil {
-			return fmt.Sprintf("Failed while jumping back to base timeline: %v\n\nSteps taken so far:\n%s", err, strings.Join(steps, "\n"))
-		}
-		steps = append(steps, fmt.Sprintf("Timeline jump back → %s at %s", result.NextTimeline, result.Location.Name))
-	}
-
-	for a.session.QuantumLevel() > 0 {
-		cmd := &commands.ShiftCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
-		result, err := cmd.Execute()
-		if err != nil {
-			return fmt.Sprintf("Failed while shifting back to base quantum: %v\n\nSteps taken so far:\n%s", err, strings.Join(steps, "\n"))
-		}
-		steps = append(steps, fmt.Sprintf("Quantum shift back → %s at %s", result.NextQuantum, result.Location.Name))
-	}
-
-	if a.session.Location() != defaultStartLocation {
-		travelResult := a.Travel(defaultStartLocation)
-		steps = append(steps, fmt.Sprintf("Travelled home → %s", defaultStartLocation))
-		return fmt.Sprintf("Heading home...\n\nSteps taken\n%s\n\n%s", strings.Join(steps, "\n"), travelResult)
-	}
-
-	return fmt.Sprintf("Heading home...\n\nSteps taken\n%s\n\nYou are home.\n\nCumulative journey cost\n%.0f", strings.Join(steps, "\n"), a.session.CumulativeCost())
 }
 
 // Route plans and displays a route to target without moving the session.

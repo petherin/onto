@@ -10,14 +10,14 @@ import (
 )
 
 // newLinearGraph builds a → b → c → d with known distances and costs.
-func newLinearGraph() *universe.Aggregate {
+func newLinearGraph(t *testing.T) *universe.Aggregate {
 	u := universe.NewAggregate()
 	for _, id := range []string{"a", "b", "c", "d"} {
-		u.AddLocation(universe.LocationEntity{ID: id})
+		require.NoError(t, u.AddLocation(universe.LocationEntity{ID: id}))
 	}
-	u.AddEdge(universe.EdgeVO{From: "a", To: "b", Mode: universe.Walk, Distance: 1.0, Cost: 2.0})
-	u.AddEdge(universe.EdgeVO{From: "b", To: "c", Mode: universe.Walk, Distance: 2.0, Cost: 3.0})
-	u.AddEdge(universe.EdgeVO{From: "c", To: "d", Mode: universe.Walk, Distance: 1.5, Cost: 1.0})
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "a", To: "b", Mode: universe.Walk, Distance: 1.0, Cost: 2.0}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "b", To: "c", Mode: universe.Walk, Distance: 2.0, Cost: 3.0}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "c", To: "d", Mode: universe.Walk, Distance: 1.5, Cost: 1.0}))
 	return u
 }
 
@@ -39,7 +39,7 @@ func TestFindRoute(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			u := newLinearGraph()
+			u := newLinearGraph(t)
 			path, ok := navigation.FindRoute(u, tc.from, tc.to)
 
 			assert.Equal(t, tc.wantFound, ok)
@@ -55,17 +55,18 @@ func TestFindRoute(t *testing.T) {
 	}
 }
 
-func TestFindRoute_SkipsPhysicalRealityBoundary(t *testing.T) {
+func TestFindRoute_UsesContextualTransitionAcrossRealityBoundary(t *testing.T) {
 	u := universe.NewAggregate()
 	base := universe.DefaultCoordinateVO()
 	divergent := base
 	divergent.Consensus = 1
-	u.AddLocation(universe.LocationEntity{ID: "home", Coordinate: base})
-	u.AddLocation(universe.LocationEntity{ID: "divergent-home", Coordinate: divergent})
-	u.AddLocation(universe.LocationEntity{ID: "station", Coordinate: base})
-	u.AddEdge(universe.EdgeVO{From: "divergent-home", To: "station", Mode: universe.Walk})
-	u.AddEdge(universe.EdgeVO{From: "divergent-home", To: "home", Mode: universe.ConsensusShift})
-	u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home", Coordinate: base}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "divergent-home", Coordinate: divergent}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "station", Coordinate: base}))
+	err := u.AddEdge(universe.EdgeVO{From: "divergent-home", To: "station", Mode: universe.Walk})
+	require.ErrorIs(t, err, universe.ErrPhysicalRealityCross)
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "divergent-home", To: "home", Mode: universe.ConsensusShift}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk}))
 
 	path, ok := navigation.FindRoute(u, "divergent-home", "station")
 
