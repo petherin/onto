@@ -26,6 +26,31 @@ A few terms come up constantly.
 
 ## How DDD is applied here
 
+### Application structure
+
+```mermaid
+flowchart TB
+    User[User] --> CLI[Interface layer<br/>internal/interface/cli]
+    CLI --> Commands[Application commands<br/>Travel, Shift, Jump, Drift,<br/>Observe, CreateLocation, ReturnHome]
+    CLI --> Queries[Application queries<br/>Lookup, Route]
+
+    Commands --> Domain[Domain model<br/>Universe aggregate, exploration session,<br/>branch services, nearby factory]
+    Queries --> Domain
+    Commands --> RepositoryPort[Repository port<br/>universe.Repository]
+    Queries --> Pathfinder[Domain route policy<br/>BFSPathfinder]
+
+    JSON[Infrastructure<br/>JSONRepository] -. implements .-> RepositoryPort
+    RepositoryPort --> JSON
+    JSON --> Data[(data/locations.json)]
+
+    Domain --> Aggregate[Aggregate invariant boundary<br/>AddLocation / AddEdge]
+```
+
+The solid arrows show runtime calls. The dashed arrow shows an implementation
+dependency: infrastructure implements the domain-defined repository port, never
+the reverse. The CLI formats results and gathers input; application commands
+orchestrate use cases; the domain owns navigation rules and graph invariants.
+
 ### The aggregate root — `universe.Aggregate`
 
 `universe.Aggregate` in `internal/domain/universe/universe.go` is the aggregate root. It owns every `LocationEntity` and `EdgeVO` in the graph. Both internal maps are unexported, so nothing outside the struct can add, remove, or corrupt a location or edge directly. All mutations go through `AddLocation` and `AddEdge`; all reads go through `GetLocation`, `EdgesFrom`, `AllLocations`, and `AllEdgesFlat`.
