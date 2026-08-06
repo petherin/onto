@@ -2,12 +2,29 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	tempDir, err := os.MkdirTemp("", "onto-cli-test-*")
+	if err != nil {
+		panic(err)
+	}
+	dataPath := filepath.Join(tempDir, "locations.json")
+	if err := os.Setenv("ONTO_DATA_FILE", dataPath); err != nil {
+		_ = os.RemoveAll(tempDir)
+		panic(err)
+	}
+
+	code := m.Run()
+	_ = os.RemoveAll(tempDir)
+	os.Exit(code)
+}
 
 func TestAppWhere(t *testing.T) {
 	app := NewApp()
