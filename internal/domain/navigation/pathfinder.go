@@ -1,8 +1,7 @@
 // Package navigation defines the PathfinderService interface and the pure graph
 // functions (FindRoute, PathDistance, PathCost) used to plan routes through a
-// universe.Aggregate. Concrete algorithm implementations live in
-// internal/infrastructure/navigation so that the domain stays free of
-// technical dependencies.
+// universe.Aggregate. BFSPathfinder is the supplied domain route-selection
+// policy and has no technical dependencies.
 package navigation
 
 import (
