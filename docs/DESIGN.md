@@ -94,7 +94,7 @@ exit                   — leave the CLI
 
 `travel` enforces physical-only routing — it rejects any path that contains a quantum or timeline edge. Exotic transitions require their own dedicated commands (`shift`, `jump`).
 
-`home` is a composite operation: it shows the full unwind plan (consensus alignment, timeline jumps back, quantum shifts back, physical travel), displays the estimated cost, and asks for confirmation before executing. Each step uses the same underlying commands and incurs the same cost as doing it manually.
+`home` is a composite operation: it shows the full unwind plan (observer return, consensus alignment, timeline jumps back, quantum shifts back, physical travel), displays the estimated cost, and asks for confirmation before executing. Each step uses the same underlying commands and incurs the same cost as doing it manually.
 
 The key UX principle: the same navigation commands work at all layers; only the graph and edge semantics change. This continuity is what makes the interface feel like an "operating system for reality" rather than a collection of separate features.
 

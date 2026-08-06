@@ -79,7 +79,7 @@ The application layer in `internal/application/` contains use cases, not busines
 - `LookupQuery` — `Where`, `Look`, `List`.
 - `RouteQuery` — plans a route without moving the session.
 
-The `home` command in the interface layer orchestrates multiple commands in sequence (repeated `DriftCommand` alignment, `JumpCommand` back, `ShiftCommand` back, then `TravelCommand` to the start location). It is not an application-layer command itself — the coordination logic lives in the CLI's `App.GoHome` method, which calls existing commands and prints a plan for confirmation before executing.
+The `home` command in the interface layer orchestrates multiple commands in sequence (repeated `ObserveCommand` returns, `DriftCommand` alignment, `JumpCommand` back, `ShiftCommand` back, then `TravelCommand` to the start location). It is not an application-layer command itself — the coordination logic lives in the CLI's `App.GoHome` method, which calls existing commands and prints a plan for confirmation before executing.
 
 Commands and queries each return a result struct. The interface layer formats that struct for the terminal; the application layer never touches a string.
 

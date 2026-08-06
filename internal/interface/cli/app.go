@@ -338,13 +338,30 @@ func (a *App) GoHome() string {
 	if a.session.Location() == defaultStartLocation &&
 		a.session.QuantumLevel() == 0 &&
 		a.session.TimelineLevel() == 0 &&
-		a.session.ConsensusLevel() == 0 {
+		a.session.ConsensusLevel() == 0 &&
+		a.session.Coordinate().Observer == universe.DefaultCoordinateVO().Observer {
 		return msgAlreadyHome
 	}
 
 	var planLines []string
 	estimatedCost := 0.0
 	plannedLocation := a.session.Location()
+
+	for {
+		current, ok := a.universe.GetLocation(plannedLocation)
+		if !ok || current.Coordinate.Observer == universe.DefaultCoordinateVO().Observer {
+			break
+		}
+		next, ok := a.observerReturnDestination(plannedLocation)
+		if !ok {
+			planLines = append(planLines, "  observe back (return path unavailable)")
+			break
+		}
+		dest, _ := a.universe.GetLocation(next)
+		planLines = append(planLines, fmt.Sprintf("  observe back (%s → %s)  cost %.0f", current.Coordinate.Observer, dest.Coordinate.Observer, universe.ObserverShiftCost))
+		estimatedCost += universe.ObserverShiftCost
+		plannedLocation = next
+	}
 
 	consensus := a.session.ConsensusLevel()
 	for i := consensus; i > 0; i-- {
@@ -422,11 +439,29 @@ func isLowerContextTransition(mode universe.TravelModeVO, current, dest universe
 	}
 }
 
+func (a *App) observerReturnDestination(from string) (string, bool) {
+	for _, edge := range a.universe.EdgesFrom(from) {
+		if edge.IsObserverReturn() {
+			return edge.To, true
+		}
+	}
+	return "", false
+}
+
 // GoHomeConfirm executes the home journey plan produced by GoHome. It unwinds
 // timeline jumps, quantum shifts, and then travels physically to the start
 // location. The run loop calls this after the user confirms.
 func (a *App) GoHomeConfirm() string {
 	var steps []string
+
+	for a.session.Coordinate().Observer != universe.DefaultCoordinateVO().Observer {
+		cmd := &commands.ObserveCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
+		result, err := cmd.Execute()
+		if err != nil {
+			return fmt.Sprintf("Failed while returning to the default observer: %v\n\nSteps taken so far:\n%s", err, strings.Join(steps, "\n"))
+		}
+		steps = append(steps, fmt.Sprintf("Observer return → %s at %s", result.Observer, result.Location.Name))
+	}
 
 	for a.session.ConsensusLevel() > 0 {
 		cmd := &commands.DriftCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}

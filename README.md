@@ -296,7 +296,8 @@ preserves every other active context.
 `shift`, `jump`, `drift`, and observer shifts are implemented. The remaining rows define the
 intended behavior for future transition types. `home` is the explicit unwind
 operation: it returns consensus, timeline, and quantum axes to their base
-levels before travelling physically to the start location.
+levels and restores the default observer before travelling physically to the
+start location.
 
 ## Example CLI experience
 
@@ -345,7 +346,7 @@ The app is functional. It includes:
 - observer navigation: `observe <observer>` changes perception (cost 2); `observe back` returns to the prior perspective
 - each non-spatial transition creates coordinate-matched physical locations and contextual return edges, so local travel and returning remain available throughout a branch
 - `travel` rejects routes that cross any reality boundary (quantum, timeline, consensus, simulation, observer, or universe) — physical and non-physical travel are kept separate
-- `home` command: shows the full plan and estimated cost to align consensus, unwind timeline jumps and quantum shifts, then travel back to the start location before asking for confirmation
+- `home` command: shows the full plan and estimated cost to restore the observer, align consensus, unwind timeline jumps and quantum shifts, then travel back to the start location before asking for confirmation
 - cumulative journey cost tracked across the session and shown in `where` output and after every move
 - a full coordinate model covering mathematics, universe, timeline, quantum, simulation, consensus, physical location, observer, and time
 - location and edge data loaded from `data/locations.json`, with a built-in fallback map

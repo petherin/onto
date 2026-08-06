@@ -164,6 +164,18 @@ func TestGoHome_UnwindsConsensusDivergence(t *testing.T) {
 	assert.Equal(t, 0, app.session.ConsensusLevel())
 }
 
+func TestGoHome_UnwindsObserverPerspective(t *testing.T) {
+	app := NewApp()
+	app.Execute("observe Cat")
+
+	plan := app.GoHome()
+	assert.Contains(t, plan, "observe back (Cat → Human)  cost 2")
+
+	result := app.GoHomeConfirm()
+	assert.Contains(t, result, "Observer return → Human")
+	assert.Equal(t, "Human", app.session.Coordinate().Observer)
+}
+
 func TestGoHome_SeparatesConsensusAndPhysicalCosts(t *testing.T) {
 	app := NewApp()
 	app.Execute("drift")
