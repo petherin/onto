@@ -84,6 +84,9 @@ jump                   — jump forward to the next timeline branch (Prime → T
 jump back              — return to the previous timeline branch
 drift                  — enter the next consensus divergence (0 → 1 → …)
 align                  — return one level toward shared consensus
+observe <observer>     — change observer perspective
+observe back           — return to the previous observer perspective
+<number>               — take the corresponding numbered possible journey
 cost                   — show travel cost information
 help                   — list all commands
 exit                   — leave the CLI

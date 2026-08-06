@@ -275,7 +275,7 @@ type CoordinateVO struct {
 }
 ```
 
-The current implementation navigates the physical layers (planet through location), quantum, timeline, and consensus axes. A non-spatial transition materializes coordinate-matched copies of reachable physical locations, so local travel remains within that context. The higher axes (mathematics, universe, simulation, and observer) are present in the struct and ready to be navigated once their edge types are introduced.
+The current implementation navigates the physical layers (planet through location), quantum, timeline, consensus, and observer axes. A non-spatial transition materializes coordinate-matched copies of reachable physical locations, so local travel remains within that context. The higher axes (mathematics, universe, and simulation) are present in the struct and ready to be navigated once their edge types are introduced.
 
 ### Contextual transition rules
 
@@ -293,7 +293,7 @@ preserves every other active context.
 | Universe transition | Mathematics and applicable observer/experience overlays | Universe-local timeline, quantum, and physical map |
 | Mathematical-structure transition | Nothing below the mathematical layer | Universe and every lower axis |
 
-`shift`, `jump`, and `drift` are implemented. The remaining rows define the
+`shift`, `jump`, `drift`, and observer shifts are implemented. The remaining rows define the
 intended behavior for future transition types. `home` is the explicit unwind
 operation: it returns consensus, timeline, and quantum axes to their base
 levels before travelling physically to the start location.
@@ -324,6 +324,9 @@ jump                   Jump to the next timeline branch (cost 800)
 jump back              Return to the previous timeline branch
 drift                  Enter the next consensus divergence (cost 5)
 align                  Return one level toward shared consensus
+observe <observer>     Change observer perspective (cost 2)
+observe back           Return to the previous observer perspective
+<number>               Take the corresponding numbered possible journey
 cost                   Show travel cost information
 help                   List all commands
 exit                   Leave the CLI
@@ -334,11 +337,12 @@ exit                   Leave the CLI
 The app is functional. It includes:
 
 - a command entrypoint in `cmd/onto`
-- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `home`, `cost`, `shift`, `shift back`, `jump`, `jump back`, `drift`, `align`, and `exit` commands
+- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `home`, `cost`, `shift`, `shift back`, `jump`, `jump back`, `drift`, `align`, `observe`, `observe back`, and `exit` commands
 - BFS-based graph routing across locations with travel modes (walk, rail, etc.)
 - quantum branch navigation: `shift` jumps forward to the next branch (cost 20); `shift back` returns to the previous one
 - timeline branch navigation: `jump` jumps forward to the next alternate history (cost 800); `jump back` returns to the previous one
 - consensus divergence navigation: `drift` enters the next divergent state (cost 5); `align` returns one level toward shared consensus
+- observer navigation: `observe <observer>` changes perception (cost 2); `observe back` returns to the prior perspective
 - each non-spatial transition creates coordinate-matched physical locations and contextual return edges, so local travel and returning remain available throughout a branch
 - `travel` rejects routes that cross any reality boundary (quantum, timeline, consensus, simulation, observer, or universe) — physical and non-physical travel are kept separate
 - `home` command: shows the full plan and estimated cost to align consensus, unwind timeline jumps and quantum shifts, then travel back to the start location before asking for confirmation
@@ -429,7 +433,7 @@ Pushes to `main` automatically run unit tests, linting, and saved-universe valid
 6. ~~Add `home` command to return to start, unwinding all branches with confirmation.~~ ✓
 7. ~~Support consensus divergence transitions.~~ ✓ (`drift` / `align`)
 8. Support universe transitions (higher-cost exotic modes).
-9. Expand navigation with simulation depth and observer shifts.
+9. Expand navigation with simulation depth.
 10. Evolve the CLI into a true reality navigator.
 
 ## Notes

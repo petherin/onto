@@ -39,6 +39,21 @@ func (a *App) formatDriftResult(r *commands.DriftResult, saveErr error) string {
 	return base + fmt.Sprintf("\n\nPersisted to %s", dataFile())
 }
 
+func (a *App) formatObserveResult(r *commands.ObserveResult, saveErr error) string {
+	verb := "Observer perspective entered"
+	if r.Reversed {
+		verb = "Observer perspective restored"
+	}
+	base := fmt.Sprintf("Observing...\n\n%s: %s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
+		verb, r.Observer, r.Location.Description,
+		a.session.CumulativeCost(), a.formatEdges(r.Edges),
+	)
+	if saveErr != nil {
+		return base + fmt.Sprintf(fmtSaveWarning, saveErr)
+	}
+	return base + fmt.Sprintf("\n\nPersisted to %s", dataFile())
+}
+
 // Look formats the name and description of the current location.
 func (a *App) Look() string {
 	q := &queries.LookupQuery{Universe: a.universe, Session: a.session}
@@ -113,10 +128,42 @@ func (a *App) formatRouteResult(r *queries.RouteResult) string {
 }
 
 func (a *App) formatEdges(edges []universe.EdgeVO) string {
-	var lines []string
+	options, observerShiftAvailable := a.journeyOptions(edges)
+	lines := make([]string, 0, len(options)+1)
+	for i, option := range options {
+		lines = append(lines, fmt.Sprintf("%d. %s", i+1, option.description))
+	}
+	if observerShiftAvailable {
+		lines = append(lines, "- observer perspective (2 cost — observe <observer>)")
+	}
+	return strings.Join(lines, "\n")
+}
+
+type journeyKind int
+
+const (
+	journeyTravel journeyKind = iota
+	journeyShift
+	journeyShiftBack
+	journeyJump
+	journeyJumpBack
+	journeyDrift
+	journeyAlign
+	journeyObserveBack
+)
+
+type journeyOption struct {
+	kind        journeyKind
+	target      string
+	description string
+}
+
+func (a *App) journeyOptions(edges []universe.EdgeVO) ([]journeyOption, bool) {
+	var options []journeyOption
 	hasReverseQuantum := false
 	hasReverseTimeline := false
 	hasReverseConsensus := false
+	hasReverseObserver := false
 
 	for _, edge := range edges {
 		switch edge.Mode {
@@ -125,7 +172,11 @@ func (a *App) formatEdges(edges []universe.EdgeVO) string {
 			if !ok || !a.session.Coordinate().SamePhysicalReality(dest.Coordinate) {
 				continue
 			}
-			lines = append(lines, fmt.Sprintf("- %s [%s] (%s, %.0f cost)", a.locationName(edge.To), edge.To, string(edge.Mode), edge.Cost))
+			options = append(options, journeyOption{
+				kind:        journeyTravel,
+				target:      edge.To,
+				description: fmt.Sprintf("%s (%s, %.0f — travel %s)", a.locationName(edge.To), string(edge.Mode), edge.Cost, edge.To),
+			})
 		case universe.QuantumShift:
 			// Don't list quantum edges as regular journeys — they need 'shift' or 'shift back'.
 			if dest, ok := a.universe.GetLocation(edge.To); ok {
@@ -146,24 +197,50 @@ func (a *App) formatEdges(edges []universe.EdgeVO) string {
 					hasReverseConsensus = true
 				}
 			}
-		default:
-			lines = append(lines, fmt.Sprintf("- %s (%s, %.0f cost)", a.locationName(edge.To), string(edge.Mode), edge.Cost))
+		case universe.ObserverShift:
+			if edge.IsObserverReturn() {
+				hasReverseObserver = true
+			}
 		}
 	}
 
-	lines = append(lines, fmt.Sprintf("- %s (quantum, %.0f cost — use 'shift')", a.session.NextQuantumID(), universe.QuantumShiftCost))
+	options = append(options, journeyOption{
+		kind:        journeyShift,
+		description: fmt.Sprintf("%s (quantum, %.0f — shift)", a.session.NextQuantumID(), universe.QuantumShiftCost),
+	})
 	if hasReverseQuantum {
-		lines = append(lines, "  (use 'shift back' to return to the previous quantum branch)")
+		options = append(options, journeyOption{
+			kind:        journeyShiftBack,
+			description: "Return to the previous quantum branch (shift back)",
+		})
 	}
-	lines = append(lines, fmt.Sprintf("- %s (timeline, %.0f cost — use 'jump')", a.session.NextTimelineID(), universe.TimelineShiftCost))
+	options = append(options, journeyOption{
+		kind:        journeyJump,
+		description: fmt.Sprintf("%s (timeline, %.0f — jump)", a.session.NextTimelineID(), universe.TimelineShiftCost),
+	})
 	if hasReverseTimeline {
-		lines = append(lines, "  (use 'jump back' to return to the previous timeline branch)")
+		options = append(options, journeyOption{
+			kind:        journeyJumpBack,
+			description: "Return to the previous timeline branch (jump back)",
+		})
 	}
-	lines = append(lines, fmt.Sprintf("- %s (consensus divergence, %.0f cost — use 'drift')", a.session.NextConsensusID(), universe.ConsensusShiftCost))
+	options = append(options, journeyOption{
+		kind:        journeyDrift,
+		description: fmt.Sprintf("%s (consensus divergence, %.0f — drift)", a.session.NextConsensusID(), universe.ConsensusShiftCost),
+	})
 	if hasReverseConsensus {
-		lines = append(lines, "  (use 'align' to return toward shared consensus)")
+		options = append(options, journeyOption{
+			kind:        journeyAlign,
+			description: "Return toward shared consensus (align)",
+		})
 	}
-	return strings.Join(lines, "\n")
+	if hasReverseObserver {
+		options = append(options, journeyOption{
+			kind:        journeyObserveBack,
+			description: "Return to the previous observer perspective (observe back)",
+		})
+	}
+	return options, true
 }
 
 // travelVerb picks a human-readable progress line based on the dominant mode in the path.

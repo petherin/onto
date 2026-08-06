@@ -21,6 +21,7 @@ func (a *App) Commands() []Command {
 		{Name: cmdJump, Description: "Jump to the next timeline branch of your current location"},
 		{Name: cmdDrift, Description: "Enter the next consensus divergence"},
 		{Name: cmdAlign, Description: "Return one level toward shared consensus"},
+		{Name: cmdObserve, Description: "Change observer perspective"},
 		{Name: cmdExit, Description: "Exit the CLI"},
 	}
 }

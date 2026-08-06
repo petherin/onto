@@ -36,7 +36,7 @@ This means the graph can never be left in a half-constructed state by a caller t
 
 `LocationEntity` has a stable ID (lowercase-hyphenated, e.g. `home`, `home-q1`). Two locations with the same coordinates but different IDs are different places. The ID is the identity.
 
-`exploration.Entity` in `internal/domain/exploration/session.go` tracks where the user is right now — current location ID, current coordinate, travel history, and cumulative journey cost. It is an entity because it has a clear identity (it is *this* user's session) and its state changes over time as the user moves. Its movement methods (`MoveTo`, `ShiftTo`, `JumpTo`, and `DriftTo`) each accept a cost and accumulate it into `CumulativeCost`.
+`exploration.Entity` in `internal/domain/exploration/session.go` tracks where the user is right now — current location ID, current coordinate, travel history, and cumulative journey cost. It is an entity because it has a clear identity (it is *this* user's session) and its state changes over time as the user moves. Its movement methods (`MoveTo`, `ShiftTo`, `JumpTo`, `DriftTo`, and `ObserveTo`) each accept a cost and accumulate it into `CumulativeCost`.
 
 ### Value objects — `CoordinateVO`, `EdgeVO`, `TravelModeVO`
 
@@ -50,7 +50,7 @@ This means the graph can never be left in a half-constructed state by a caller t
 
 Creating a quantum, timeline, or consensus branch is not something a `LocationEntity` does to itself, and it is not something `UniverseAggregate` should know the details of. It is a process: create the destination location, materialize coordinate-matched copies of the reachable physical graph, add physical and contextual return edges, and enforce idempotency.
 
-`BranchContextualService` in `internal/domain/universe/branch.go` owns that shared process. `ContextualTransitionSpec` declares the shared transition policy (mode, cost, labels, and descriptions), while the caller supplies the destination coordinate. `BranchQuantumService`, `BranchTimelineService`, and `BranchConsensusService` provide the policies and destination coordinates for their respective axes. This keeps the aggregate responsible for storing graph state while the domain service protects navigation invariants.
+`BranchContextualService` in `internal/domain/universe/branch.go` owns that shared process. `ContextualTransitionSpec` declares the shared transition policy (mode, cost, labels, and descriptions), while the caller supplies the destination coordinate. `BranchQuantumService`, `BranchTimelineService`, `BranchConsensusService`, and `BranchObserverService` provide the policies and destination coordinates for their respective axes. This keeps the aggregate responsible for storing graph state while the domain service protects navigation invariants.
 
 `PathfinderService` in `internal/domain/navigation/pathfinder.go` is a domain service interface — finding a route is a domain concern, but the algorithm (BFS, Dijkstra, A*) is an infrastructure detail. The interface lives in the domain; the implementation lives in `internal/infrastructure/navigation`.
 
@@ -73,6 +73,7 @@ The application layer in `internal/application/` contains use cases, not busines
 - `ShiftCommand` — calls `BranchQuantumService`, moves the session, accumulates quantum shift cost, saves.
 - `JumpCommand` — calls `BranchTimelineService`, moves the session, accumulates timeline shift cost, saves.
 - `DriftCommand` — calls `BranchConsensusService`, moves the session, accumulates consensus-transition cost, saves.
+- `ObserveCommand` — calls `BranchObserverService`, moves the session, accumulates observer-shift cost, saves.
 
 **Queries** (in `queries/`) are pure reads with no side effects:
 - `LookupQuery` — `Where`, `Look`, `List`.

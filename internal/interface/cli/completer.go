@@ -54,7 +54,7 @@ func (c *ontoCompleter) completeArg(cmd, argPrefix string) ([][]rune, int) {
 	switch cmd {
 	case cmdTravel, cmdRoute:
 		return completionsFor(c.travelDestinationIDs(), argPrefix)
-	case cmdShift, cmdJump:
+	case cmdShift, cmdJump, cmdObserve:
 		return completionsFor([]string{argBack}, argPrefix)
 	}
 	return nil, 0
@@ -82,7 +82,7 @@ func allCommandNames() []string {
 	return []string{
 		cmdHelp, cmdWhere, cmdLook, cmdList,
 		cmdRoute, cmdTravel, cmdHome, cmdCost,
-		cmdShift, cmdJump, cmdDrift, cmdAlign, cmdExit,
+		cmdShift, cmdJump, cmdDrift, cmdAlign, cmdObserve, cmdExit,
 	}
 }
 

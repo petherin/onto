@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -38,6 +39,44 @@ func TestAppTravelShowsPossibleJourneys(t *testing.T) {
 	assert.Contains(t, output, "Possible journeys")
 }
 
+func TestAppNumberedJourneyTravelsToDisplayedDestination(t *testing.T) {
+	app := NewApp()
+
+	list := app.Execute("ls")
+	assert.Contains(t, list, "1. Station")
+
+	output := app.Execute("1")
+	assert.Contains(t, output, "Arrived.")
+	assert.Equal(t, "station", app.session.Location())
+}
+
+func TestAppNumberedJourneyExecutesContextualReturn(t *testing.T) {
+	app := NewApp()
+	app.Execute("shift")
+
+	number := 0
+	options, _ := app.journeyOptions(app.universe.EdgesFrom(app.session.Location()))
+	for i, option := range options {
+		if option.kind == journeyShiftBack {
+			number = i + 1
+			break
+		}
+	}
+	require.NotZero(t, number)
+	output := app.Execute(fmt.Sprintf("%d", number))
+
+	assert.Contains(t, output, "Quantum branch exited")
+	assert.Equal(t, "home", app.session.Location())
+}
+
+func TestAppNumberedJourneyRejectsUnknownNumber(t *testing.T) {
+	app := NewApp()
+
+	output := app.Execute("99")
+
+	assert.Contains(t, output, "No possible journey numbered 99")
+}
+
 func TestAppSuggestsSimilarDestination(t *testing.T) {
 	app := NewApp()
 	output := app.Execute("route parl")
@@ -73,6 +112,18 @@ func TestAppDriftAndAlign(t *testing.T) {
 	assert.Contains(t, alignOutput, "Shared consensus approached: level 0")
 }
 
+func TestAppObserveAndReturn(t *testing.T) {
+	app := NewApp()
+
+	observeOutput := app.Execute("observe Machine")
+	assert.Contains(t, observeOutput, "Observer perspective entered: Machine")
+	assert.Contains(t, app.Execute("where"), "Observer : Machine")
+
+	returnOutput := app.Execute("observe back")
+	assert.Contains(t, returnOutput, "Observer perspective restored: Human")
+	assert.NotContains(t, app.Execute("ls"), "Return to the previous observer perspective")
+}
+
 func TestAppDrift_CanTravelWithinConsensusDivergence(t *testing.T) {
 	app := NewApp()
 	app.Execute("drift")
@@ -89,10 +140,10 @@ func TestAppContextualLocation_OffersTransitionsAndReturns(t *testing.T) {
 	app.Execute("travel station-c1")
 
 	list := app.Execute("ls")
-	assert.Contains(t, list, "use 'shift'")
-	assert.Contains(t, list, "use 'jump'")
-	assert.Contains(t, list, "use 'drift'")
-	assert.Contains(t, list, "use 'align'")
+	assert.Contains(t, list, "— shift)")
+	assert.Contains(t, list, "— jump)")
+	assert.Contains(t, list, "— drift)")
+	assert.Contains(t, list, "(align)")
 
 	assert.Contains(t, app.Execute("shift"), "Quantum branch entered")
 	assert.Contains(t, app.Execute("shift back"), "Quantum branch exited")
@@ -129,7 +180,7 @@ func TestAppHelp_ListsAllCommands(t *testing.T) {
 	app := NewApp()
 	output := app.Execute("help")
 
-	for _, cmd := range []string{"where", "look", "ls", "route", "travel", "shift", "drift", "align", "exit"} {
+	for _, cmd := range []string{"where", "look", "ls", "route", "travel", "shift", "drift", "align", "observe", "exit"} {
 		assert.Contains(t, output, cmd, "help should list command %q", cmd)
 	}
 }
@@ -213,7 +264,7 @@ func TestList_ShowsTravelablePhysicalLocationIDs(t *testing.T) {
 
 	output := app.Execute("ls")
 
-	assert.Contains(t, output, "City Centre (Q1) [city-centre-q1]")
+	assert.Contains(t, output, "City Centre (Q1) (rail, 3 — travel city-centre-q1)")
 }
 
 func TestJump_BranchHasContextualPhysicalDestinations(t *testing.T) {

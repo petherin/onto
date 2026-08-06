@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/chzyer/readline"
@@ -77,6 +78,12 @@ func (a *App) Execute(input string) string {
 		args = strings.Join(parts[1:], " ")
 	}
 
+	if len(parts) == 1 {
+		if number, err := strconv.Atoi(cmd); err == nil {
+			return a.ExecuteJourney(number)
+		}
+	}
+
 	switch cmd {
 	case cmdHelp:
 		return a.Help()
@@ -116,6 +123,14 @@ func (a *App) Execute(input string) string {
 		return a.Drift()
 	case cmdAlign:
 		return a.Align()
+	case cmdObserve:
+		if args == "" {
+			return "Usage: observe <observer>"
+		}
+		if args == argBack {
+			return a.ObserveBack()
+		}
+		return a.Observe(args)
 	case cmdExit:
 		return msgGoodbye
 	default:
@@ -144,6 +159,9 @@ func (a *App) Help() string {
 		"jump back              Return to the previous timeline branch",
 		"drift                  Enter the next consensus divergence",
 		"align                  Return one level toward shared consensus",
+		"observe <observer>     Change observer perspective",
+		"observe back           Return to the previous observer perspective",
+		"<number>               Take a numbered possible journey",
 		"exit                   Leave the CLI",
 		"",
 		"Example destinations:",
@@ -260,6 +278,56 @@ func (a *App) Align() string {
 		return fmt.Sprintf("Cannot align: %v", saveErr)
 	}
 	return a.formatDriftResult(result, saveErr)
+}
+
+// Observe changes the current observer perspective.
+func (a *App) Observe(observer string) string {
+	cmd := &commands.ObserveCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Observer: observer}
+	result, saveErr := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Observer shift failed: %v", saveErr)
+	}
+	return a.formatObserveResult(result, saveErr)
+}
+
+// ObserveBack returns to the previous observer perspective.
+func (a *App) ObserveBack() string {
+	cmd := &commands.ObserveCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
+	result, saveErr := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot return observer perspective: %v", saveErr)
+	}
+	return a.formatObserveResult(result, saveErr)
+}
+
+// ExecuteJourney executes the one-based journey option currently shown by ls.
+func (a *App) ExecuteJourney(number int) string {
+	options, _ := a.journeyOptions(a.universe.EdgesFrom(a.session.Location()))
+	if number < 1 || number > len(options) {
+		return fmt.Sprintf("No possible journey numbered %d. Use 'ls' to view available journeys.", number)
+	}
+
+	option := options[number-1]
+	switch option.kind {
+	case journeyTravel:
+		return a.Travel(option.target)
+	case journeyShift:
+		return a.Shift()
+	case journeyShiftBack:
+		return a.ShiftBack()
+	case journeyJump:
+		return a.Jump()
+	case journeyJumpBack:
+		return a.JumpBack()
+	case journeyDrift:
+		return a.Drift()
+	case journeyAlign:
+		return a.Align()
+	case journeyObserveBack:
+		return a.ObserveBack()
+	default:
+		return "Selected journey is unavailable."
+	}
 }
 
 // GoHome builds and returns the route plan for returning the session to the
@@ -411,8 +479,8 @@ func (a *App) Route(target string) string {
 
 // Cost returns informational text about how travel costs are calculated.
 func (a *App) Cost() string {
-	return fmt.Sprintf("Travel costs: local routes vary; quantum shifts %.0f; timeline jumps %.0f; consensus drifts %.0f.",
-		universe.QuantumShiftCost, universe.TimelineShiftCost, universe.ConsensusShiftCost)
+	return fmt.Sprintf("Travel costs: local routes vary; quantum shifts %.0f; timeline jumps %.0f; consensus drifts %.0f; observer shifts %.0f.",
+		universe.QuantumShiftCost, universe.TimelineShiftCost, universe.ConsensusShiftCost, universe.ObserverShiftCost)
 }
 
 // Run starts the interactive read-eval-print loop with readline (tab

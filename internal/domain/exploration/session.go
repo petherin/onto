@@ -83,6 +83,16 @@ func (s *Entity) DriftTo(loc universe.LocationEntity, cost float64) {
 	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (consensus drift)", prev, loc.ID))
 }
 
+// ObserveTo updates position for an observer shift, adds cost, and records it
+// in travel history.
+func (s *Entity) ObserveTo(loc universe.LocationEntity, cost float64) {
+	prev := s.currentLocation
+	s.currentLocation = loc.ID
+	s.currentCoordinate = loc.Coordinate
+	s.cumulativeCost += cost
+	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (observer shift)", prev, loc.ID))
+}
+
 // QuantumLevel returns the numeric quantum level of the current position (Q0 → 0, Q1 → 1, …).
 func (s *Entity) QuantumLevel() int {
 	return s.currentCoordinate.QuantumLevel()
