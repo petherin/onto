@@ -91,7 +91,7 @@ func (c CoordinateVO) TimelineLevel() int {
 // The +<time> suffix is omitted when Time is the zero value.
 func (c CoordinateVO) OntoAddress() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "onto://%s.%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s",
+	fmt.Fprintf(&b, "onto://%s.%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s",
 		segEncode(c.Meta), segEncode(c.Mathematics),
 		segEncode(c.Universe), segEncode(c.Timeline), segEncode(c.Quantum),
 		segEncode(c.Galaxy), segEncode(c.System), segEncode(c.Planet),

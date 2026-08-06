@@ -79,7 +79,7 @@ func TestOntoAddress_SimulationDepthIncluded(t *testing.T) {
 	c.Simulation = 3
 	addr := c.OntoAddress()
 
-	assert.Contains(t, addr, "/sim:3/")
+	assert.Contains(t, addr, "/sim:3@")
 }
 
 func TestOntoAddress_SimulationZeroOmitted(t *testing.T) {
@@ -87,6 +87,30 @@ func TestOntoAddress_SimulationZeroOmitted(t *testing.T) {
 	addr := c.OntoAddress()
 
 	assert.NotContains(t, addr, "sim:")
+}
+
+func TestOntoAddress_ConsensusDepthIncluded(t *testing.T) {
+	c := DefaultCoordinateVO()
+	c.Consensus = 2
+	addr := c.OntoAddress()
+
+	assert.Contains(t, addr, "/cons:2@")
+}
+
+func TestOntoAddress_ConsensusZeroOmitted(t *testing.T) {
+	c := DefaultCoordinateVO()
+	addr := c.OntoAddress()
+
+	assert.NotContains(t, addr, "cons:")
+}
+
+func TestOntoAddress_SimulationAndConsensusIncluded(t *testing.T) {
+	c := DefaultCoordinateVO()
+	c.Simulation = 1
+	c.Consensus = 2
+	addr := c.OntoAddress()
+
+	assert.Contains(t, addr, "/sim:1/cons:2@")
 }
 
 func TestOntoAddress_TimeIncluded(t *testing.T) {
@@ -146,6 +170,11 @@ func TestShortOntoAddress(t *testing.T) {
 			mustContain: []string{"New_York"},
 			mustAbsent:  []string{"New York"},
 		},
+		{
+			name:        "non-default simulation and consensus included",
+			modify:      func(c *CoordinateVO) { c.Simulation = 1; c.Consensus = 2 },
+			mustContain: []string{"sim:1", "cons:2"},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -171,6 +200,7 @@ func TestShortOntoAddress(t *testing.T) {
 func TestParseOntoAddress_RoundTrip_FullAddress(t *testing.T) {
 	original := DefaultCoordinateVO()
 	original.Simulation = 2
+	original.Consensus = 1
 	original.Time = time.Date(2026, 8, 4, 9, 0, 0, 0, time.UTC)
 
 	addr := original.OntoAddress()
@@ -183,6 +213,7 @@ func TestParseOntoAddress_RoundTrip_FullAddress(t *testing.T) {
 	assert.Equal(t, original.Timeline, parsed.Timeline)
 	assert.Equal(t, original.Quantum, parsed.Quantum)
 	assert.Equal(t, original.Simulation, parsed.Simulation)
+	assert.Equal(t, original.Consensus, parsed.Consensus)
 	assert.Equal(t, original.Galaxy, parsed.Galaxy)
 	assert.Equal(t, original.System, parsed.System)
 	assert.Equal(t, original.Planet, parsed.Planet)
