@@ -262,6 +262,7 @@ type CoordinateVO struct {
     Timeline    string
     Quantum     string
     Simulation  int
+    Consensus   int
     Galaxy      string
     System      string
     Planet      string
