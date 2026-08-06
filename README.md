@@ -75,6 +75,9 @@ If a reality can be computed, it can be nested. Simulation depth tracks whether 
 #### Observer (umwelt)
 Reality is never perceived directly — it is filtered through the senses and cognition of an observer. Two observers in the same location, same quantum branch, same timeline, same time, same simulation depth can inhabit entirely different experienced worlds. A bat, a human, and an AI standing in the same room share the same full coordinate but different umwelts. An observer shift changes whose perceptual frame you occupy. Cost: low, but hard to reverse.
 
+#### Consensus divergence
+Reality exists on a spectrum between collective consensus (everyone agrees on the rules) and individual divergence (your world operates by different rules). Consensus divergence tracks whether you are in the shared consensus reality (0) or inside a state where the rules are different (1+): dreams, delusions, hallucinations, altered consciousness, psychosis, fiction, mythology, fantasy. These are not simulated (not computational) and not merely perceptual (the rules themselves change, not just what you sense). A delusion is as real-to-you as waking reality is, but it's divergent from consensus. Dreams follow dream-logic. Hallucinations are sensory divergences. Altered states (meditation, intoxication) change how causality itself works. `drift` enters a divergent state; `align` returns to consensus. Cost: low, but dangerous—deeper divergences make consensus reality harder to access. Nesting possible: dream within a hallucination, psychotic episode within a dream, story within a delusion. **Note:** Consensus divergence applies only to observers with subjective experience. Non-conscious entities (rocks, algorithms without experience) remain at consensus=0 by definition—they have no inner world to diverge.
+
 ---
 
 ### How it all hangs together
@@ -91,10 +94,11 @@ Reality is never perceived directly — it is filtered through the senses and co
    - Which quantum branch within that region (Level III)?
    - These determine your *where* and *which outcome*.
 
-3. **Experience overlays** (four independent axes you navigate within your universe):
+3. **Experience overlays** (five independent axes you navigate within your universe):
    - Which timeline (macroscopic history branch)?
    - Which time (temporal position)?
-   - Which simulation depth (base or nested)?
+   - Which simulation depth (base or nested, computational)?
+   - Which consensus divergence (consensus reality or divergent state)?
    - Which observer (perceptual frame)?
 
 **How they interact:**
@@ -103,18 +107,19 @@ Reality is never perceived directly — it is filtered through the senses and co
 
 - **Level I and Level III are orthogonal coordinates of the same space.** Shifting quantum branches doesn't move you physically; moving physically doesn't change your quantum branch. A "position" requires both: "Earth, Quantum branch Q3" is different from "Earth, Quantum branch Q1," but both are still Earth.
 
-- **Timeline, Time, Simulation, and Observer are independent overlays.** You can:
+- **Timeline, Time, Simulation, Consensus divergence, and Observer are independent overlays.** You can:
   - Shift quantum branches without changing your timeline
   - Jump to a different timeline without changing your location or branch
   - Move through time without leaving your timeline
   - Enter a simulation while staying in the same branch, location, and timeline (the simulation contains its own nested Level I/III structure)
+  - Drift into a divergent state (dream, delusion, hallucination, psychosis) without leaving your simulation, location, or timeline (you can dream while awake, hallucinate while in a simulation, be delusional within a dream)
   - Change observer without any physical or temporal movement
 
 - **Local coordinates (galaxy, planet, city, location) are always nested within your current Level I region**, regardless of which quantum branch, timeline, time, or simulation depth you occupy.
 
 **Cost hierarchy (cheapest to most expensive):**
 - **Cheapest**: physical travel (walking/driving within one region)
-- **Very cheap**: observer shifts (changing perceptual perspective)
+- **Very cheap**: observer shifts (changing perceptual perspective), imagination transitions (entering/exiting dreams, stories)
 - **Low**: time travel (short distances), simulation boundary crossings
 - **Moderate**: timeline jumps (macroscopic history shifts)
 - **Expensive**: quantum shifts (Level III branches)
@@ -166,33 +171,45 @@ Here's the complete coordinate space visualized:
 
     ═══════════════════════════════════╦═════════════════════════════════════════
 
-          NOW, LAYER THESE FOUR INDEPENDENT EXPERIENCE AXES:
+          NOW, LAYER THESE FIVE INDEPENDENT EXPERIENCE AXES:
 
-         ┌──────────────┬──────────────┬─────────────┬────────────────┐
-         │  Timeline    │  Time        │  Simulation │  Observer      │
-         │  Which hist? │  When?       │  Depth?     │  Whose eyes?   │
-         │  (cost 800)  │  (cost var)  │  (cost low) │  (cost low)    │
-         │              │              │             │                │
-         │  T1, T2, T3  │  timestamp   │  0, 1, 2... │  human, bat,   │
-         │  (branches)  │  (position)  │  (nesting)  │  ai, ...       │
-         └──────────────┴──────────────┴─────────────┴────────────────┘
-              ⊕            ⊕               ⊕              ⊕
+         ┌──────────────┬──────────────┬─────────────┬──────────────┬────────────────┐
+         │  Timeline    │  Time        │  Simulation │ Consensus    │  Observer      │
+         │  Which hist? │  When?       │  Depth?     │ Divergence?  │  Whose eyes?   │
+         │  (cost 800)  │  (cost var)  │  (cost low) │  (cost low)  │  (cost low)    │
+         │              │              │             │              │                │
+         │  T1, T2, T3  │  timestamp   │  0, 1, 2... │  0, 1, 2...  │  human, bat,   │
+         │  (branches)  │  (position)  │  (nesting)  │  (consensus  │  ai, ...       │
+         │              │              │             │   to dream)  │                │
+         └──────────────┴──────────────┴─────────────┴──────────────┴────────────────┘
+              ⊕            ⊕               ⊕              ⊕              ⊕
          (all orthogonal, mix and match independently)
 
 ═══════════════════════════════════════════════════════════════════════════════
 
 EXAMPLE COMPLETE COORDINATES:
 
-  [MathA / BubbleX / Earth / Q3 / T2 / 2025-08-06 / depth=0 / human]
+  [MathA / BubbleX / Earth / Q3 / T2 / 2025-08-06 / sim=0 / cons=0 / human]
   "Earth in MathStructure A's Bubble X, quantum branch Q3, alternate timeline T2,
-   August 6th 2025, base reality, perceived through human senses"
+   August 6th 2025, base reality, consensus reality, perceived through human senses"
 
-  [MathA / BubbleX / Earth / Q1 / T2 / 2024-01-01 / depth=1 / bat]
-  "Same universe, same location, DIFFERENT quantum branch Q1, different timeline T2,
-   different time (2024), INSIDE a simulation (depth=1), bat's perspective"
-   
-  Both are on "Earth" in the same bubble and math structure, but they're
-  completely different experiences in different branching dimensions.
+  [MathA / BubbleX / Earth / Q3 / T2 / 2025-08-06 / sim=0 / cons=1 / human]
+  "Same location and timestamp, but in a DREAM (cons=1): the rules of waking physics
+   don't apply. Flying is possible, physics bends, dream-logic governs."
+
+  [MathA / BubbleX / Earth / Q3 / T2 / 2025-08-06 / sim=0 / cons=2 / human]
+  "Same location and timestamp, but in PSYCHOSIS or SEVERE DELUSION (cons=2): the
+   world is fundamentally distorted. Walls may breathe, thoughts seem external,
+   causality is broken. More divergent from consensus than a dream."
+
+  [MathA / BubbleX / Earth / Q3 / T2 / 2025-08-06 / sim=0 / cons=1-halluc / human]
+  "Consensus divergence through HALLUCINATION: you're still in consensus reality
+   (cons=1) but experiencing sensory events no one else perceives. You see things
+   that aren't there, but the world's rules are still normal."
+
+  [MathA / BubbleX / Earth / Q1 / T2 / 2024-01-01 / sim=1 / cons=2 / human]
+  "Nested divergences: inside a simulation (sim=1), in a psychotic episode (cons=2),
+   in a different quantum branch and timeline. Dream-logic stacks on simulation-logic."
 
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -229,7 +246,7 @@ LOCAL COORDINATES (nested within Level I region)
 
 - **Level I ⊕ Level III** are orthogonal: "Earth in Q3" is different from "Earth in Q1," but both are Earth. Shifting branches doesn't move you spatially.
 
-- **The four experience axes** (Timeline, Time, Simulation, Observer) can all change independently. You can be at the same location in multiple different combinations of these.
+- **The five experience axes** (Timeline, Time, Simulation, Consensus divergence, Observer) can all change independently. You can be at the same location in multiple different combinations of these. Consensus divergence is particularly flexible: you can dream while physically awake, hallucinate within a simulation, fall into psychosis within a timeline, or stack divergences (a delusion within a dream).
 
 - **The local hierarchy** (Galaxy → Location) exists entirely within your Level I region and is the same across all quantum branches, timelines, and observer perspectives (only your perception changes).
 
