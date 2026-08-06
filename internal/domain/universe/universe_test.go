@@ -35,19 +35,23 @@ func TestAggregate_GetLocation_NotFound(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestAggregate_AddLocation_Overwrites(t *testing.T) {
+func TestAggregate_AddLocation_RejectsDuplicateIdentity(t *testing.T) {
 	u := universe.NewAggregate()
-	u.AddLocation(universe.LocationEntity{ID: "home", Name: "Old"})
-	u.AddLocation(universe.LocationEntity{ID: "home", Name: "New"})
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home", Name: "Old"}))
+	err := u.AddLocation(universe.LocationEntity{ID: "home", Name: "New"})
 
 	got, _ := u.GetLocation("home")
-	assert.Equal(t, "New", got.Name)
+	assert.ErrorIs(t, err, universe.ErrLocationAlreadyExists)
+	assert.Equal(t, "Old", got.Name)
 }
 
 func TestAggregate_EdgesFrom_ReturnsOutgoingEdges(t *testing.T) {
 	u := universe.NewAggregate()
-	u.AddEdge(universe.EdgeVO{From: "a", To: "b", Mode: universe.Walk})
-	u.AddEdge(universe.EdgeVO{From: "a", To: "c", Mode: universe.Rail})
+	for _, id := range []string{"a", "b", "c"} {
+		require.NoError(t, u.AddLocation(universe.LocationEntity{ID: id}))
+	}
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "a", To: "b", Mode: universe.Walk}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "a", To: "c", Mode: universe.Rail}))
 
 	edges := u.EdgesFrom("a")
 
@@ -81,9 +85,12 @@ func TestAggregate_AllLocationIDs(t *testing.T) {
 
 func TestAggregate_AllEdgesFlat(t *testing.T) {
 	u := universe.NewAggregate()
-	u.AddEdge(universe.EdgeVO{From: "a", To: "b"})
-	u.AddEdge(universe.EdgeVO{From: "b", To: "c"})
-	u.AddEdge(universe.EdgeVO{From: "a", To: "c"})
+	for _, id := range []string{"a", "b", "c"} {
+		require.NoError(t, u.AddLocation(universe.LocationEntity{ID: id}))
+	}
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "a", To: "b", Mode: universe.Walk}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "b", To: "c", Mode: universe.Walk}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "a", To: "c", Mode: universe.Walk}))
 
 	assert.Len(t, u.AllEdgesFlat(), 3)
 }

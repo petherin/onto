@@ -49,6 +49,17 @@ func (m TravelModeVO) IsPhysical() bool {
 	return false
 }
 
+// IsKnown reports whether m is a supported travel mode.
+func (m TravelModeVO) IsKnown() bool {
+	switch m {
+	case Walk, Cycle, Drive, Rail, Flight, Orbit, Warp,
+		QuantumShift, TimelineShift, UniverseShift, SimulationEntry,
+		ObserverShift, ConsensusShift, MathematicalShift:
+		return true
+	}
+	return false
+}
+
 // EdgeVO is a value object representing a directional connection between two
 // locations. Cost is used by the pathfinder; Distance is informational only.
 type EdgeVO struct {

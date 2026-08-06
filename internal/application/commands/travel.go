@@ -23,18 +23,16 @@ type TravelResult struct {
 }
 
 // TravelCommand moves the session to a physical destination. It rejects paths
-// that cross non-physical or reality boundaries and optionally invokes a
-// LocationGeneratorService when the destination is a dead end.
+// that cross non-physical or reality boundaries.
 type TravelCommand struct {
-	Universe       *universe.Aggregate
-	Session        *exploration.Entity
-	Repo           universe.Repository
-	Pathfinder     navigation.PathfinderService
-	DeadEndHandler universe.LocationGeneratorService
+	Universe   *universe.Aggregate
+	Session    *exploration.Entity
+	Repo       universe.Repository
+	Pathfinder navigation.PathfinderService
 }
 
 // Execute validates the target, finds a physical-only route, moves the session,
-// handles dead ends, and persists any newly generated locations.
+// and reports whether the destination is a dead end.
 func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 	norm := strings.ToLower(strings.ReplaceAll(target, " ", "-"))
 	if _, ok := c.Universe.GetLocation(norm); !ok {
@@ -64,37 +62,22 @@ func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 	}
 	c.Session.MoveTo(loc, pathCost)
 
-	deadEndHandled := false
-	if c.DeadEndHandler != nil {
-		deadEndHandled = ensureOutgoing(c.Universe, norm, previous, c.DeadEndHandler)
-	}
-
 	result := &TravelResult{
 		Location:       loc,
 		Path:           path,
 		Edges:          c.Universe.EdgesFrom(norm),
 		History:        c.Session.History(),
-		DeadEndHandled: deadEndHandled,
+		DeadEndHandled: isDeadEnd(c.Universe, norm, previous),
 	}
-
-	if deadEndHandled {
-		if err := c.Repo.Save(c.Universe); err != nil {
-			// Return the result (travel succeeded) alongside the save error so
-			// callers can display output and warn about the persistence failure.
-			return result, err
-		}
-	}
-
 	return result, nil
 }
 
-// ensureOutgoing returns true if the location is a dead end and the handler created new edges.
-func ensureOutgoing(u *universe.Aggregate, id, cameFrom string, handler universe.LocationGeneratorService) bool {
+// isDeadEnd reports whether a location has no physical onward route.
+func isDeadEnd(u *universe.Aggregate, id, cameFrom string) bool {
 	for _, e := range u.EdgesFrom(id) {
 		if e.Mode.IsPhysical() && e.To != cameFrom {
 			return false
 		}
 	}
-	loc, _ := u.GetLocation(id)
-	return handler.Handle(u, id, loc.Coordinate)
+	return true
 }

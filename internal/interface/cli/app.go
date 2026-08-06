@@ -18,8 +18,6 @@ import (
 	"github.com/petherin/onto/internal/domain/exploration"
 	"github.com/petherin/onto/internal/domain/navigation"
 	"github.com/petherin/onto/internal/domain/universe"
-	"github.com/petherin/onto/internal/infrastructure/generator"
-	infranav "github.com/petherin/onto/internal/infrastructure/navigation"
 	"github.com/petherin/onto/internal/infrastructure/persistence"
 )
 
@@ -59,7 +57,7 @@ func NewApp() *App {
 		universe:   u,
 		session:    exploration.NewEntity(start, loc.Coordinate),
 		repo:       repo,
-		pathfinder: infranav.NewBFSPathfinder(),
+		pathfinder: navigation.NewBFSPathfinder(),
 	}
 }
 
@@ -177,19 +175,11 @@ func (a *App) Help() string {
 // Travel attempts physical movement to target, reporting the specific reason if
 // the destination exists but cannot be reached (e.g. across a quantum boundary).
 func (a *App) Travel(target string) string {
-	var handler universe.LocationGeneratorService
-	if a.interactiveReader != nil {
-		handler = &InteractiveHandler{reader: a.interactiveReader, gen: generator.New()}
-	} else {
-		handler = generator.New()
-	}
-
 	cmd := &commands.TravelCommand{
-		Universe:       a.universe,
-		Session:        a.session,
-		Repo:           a.repo,
-		Pathfinder:     a.pathfinder,
-		DeadEndHandler: handler,
+		Universe:   a.universe,
+		Session:    a.session,
+		Repo:       a.repo,
+		Pathfinder: a.pathfinder,
 	}
 
 	result, saveErr := cmd.Execute(target)
@@ -215,9 +205,19 @@ func (a *App) Travel(target string) string {
 		return saveErr.Error()
 	}
 
-	// Travel succeeded; saveErr is non-nil only when auto-generated routes
-	// could not be persisted — the formatter appends a warning in that case.
-	return a.formatTravelResult(result, saveErr)
+	output := a.formatTravelResult(result, saveErr)
+	if !result.DeadEndHandled {
+		return output
+	}
+	location, err := (&commands.GenerateNearbyLocationCommand{
+		Universe: a.universe,
+		Repo:     a.repo,
+		OriginID: result.Location.ID,
+	}).Execute()
+	if err != nil {
+		return fmt.Sprintf("%s\n\nUnable to generate a nearby location: %v", output, err)
+	}
+	return fmt.Sprintf("%s\n\nAuto-generated: %s (%s)", output, location.Name, location.ID)
 }
 
 // Shift jumps the session forward to the next quantum branch of the current location.
@@ -335,6 +335,31 @@ func (a *App) ExecuteJourney(number int) string {
 // printing the plan, reading the user's confirmation, and calling
 // GoHomeConfirm to execute it.
 func (a *App) GoHome() string {
+	cmd := &commands.ReturnHomeCommand{
+		Universe:        a.universe,
+		Session:         a.session,
+		Repo:            a.repo,
+		Pathfinder:      a.pathfinder,
+		HomeID:          defaultStartLocation,
+		DefaultObserver: universe.DefaultCoordinateVO().Observer,
+	}
+	steps, cost := cmd.Plan()
+	if len(steps) == 0 {
+		return msgAlreadyHome
+	}
+	var lines []string
+	for _, step := range steps {
+		line := fmt.Sprintf("  %-10s", step.Action)
+		if step.Detail != "" {
+			line += " (" + step.Detail + ")"
+		}
+		if step.Cost != 0 {
+			line += fmt.Sprintf("  cost %.0f", step.Cost)
+		}
+		lines = append(lines, line)
+	}
+	return fmt.Sprintf("Route home\n%s\n\nEstimated cost: %.0f\n\nProceed? [y/N]:", strings.Join(lines, "\n"), cost)
+
 	if a.session.Location() == defaultStartLocation &&
 		a.session.QuantumLevel() == 0 &&
 		a.session.TimelineLevel() == 0 &&
@@ -452,6 +477,31 @@ func (a *App) observerReturnDestination(from string) (string, bool) {
 // timeline jumps, quantum shifts, and then travels physically to the start
 // location. The run loop calls this after the user confirms.
 func (a *App) GoHomeConfirm() string {
+	cmd := &commands.ReturnHomeCommand{
+		Universe:        a.universe,
+		Session:         a.session,
+		Repo:            a.repo,
+		Pathfinder:      a.pathfinder,
+		HomeID:          defaultStartLocation,
+		DefaultObserver: universe.DefaultCoordinateVO().Observer,
+	}
+	commandSteps, err := cmd.Execute()
+	if err != nil {
+		return fmt.Sprintf("Failed while returning home: %v", err)
+	}
+	var lines []string
+	for _, step := range commandSteps {
+		switch step.Action {
+		case "observe back":
+			lines = append(lines, fmt.Sprintf("Observer return → %s", step.Detail))
+		case "align":
+			lines = append(lines, fmt.Sprintf("Consensus alignment → level %s", step.Detail))
+		default:
+			lines = append(lines, fmt.Sprintf("%s %s", step.Action, step.Detail))
+		}
+	}
+	return fmt.Sprintf("Heading home...\n\nSteps taken\n%s\n\nYou are home.\n\nCumulative journey cost\n%.0f", strings.Join(lines, "\n"), a.session.CumulativeCost())
+
 	var steps []string
 
 	for a.session.Coordinate().Observer != universe.DefaultCoordinateVO().Observer {

@@ -6,6 +6,21 @@
 // Nothing in this package may import other internal packages.
 package universe
 
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
+
+var (
+	ErrInvalidLocation       = errors.New("invalid location")
+	ErrLocationAlreadyExists = errors.New("location already exists")
+	ErrInvalidEdge           = errors.New("invalid edge")
+	ErrUnknownEdgeEndpoint   = errors.New("edge endpoint does not exist")
+	ErrDuplicateEdge         = errors.New("duplicate edge")
+	ErrPhysicalRealityCross  = errors.New("physical edge crosses reality boundary")
+)
+
 // Aggregate is the aggregate root of the domain. It owns all
 // LocationEntity values and directed EdgeVO values, exposing them only through
 // its methods so that internal invariants are enforced by the struct itself.
@@ -22,14 +37,51 @@ func NewAggregate() *Aggregate {
 	}
 }
 
-// AddLocation inserts or replaces a LocationEntity in the aggregate.
-func (u *Aggregate) AddLocation(location LocationEntity) {
+// AddLocation adds a uniquely identified location to the aggregate.
+func (u *Aggregate) AddLocation(location LocationEntity) error {
+	if !validLocationID(location.ID) {
+		return fmt.Errorf("%w: %q", ErrInvalidLocation, location.ID)
+	}
+	if _, exists := u.locations[location.ID]; exists {
+		return fmt.Errorf("%w: %s", ErrLocationAlreadyExists, location.ID)
+	}
 	u.locations[location.ID] = location
+	return nil
 }
 
-// AddEdge appends a directed EdgeVO to the aggregate graph.
-func (u *Aggregate) AddEdge(edge EdgeVO) {
+// AddEdge adds a directed edge after enforcing graph and reality invariants.
+func (u *Aggregate) AddEdge(edge EdgeVO) error {
+	if edge.From == "" || edge.To == "" || edge.From == edge.To || !edge.Mode.IsKnown() ||
+		edge.Distance < 0 || edge.Cost < 0 {
+		return fmt.Errorf("%w: %+v", ErrInvalidEdge, edge)
+	}
+	from, fromOK := u.GetLocation(edge.From)
+	to, toOK := u.GetLocation(edge.To)
+	if !fromOK || !toOK {
+		return fmt.Errorf("%w: %s -> %s", ErrUnknownEdgeEndpoint, edge.From, edge.To)
+	}
+	if edge.Mode.IsPhysical() && !from.Coordinate.SamePhysicalReality(to.Coordinate) {
+		return fmt.Errorf("%w: %s -> %s", ErrPhysicalRealityCross, edge.From, edge.To)
+	}
+	for _, existing := range u.edges[edge.From] {
+		if existing.To == edge.To && existing.Mode == edge.Mode {
+			return fmt.Errorf("%w: %s -> %s (%s)", ErrDuplicateEdge, edge.From, edge.To, edge.Mode)
+		}
+	}
 	u.edges[edge.From] = append(u.edges[edge.From], edge)
+	return nil
+}
+
+func validLocationID(id string) bool {
+	if id == "" || strings.TrimSpace(id) != id {
+		return false
+	}
+	for _, r := range id {
+		if !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9') && r != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 // GetLocation looks up a LocationEntity by its ID, returning the entity and a

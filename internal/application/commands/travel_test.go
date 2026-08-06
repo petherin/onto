@@ -1,7 +1,6 @@
 package commands_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/petherin/onto/internal/application/commands"
@@ -34,7 +33,7 @@ func TestTravelCommand_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "station", result.Location.ID)
 	assert.Contains(t, result.History, "home -> station")
-	assert.False(t, result.DeadEndHandled)
+	assert.True(t, result.DeadEndHandled)
 }
 
 func TestTravelCommand_UnknownDestination(t *testing.T) {
@@ -95,7 +94,7 @@ func TestTravelCommand_ConsensusBoundaryRejected(t *testing.T) {
 	assert.Equal(t, "home", sess.Location())
 }
 
-func TestTravelCommand_DeadEnd_HandlerCalled_RepoSaved(t *testing.T) {
+func TestTravelCommand_DeadEnd_IsReportedWithoutMutation(t *testing.T) {
 	u, sess, repo, pf := newTravelFixture(t)
 
 	// deadend has only a return edge back to home (no onward edges)
@@ -107,18 +106,14 @@ func TestTravelCommand_DeadEnd_HandlerCalled_RepoSaved(t *testing.T) {
 	route := []universe.EdgeVO{{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "deadend").Return(route, true)
 
-	gen := mocks.NewMockLocationGeneratorService(t)
-	gen.EXPECT().Handle(u, "deadend", deadCoord).Return(true)
-	repo.EXPECT().Save(u).Return(nil)
-
-	cmd := &commands.TravelCommand{Universe: u, Session: sess, Repo: repo, Pathfinder: pf, DeadEndHandler: gen}
+	cmd := &commands.TravelCommand{Universe: u, Session: sess, Repo: repo, Pathfinder: pf}
 	result, err := cmd.Execute("deadend")
 
 	require.NoError(t, err)
 	assert.True(t, result.DeadEndHandled)
 }
 
-func TestTravelCommand_DeadEndWithContextualEdges_HandlerCalled(t *testing.T) {
+func TestTravelCommand_DeadEndWithContextualEdges_IsReported(t *testing.T) {
 	u, sess, repo, pf := newTravelFixture(t)
 
 	deadCoord := universe.DefaultCoordinateVO()
@@ -130,39 +125,11 @@ func TestTravelCommand_DeadEndWithContextualEdges_HandlerCalled(t *testing.T) {
 	route := []universe.EdgeVO{{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "deadend").Return(route, true)
 
-	gen := mocks.NewMockLocationGeneratorService(t)
-	gen.EXPECT().Handle(u, "deadend", deadCoord).Return(true)
-	repo.EXPECT().Save(u).Return(nil)
-
-	cmd := &commands.TravelCommand{Universe: u, Session: sess, Repo: repo, Pathfinder: pf, DeadEndHandler: gen}
+	cmd := &commands.TravelCommand{Universe: u, Session: sess, Repo: repo, Pathfinder: pf}
 	result, err := cmd.Execute("deadend")
 
 	require.NoError(t, err)
 	assert.True(t, result.DeadEndHandled)
-}
-
-func TestTravelCommand_DeadEnd_SaveError(t *testing.T) {
-	u, sess, repo, pf := newTravelFixture(t)
-
-	deadCoord := universe.DefaultCoordinateVO()
-	u.AddLocation(universe.LocationEntity{ID: "deadend", Name: "Dead End", Coordinate: deadCoord})
-	u.AddEdge(universe.EdgeVO{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1})
-	u.AddEdge(universe.EdgeVO{From: "deadend", To: "home", Mode: universe.Walk, Cost: 1})
-
-	route := []universe.EdgeVO{{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}}
-	pf.EXPECT().FindRoute(u, "home", "deadend").Return(route, true)
-
-	gen := mocks.NewMockLocationGeneratorService(t)
-	gen.EXPECT().Handle(u, "deadend", deadCoord).Return(true)
-	repo.EXPECT().Save(u).Return(errors.New("disk full"))
-
-	cmd := &commands.TravelCommand{Universe: u, Session: sess, Repo: repo, Pathfinder: pf, DeadEndHandler: gen}
-	result, err := cmd.Execute("deadend")
-
-	// Travel succeeded but persistence failed — both result and err are non-nil.
-	require.NotNil(t, result)
-	assert.True(t, result.DeadEndHandled)
-	assert.EqualError(t, err, "disk full")
 }
 
 func TestTravelCommand_NonDeadEnd_RepoNotCalled(t *testing.T) {

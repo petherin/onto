@@ -24,6 +24,18 @@ type PathfinderService interface {
 	FindRoute(u *universe.Aggregate, from, to string) ([]universe.EdgeVO, bool)
 }
 
+// BFSPathfinder is the domain route-selection policy. It selects the route
+// with the fewest traversable transitions.
+type BFSPathfinder struct{}
+
+// NewBFSPathfinder returns the standard domain pathfinder.
+func NewBFSPathfinder() *BFSPathfinder { return &BFSPathfinder{} }
+
+// FindRoute plans a route using breadth-first search.
+func (p *BFSPathfinder) FindRoute(u *universe.Aggregate, from, to string) ([]universe.EdgeVO, bool) {
+	return FindRoute(u, from, to)
+}
+
 // FindRoute runs BFS from the `from` location to the `to` location across the universe graph.
 func FindRoute(u *universe.Aggregate, from, to string) ([]universe.EdgeVO, bool) {
 	if from == to {
