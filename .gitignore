@@ -4,6 +4,7 @@
 
 # Go build outputs
 bin/
+/onto
 *.exe
 *.dll
 *.so
