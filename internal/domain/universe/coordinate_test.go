@@ -104,6 +104,17 @@ func TestOntoAddress_ConsensusZeroOmitted(t *testing.T) {
 	assert.NotContains(t, addr, "cons:")
 }
 
+func TestCoordinateVOSamePhysicalReality(t *testing.T) {
+	base := DefaultCoordinateVO()
+	spatialMove := base
+	spatialMove.Location = "Station"
+	assert.True(t, base.SamePhysicalReality(spatialMove))
+
+	divergent := base
+	divergent.Consensus = 1
+	assert.False(t, base.SamePhysicalReality(divergent))
+}
+
 func TestOntoAddress_SimulationAndConsensusIncluded(t *testing.T) {
 	c := DefaultCoordinateVO()
 	c.Simulation = 1

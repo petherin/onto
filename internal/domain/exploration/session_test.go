@@ -75,11 +75,11 @@ func TestJumpTo_RecordsTimelineShiftInHistory(t *testing.T) {
 
 func TestQuantumLevelAndNextID(t *testing.T) {
 	tests := []struct {
-		name          string
-		locationID    string
-		quantum       string
-		wantLevel     int
-		wantNextID    string
+		name       string
+		locationID string
+		quantum    string
+		wantLevel  int
+		wantNextID string
 	}{
 		{"base Q0", "home", "Q0", 0, "home-q1"},
 		{"Q2", "home-q2", "Q2", 2, "home-q2-q3"},

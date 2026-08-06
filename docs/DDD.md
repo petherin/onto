@@ -36,7 +36,7 @@ This means the graph can never be left in a half-constructed state by a caller t
 
 `LocationEntity` has a stable ID (lowercase-hyphenated, e.g. `home`, `home-q1`). Two locations with the same coordinates but different IDs are different places. The ID is the identity.
 
-`exploration.Entity` in `internal/domain/exploration/session.go` tracks where the user is right now — current location ID, current coordinate, travel history, and cumulative journey cost. It is an entity because it has a clear identity (it is *this* user's session) and its state changes over time as the user moves. The three movement methods — `MoveTo`, `ShiftTo`, `JumpTo` — each accept a cost and accumulate it into `CumulativeCost`.
+`exploration.Entity` in `internal/domain/exploration/session.go` tracks where the user is right now — current location ID, current coordinate, travel history, and cumulative journey cost. It is an entity because it has a clear identity (it is *this* user's session) and its state changes over time as the user moves. Its movement methods (`MoveTo`, `ShiftTo`, `JumpTo`, and `DriftTo`) each accept a cost and accumulate it into `CumulativeCost`.
 
 ### Value objects — `CoordinateVO`, `EdgeVO`, `TravelModeVO`
 
@@ -46,9 +46,11 @@ This means the graph can never be left in a half-constructed state by a caller t
 
 `TravelModeVO` is a string type (`walk`, `quantum`, `timeline`, etc.) — a value object by nature, since two `walk` values are identical.
 
-### Domain services — `BranchQuantumService`, `BranchTimelineService`
+### Domain services — contextual branching
 
-Creating a quantum branch is not something a `LocationEntity` does to itself, and it is not something `UniverseAggregate` should know the details of. It is a process: create the destination location, add bidirectional edges, enforce idempotency. That logic lives in `BranchQuantumService` and `BranchTimelineService` in `quantum.go` and `timeline.go`.
+Creating a quantum, timeline, or consensus branch is not something a `LocationEntity` does to itself, and it is not something `UniverseAggregate` should know the details of. It is a process: create the destination location, materialize coordinate-matched copies of the reachable physical graph, add physical and contextual return edges, and enforce idempotency.
+
+`BranchContextualService` in `internal/domain/universe/branch.go` owns that shared process. `ContextualTransitionSpec` declares the shared transition policy (mode, cost, labels, and descriptions), while the caller supplies the destination coordinate. `BranchQuantumService`, `BranchTimelineService`, and `BranchConsensusService` provide the policies and destination coordinates for their respective axes. This keeps the aggregate responsible for storing graph state while the domain service protects navigation invariants.
 
 `PathfinderService` in `internal/domain/navigation/pathfinder.go` is a domain service interface — finding a route is a domain concern, but the algorithm (BFS, Dijkstra, A*) is an infrastructure detail. The interface lives in the domain; the implementation lives in `internal/infrastructure/navigation`.
 
@@ -68,12 +70,13 @@ The application layer in `internal/application/` contains use cases, not busines
 - `TravelCommand` — validates a physical route, moves the session, accumulates cost, handles dead ends, saves.
 - `ShiftCommand` — calls `BranchQuantumService`, moves the session, accumulates quantum shift cost, saves.
 - `JumpCommand` — calls `BranchTimelineService`, moves the session, accumulates timeline shift cost, saves.
+- `DriftCommand` — calls `BranchConsensusService`, moves the session, accumulates consensus-transition cost, saves.
 
 **Queries** (in `queries/`) are pure reads with no side effects:
 - `LookupQuery` — `Where`, `Look`, `List`.
-- `RouteQuery` — plans a route without moving the session. Also used by the `home` command to preview the physical leg cost before confirmation.
+- `RouteQuery` — plans a route without moving the session.
 
-The `home` command in the interface layer orchestrates multiple commands in sequence (repeated `JumpCommand` back, repeated `ShiftCommand` back, then `TravelCommand` to the start location). It is not an application-layer command itself — the coordination logic lives in the CLI's `App.GoHome` method, which calls existing commands and prints a plan for confirmation before executing.
+The `home` command in the interface layer orchestrates multiple commands in sequence (repeated `DriftCommand` alignment, `JumpCommand` back, `ShiftCommand` back, then `TravelCommand` to the start location). It is not an application-layer command itself — the coordination logic lives in the CLI's `App.GoHome` method, which calls existing commands and prints a plan for confirmation before executing.
 
 Commands and queries each return a result struct. The interface layer formats that struct for the terminal; the application layer never touches a string.
 
@@ -83,4 +86,4 @@ Commands and queries each return a result struct. The interface layer formats th
 
 ### Type-name suffixes
 
-Every exported type carries its DDD role as a suffix — `Aggregate`, `Entity`, `VO`, `Service`, `Repository`. This makes the role visible at the call site without needing to look up the definition. When you see `universe.CoordinateVO` in application code, you know immediately that it is a value object defined in the domain.
+Every exported domain type carries its role as a suffix — `Aggregate`, `Entity`, `VO`, `Service`, `Repository`, or `Spec`. This makes the role visible at the call site without needing to look up the definition. When you see `universe.CoordinateVO` in application code, you know immediately that it is a value object defined in the domain.

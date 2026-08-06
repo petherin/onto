@@ -21,6 +21,7 @@ const (
 	UniverseShift     TravelModeVO = "universe"   // cross to a parallel universe
 	SimulationEntry   TravelModeVO = "simulation" // enter or exit a simulation layer
 	ObserverShift     TravelModeVO = "observer"   // change observer perspective
+	ConsensusShift    TravelModeVO = "consensus"  // enter or exit a consensus divergence
 	MathematicalShift TravelModeVO = "math"       // traverse a mathematical abstraction
 )
 
@@ -29,6 +30,9 @@ const QuantumShiftCost = 20.0
 
 // TimelineShiftCost is the cost of a single timeline jump.
 const TimelineShiftCost = 800.0
+
+// ConsensusShiftCost is the cost of entering or exiting a consensus divergence.
+const ConsensusShiftCost = 5.0
 
 // IsPhysical reports whether a TravelModeVO can be used with the travel command.
 // Non-physical modes (quantum, timeline, etc.) require dedicated commands.

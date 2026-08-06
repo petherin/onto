@@ -33,7 +33,7 @@ func TestCompleter_PartialCommand_FiltersToMatchingCommands(t *testing.T) {
 
 	assert.Equal(t, 2, length)
 	names := runeStr(candidates)
-	assert.Contains(t, names, cmdTravel)
+	assert.Contains(t, names, "avel")
 	assert.NotContains(t, names, cmdWhere)
 }
 
@@ -43,8 +43,21 @@ func TestCompleter_FullCommandWithSpace_AfterTravel_OffersLocations(t *testing.T
 
 	assert.Equal(t, 0, length, "no prefix typed yet — length should be 0")
 	names := runeStr(candidates)
-	assert.Contains(t, names, "home")
 	assert.Contains(t, names, "station")
+	assert.NotContains(t, names, "home")
+}
+
+func TestCompleter_OnlyOffersCurrentPhysicalJourneys(t *testing.T) {
+	app := NewApp()
+	app.Execute("travel station")
+	c := NewCompleter(app)
+
+	candidates, _ := c.Do([]rune("travel "), 7)
+	names := runeStr(candidates)
+
+	assert.Contains(t, names, "city-centre")
+	assert.NotContains(t, names, "home")
+	assert.NotContains(t, names, "park")
 }
 
 func TestCompleter_PartialArg_AfterTravel_FiltersLocations(t *testing.T) {
@@ -53,8 +66,17 @@ func TestCompleter_PartialArg_AfterTravel_FiltersLocations(t *testing.T) {
 
 	assert.Equal(t, 3, length, "length should be len('sta')")
 	names := runeStr(candidates)
-	assert.Contains(t, names, "station")
+	assert.Contains(t, names, "tion")
 	assert.NotContains(t, names, "home")
+}
+
+func TestCompleter_PartialTravelArgumentReturnsSuffixWithoutRepeatingPrefix(t *testing.T) {
+	c := NewCompleter(NewApp())
+
+	candidates, length := c.Do([]rune("travel p"), 8)
+
+	assert.Equal(t, 1, length)
+	assert.Contains(t, runeStr(candidates), "ark")
 }
 
 func TestCompleter_FullCommandWithSpace_AfterRoute_OffersLocations(t *testing.T) {
@@ -62,7 +84,8 @@ func TestCompleter_FullCommandWithSpace_AfterRoute_OffersLocations(t *testing.T)
 	candidates, _ := c.Do([]rune("route "), 6)
 
 	names := runeStr(candidates)
-	assert.Contains(t, names, "home")
+	assert.Contains(t, names, "station")
+	assert.NotContains(t, names, "home")
 }
 
 func TestCompleter_AfterShift_OffersBack(t *testing.T) {

@@ -55,6 +55,26 @@ func TestFindRoute(t *testing.T) {
 	}
 }
 
+func TestFindRoute_SkipsPhysicalRealityBoundary(t *testing.T) {
+	u := universe.NewAggregate()
+	base := universe.DefaultCoordinateVO()
+	divergent := base
+	divergent.Consensus = 1
+	u.AddLocation(universe.LocationEntity{ID: "home", Coordinate: base})
+	u.AddLocation(universe.LocationEntity{ID: "divergent-home", Coordinate: divergent})
+	u.AddLocation(universe.LocationEntity{ID: "station", Coordinate: base})
+	u.AddEdge(universe.EdgeVO{From: "divergent-home", To: "station", Mode: universe.Walk})
+	u.AddEdge(universe.EdgeVO{From: "divergent-home", To: "home", Mode: universe.ConsensusShift})
+	u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk})
+
+	path, ok := navigation.FindRoute(u, "divergent-home", "station")
+
+	require.True(t, ok)
+	require.Len(t, path, 2)
+	assert.Equal(t, universe.ConsensusShift, path[0].Mode)
+	assert.Equal(t, universe.Walk, path[1].Mode)
+}
+
 func TestPathDistance(t *testing.T) {
 	tests := []struct {
 		name string

@@ -76,6 +76,20 @@ func (c CoordinateVO) TimelineLevel() int {
 	return 0
 }
 
+// SamePhysicalReality reports whether two coordinates differ only in their
+// spatial position. Physical travel must not cross any reality boundary.
+func (c CoordinateVO) SamePhysicalReality(other CoordinateVO) bool {
+	return c.Meta == other.Meta &&
+		c.Mathematics == other.Mathematics &&
+		c.Universe == other.Universe &&
+		c.Timeline == other.Timeline &&
+		c.Quantum == other.Quantum &&
+		c.Simulation == other.Simulation &&
+		c.Consensus == other.Consensus &&
+		c.Observer == other.Observer &&
+		c.Time.Equal(other.Time)
+}
+
 // OntoAddress returns the full canonical Onto Address for the coordinate.
 // The Onto Address is the addressing system for this project — a deterministic,
 // parseable string that uniquely identifies any position across all realities
@@ -220,7 +234,7 @@ func ParseOntoAddress(addr string) (CoordinateVO, error) {
 		c.Region = segDecode(segments[8])
 		c.City = segDecode(segments[9])
 		c.Location = segDecode(segments[10])
-		
+
 		// Parse sim:n and cons:n from remaining segments
 		for i := 11; i < len(segments); i++ {
 			if strings.HasPrefix(segments[i], "sim:") {

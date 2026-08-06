@@ -40,7 +40,7 @@ func FindRoute(u *universe.Aggregate, from, to string) ([]universe.EdgeVO, bool)
 		queue = queue[1:]
 
 		for _, edge := range u.EdgesFrom(current) {
-			if visited[edge.To] {
+			if visited[edge.To] || !isTraversable(u, edge) {
 				continue
 			}
 			visited[edge.To] = true
@@ -55,6 +55,16 @@ func FindRoute(u *universe.Aggregate, from, to string) ([]universe.EdgeVO, bool)
 	}
 
 	return nil, false
+}
+
+func isTraversable(u *universe.Aggregate, edge universe.EdgeVO) bool {
+	if !edge.Mode.IsPhysical() {
+		return true
+	}
+
+	from, fromOK := u.GetLocation(edge.From)
+	to, toOK := u.GetLocation(edge.To)
+	return fromOK && toOK && from.Coordinate.SamePhysicalReality(to.Coordinate)
 }
 
 // PathDistance sums the distance of each EdgeVO in a path.

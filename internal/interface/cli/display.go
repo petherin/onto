@@ -15,14 +15,28 @@ func (a *App) Where() string {
 	r := q.Where()
 	coord := r.Coordinate
 	return fmt.Sprintf(
-		"Reality Coordinate\n%s\n\nUniverse : %s\nTimeline : %s\nQuantum  : %s\nPlanet   : %s\nCountry  : %s\nRegion   : %s\nCity     : %s\nLocation : %s\nObserver : %s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s\n\nRecent travel history\n%s",
+		"Reality Coordinate\n%s\n\nUniverse : %s\nTimeline : %s\nQuantum  : %s\nConsensus: %d\nPlanet   : %s\nCountry  : %s\nRegion   : %s\nCity     : %s\nLocation : %s\nObserver : %s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
 		coord.OntoAddress(),
-		coord.Universe, coord.Timeline, coord.Quantum,
+		coord.Universe, coord.Timeline, coord.Quantum, coord.Consensus,
 		coord.Planet, coord.Country, coord.Region, coord.City, coord.Location, coord.Observer,
 		a.session.CumulativeCost(),
 		a.formatEdges(r.Edges),
-		a.formatHistory(r.History),
 	)
+}
+
+func (a *App) formatDriftResult(r *commands.DriftResult, saveErr error) string {
+	verb := "Consensus divergence entered"
+	if r.Reversed {
+		verb = "Shared consensus approached"
+	}
+	base := fmt.Sprintf("Drifting...\n\n%s: level %d\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
+		verb, r.Consensus, r.Location.Description,
+		a.session.CumulativeCost(), a.formatEdges(r.Edges),
+	)
+	if saveErr != nil {
+		return base + fmt.Sprintf(fmtSaveWarning, saveErr)
+	}
+	return base + fmt.Sprintf("\n\nPersisted to %s", dataFile())
 }
 
 // Look formats the name and description of the current location.
@@ -43,12 +57,10 @@ func (a *App) List() string {
 }
 
 func (a *App) formatTravelResult(r *commands.TravelResult, saveErr error) string {
-	base := fmt.Sprintf("%s\n\nArrived.\n\nCurrent Location\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s\n\nTravel history\n%s",
+	base := fmt.Sprintf("%s\n\nArrived.\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
 		travelVerb(r.Path),
-		r.Location.Name,
 		a.session.CumulativeCost(),
 		a.formatEdges(r.Edges),
-		a.formatHistory(r.History),
 	)
 	if r.DeadEndHandled {
 		if saveErr != nil {
@@ -64,11 +76,10 @@ func (a *App) formatShiftResult(r *commands.ShiftResult, saveErr error) string {
 	if r.Reversed {
 		verb = "Quantum branch exited"
 	}
-	base := fmt.Sprintf("Shifting...\n\n%s: %s\n\nCurrent Location\n%s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s\n\nTravel history\n%s",
-		verb, r.NextQuantum, r.Location.Name, r.Location.Description,
+	base := fmt.Sprintf("Shifting...\n\n%s: %s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
+		verb, r.NextQuantum, r.Location.Description,
 		a.session.CumulativeCost(),
 		a.formatEdges(r.Edges),
-		a.formatHistory(r.History),
 	)
 	if saveErr != nil {
 		return base + fmt.Sprintf(fmtSaveWarning, saveErr)
@@ -81,11 +92,10 @@ func (a *App) formatJumpResult(r *commands.JumpResult, saveErr error) string {
 	if r.Reversed {
 		verb = "Timeline branch exited"
 	}
-	base := fmt.Sprintf("Jumping...\n\n%s: %s\n\nCurrent Location\n%s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s\n\nTravel history\n%s",
-		verb, r.NextTimeline, r.Location.Name, r.Location.Description,
+	base := fmt.Sprintf("Jumping...\n\n%s: %s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
+		verb, r.NextTimeline, r.Location.Description,
 		a.session.CumulativeCost(),
 		a.formatEdges(r.Edges),
-		a.formatHistory(r.History),
 	)
 	if saveErr != nil {
 		return base + fmt.Sprintf(fmtSaveWarning, saveErr)
@@ -106,9 +116,16 @@ func (a *App) formatEdges(edges []universe.EdgeVO) string {
 	var lines []string
 	hasReverseQuantum := false
 	hasReverseTimeline := false
+	hasReverseConsensus := false
 
 	for _, edge := range edges {
 		switch edge.Mode {
+		case universe.Walk, universe.Cycle, universe.Drive, universe.Rail, universe.Flight, universe.Orbit, universe.Warp:
+			dest, ok := a.universe.GetLocation(edge.To)
+			if !ok || !a.session.Coordinate().SamePhysicalReality(dest.Coordinate) {
+				continue
+			}
+			lines = append(lines, fmt.Sprintf("- %s [%s] (%s, %.0f cost)", a.locationName(edge.To), edge.To, string(edge.Mode), edge.Cost))
 		case universe.QuantumShift:
 			// Don't list quantum edges as regular journeys — they need 'shift' or 'shift back'.
 			if dest, ok := a.universe.GetLocation(edge.To); ok {
@@ -123,6 +140,12 @@ func (a *App) formatEdges(edges []universe.EdgeVO) string {
 					hasReverseTimeline = true
 				}
 			}
+		case universe.ConsensusShift:
+			if dest, ok := a.universe.GetLocation(edge.To); ok {
+				if dest.Coordinate.Consensus < a.session.ConsensusLevel() {
+					hasReverseConsensus = true
+				}
+			}
 		default:
 			lines = append(lines, fmt.Sprintf("- %s (%s, %.0f cost)", a.locationName(edge.To), string(edge.Mode), edge.Cost))
 		}
@@ -135,6 +158,10 @@ func (a *App) formatEdges(edges []universe.EdgeVO) string {
 	lines = append(lines, fmt.Sprintf("- %s (timeline, %.0f cost — use 'jump')", a.session.NextTimelineID(), universe.TimelineShiftCost))
 	if hasReverseTimeline {
 		lines = append(lines, "  (use 'jump back' to return to the previous timeline branch)")
+	}
+	lines = append(lines, fmt.Sprintf("- %s (consensus divergence, %.0f cost — use 'drift')", a.session.NextConsensusID(), universe.ConsensusShiftCost))
+	if hasReverseConsensus {
+		lines = append(lines, "  (use 'align' to return toward shared consensus)")
 	}
 	return strings.Join(lines, "\n")
 }
@@ -172,13 +199,6 @@ func travelVerb(path []universe.EdgeVO) string {
 		}
 	}
 	return "Travelling..."
-}
-
-func (a *App) formatHistory(history []string) string {
-	if len(history) == 0 {
-		return "None yet"
-	}
-	return strings.Join(history, "\n")
 }
 
 func (a *App) locationName(id string) string {

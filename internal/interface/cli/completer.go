@@ -53,19 +53,26 @@ func (c *ontoCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) 
 func (c *ontoCompleter) completeArg(cmd, argPrefix string) ([][]rune, int) {
 	switch cmd {
 	case cmdTravel, cmdRoute:
-		return completionsFor(c.locationIDs(), argPrefix)
+		return completionsFor(c.travelDestinationIDs(), argPrefix)
 	case cmdShift, cmdJump:
 		return completionsFor([]string{argBack}, argPrefix)
 	}
 	return nil, 0
 }
 
-// locationIDs returns all location IDs currently in the universe.
-func (c *ontoCompleter) locationIDs() []string {
-	locs := c.app.universe.AllLocations()
-	ids := make([]string, 0, len(locs))
-	for _, loc := range locs {
-		ids = append(ids, loc.ID)
+// travelDestinationIDs returns physical destinations that are immediately
+// reachable from the current location and therefore shown by the CLI.
+func (c *ontoCompleter) travelDestinationIDs() []string {
+	current := c.app.session.Coordinate()
+	var ids []string
+	for _, edge := range c.app.universe.EdgesFrom(c.app.session.Location()) {
+		if !edge.Mode.IsPhysical() {
+			continue
+		}
+		dest, ok := c.app.universe.GetLocation(edge.To)
+		if ok && current.SamePhysicalReality(dest.Coordinate) {
+			ids = append(ids, dest.ID)
+		}
 	}
 	return ids
 }
@@ -75,19 +82,20 @@ func allCommandNames() []string {
 	return []string{
 		cmdHelp, cmdWhere, cmdLook, cmdList,
 		cmdRoute, cmdTravel, cmdHome, cmdCost,
-		cmdShift, cmdJump, cmdExit,
+		cmdShift, cmdJump, cmdDrift, cmdAlign, cmdExit,
 	}
 }
 
-// completionsFor returns readline-style completions: each entry is the full
-// candidate word, and length is the number of typed characters to replace.
+// completionsFor returns readline-style completions: each entry is the
+// untyped suffix to append, and length is the number of already typed runes.
 func completionsFor(candidates []string, prefix string) ([][]rune, int) {
 	lower := strings.ToLower(prefix)
+	prefixLen := len([]rune(prefix))
 	var matches [][]rune
 	for _, candidate := range candidates {
 		if strings.HasPrefix(strings.ToLower(candidate), lower) {
-			matches = append(matches, []rune(candidate))
+			matches = append(matches, []rune(candidate)[prefixLen:])
 		}
 	}
-	return matches, len([]rune(prefix))
+	return matches, prefixLen
 }

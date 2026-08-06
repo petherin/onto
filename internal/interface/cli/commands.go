@@ -19,6 +19,8 @@ func (a *App) Commands() []Command {
 		{Name: cmdCost, Description: "Show travel cost information"},
 		{Name: cmdShift, Description: "Jump to the nearest quantum branch of your current location"},
 		{Name: cmdJump, Description: "Jump to the next timeline branch of your current location"},
+		{Name: cmdDrift, Description: "Enter the next consensus divergence"},
+		{Name: cmdAlign, Description: "Return one level toward shared consensus"},
 		{Name: cmdExit, Description: "Exit the CLI"},
 	}
 }

@@ -78,6 +78,23 @@ func TestTravelCommand_QuantumEdge_Rejected(t *testing.T) {
 	assert.Contains(t, err.Error(), "no physical route")
 }
 
+func TestTravelCommand_ConsensusBoundaryRejected(t *testing.T) {
+	u, sess, repo, pf := newTravelFixture(t)
+
+	divergent := universe.DefaultCoordinateVO()
+	divergent.Consensus = 1
+	u.AddLocation(universe.LocationEntity{ID: "divergent-station", Name: "Station", Coordinate: divergent})
+	route := []universe.EdgeVO{{From: "home", To: "divergent-station", Mode: universe.Walk, Cost: 1}}
+	pf.EXPECT().FindRoute(u, "home", "divergent-station").Return(route, true)
+
+	cmd := &commands.TravelCommand{Universe: u, Session: sess, Repo: repo, Pathfinder: pf}
+	_, err := cmd.Execute("divergent-station")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "normal travel cannot cross reality boundaries")
+	assert.Equal(t, "home", sess.Location())
+}
+
 func TestTravelCommand_DeadEnd_HandlerCalled_RepoSaved(t *testing.T) {
 	u, sess, repo, pf := newTravelFixture(t)
 
@@ -86,6 +103,29 @@ func TestTravelCommand_DeadEnd_HandlerCalled_RepoSaved(t *testing.T) {
 	u.AddLocation(universe.LocationEntity{ID: "deadend", Name: "Dead End", Coordinate: deadCoord})
 	u.AddEdge(universe.EdgeVO{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1})
 	u.AddEdge(universe.EdgeVO{From: "deadend", To: "home", Mode: universe.Walk, Cost: 1})
+
+	route := []universe.EdgeVO{{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}}
+	pf.EXPECT().FindRoute(u, "home", "deadend").Return(route, true)
+
+	gen := mocks.NewMockLocationGeneratorService(t)
+	gen.EXPECT().Handle(u, "deadend", deadCoord).Return(true)
+	repo.EXPECT().Save(u).Return(nil)
+
+	cmd := &commands.TravelCommand{Universe: u, Session: sess, Repo: repo, Pathfinder: pf, DeadEndHandler: gen}
+	result, err := cmd.Execute("deadend")
+
+	require.NoError(t, err)
+	assert.True(t, result.DeadEndHandled)
+}
+
+func TestTravelCommand_DeadEndWithContextualEdges_HandlerCalled(t *testing.T) {
+	u, sess, repo, pf := newTravelFixture(t)
+
+	deadCoord := universe.DefaultCoordinateVO()
+	u.AddLocation(universe.LocationEntity{ID: "deadend", Name: "Dead End", Coordinate: deadCoord})
+	u.AddEdge(universe.EdgeVO{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1})
+	u.AddEdge(universe.EdgeVO{From: "deadend", To: "home", Mode: universe.Walk, Cost: 1})
+	u.AddEdge(universe.EdgeVO{From: "deadend", To: "deadend-q1", Mode: universe.QuantumShift, Cost: universe.QuantumShiftCost})
 
 	route := []universe.EdgeVO{{From: "home", To: "deadend", Mode: universe.Walk, Cost: 1}}
 	pf.EXPECT().FindRoute(u, "home", "deadend").Return(route, true)

@@ -44,8 +44,12 @@ func TestBranchQuantumService_MirrorsPhysicalEdges(t *testing.T) {
 
 	universe.BranchQuantumService(u, "home", coord, "Home", "home-q1", "Q1")
 
-	assert.True(t, edgeTo(u.EdgesFrom("home-q1"), "station", universe.Walk),
+	assert.True(t, edgeTo(u.EdgesFrom("home-q1"), "station-q1", universe.Walk),
 		"quantum branch should be able to walk to station")
+
+	station, ok := u.GetLocation("station-q1")
+	require.True(t, ok)
+	assert.Equal(t, "Q1", station.Coordinate.Quantum)
 }
 
 func TestBranchQuantumService_DoesNotMirrorQuantumEdges(t *testing.T) {

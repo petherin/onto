@@ -10,8 +10,8 @@ import (
 	"github.com/petherin/onto/internal/domain/universe"
 )
 
-// Entity is a domain entity that tracks the user's position within
-// the universe across physical travel, quantum shifts, and timeline jumps.
+// Entity is a domain entity that tracks the user's position within the universe
+// across physical travel and reality transitions.
 // Fields are unexported to ensure all mutations go through the movement
 // methods (MoveTo, ShiftTo, JumpTo), keeping history and cost consistent.
 type Entity struct {
@@ -73,6 +73,16 @@ func (s *Entity) JumpTo(loc universe.LocationEntity, cost float64) {
 	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (timeline shift)", prev, loc.ID))
 }
 
+// DriftTo updates position for a consensus divergence transition, adds cost,
+// and records it in travel history.
+func (s *Entity) DriftTo(loc universe.LocationEntity, cost float64) {
+	prev := s.currentLocation
+	s.currentLocation = loc.ID
+	s.currentCoordinate = loc.Coordinate
+	s.cumulativeCost += cost
+	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (consensus drift)", prev, loc.ID))
+}
+
 // QuantumLevel returns the numeric quantum level of the current position (Q0 → 0, Q1 → 1, …).
 func (s *Entity) QuantumLevel() int {
 	return s.currentCoordinate.QuantumLevel()
@@ -91,4 +101,15 @@ func (s *Entity) TimelineLevel() int {
 // NextTimelineID returns the location ID that 'jump' would move to from the current position.
 func (s *Entity) NextTimelineID() string {
 	return fmt.Sprintf("%s-t%d", s.currentLocation, s.TimelineLevel()+1)
+}
+
+// ConsensusLevel returns the current depth of divergence from shared consensus.
+func (s *Entity) ConsensusLevel() int {
+	return s.currentCoordinate.Consensus
+}
+
+// NextConsensusID returns the location ID that 'drift' would move to from the
+// current position.
+func (s *Entity) NextConsensusID() string {
+	return fmt.Sprintf("%s-c%d", s.currentLocation, s.ConsensusLevel()+1)
 }

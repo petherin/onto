@@ -82,6 +82,8 @@ shift                  — jump forward to the next quantum branch (Q0 → Q1 �
 shift back             — return to the previous quantum branch
 jump                   — jump forward to the next timeline branch (Prime → T1 → …)
 jump back              — return to the previous timeline branch
+drift                  — enter the next consensus divergence (0 → 1 → …)
+align                  — return one level toward shared consensus
 cost                   — show travel cost information
 help                   — list all commands
 exit                   — leave the CLI
@@ -89,7 +91,7 @@ exit                   — leave the CLI
 
 `travel` enforces physical-only routing — it rejects any path that contains a quantum or timeline edge. Exotic transitions require their own dedicated commands (`shift`, `jump`).
 
-`home` is a composite operation: it shows the full unwind plan (timeline jumps back, quantum shifts back, physical travel), displays the estimated cost, and asks for confirmation before executing. Each step uses the same underlying commands and incurs the same cost as doing it manually.
+`home` is a composite operation: it shows the full unwind plan (consensus alignment, timeline jumps back, quantum shifts back, physical travel), displays the estimated cost, and asks for confirmation before executing. Each step uses the same underlying commands and incurs the same cost as doing it manually.
 
 The key UX principle: the same navigation commands work at all layers; only the graph and edge semantics change. This continuity is what makes the interface feel like an "operating system for reality" rather than a collection of separate features.
 

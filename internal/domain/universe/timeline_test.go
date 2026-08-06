@@ -19,15 +19,15 @@ func TestBranchTimelineService_CreatesLocationWithCorrectTimeline(t *testing.T) 
 	assert.Equal(t, "Home (T1)", loc.Name)
 }
 
-func TestBranchTimelineService_ResetsQuantumToQ0(t *testing.T) {
+func TestBranchTimelineService_PreservesQuantumBranch(t *testing.T) {
 	u, coord := newBaseUniverse()
 	coord.Quantum = "Q2" // pretend we branched from a non-base quantum state
 
 	universe.BranchTimelineService(u, "home", coord, "Home", "home-t1", "T1")
 
 	loc, _ := u.GetLocation("home-t1")
-	assert.Equal(t, "Q0", loc.Coordinate.Quantum,
-		"entering a new timeline resets quantum to Q0")
+	assert.Equal(t, "Q2", loc.Coordinate.Quantum,
+		"entering a new timeline preserves the current quantum branch")
 }
 
 func TestBranchTimelineService_AddsBidirectionalTimelineEdges(t *testing.T) {
@@ -48,8 +48,12 @@ func TestBranchTimelineService_MirrorsPhysicalEdges(t *testing.T) {
 
 	universe.BranchTimelineService(u, "home", coord, "Home", "home-t1", "T1")
 
-	assert.True(t, edgeTo(u.EdgesFrom("home-t1"), "station", universe.Walk),
+	assert.True(t, edgeTo(u.EdgesFrom("home-t1"), "station-t1", universe.Walk),
 		"timeline branch should inherit physical walk to station")
+
+	station, ok := u.GetLocation("station-t1")
+	require.True(t, ok)
+	assert.Equal(t, "T1", station.Coordinate.Timeline)
 }
 
 func TestBranchTimelineService_DoesNotMirrorTimelineEdges(t *testing.T) {

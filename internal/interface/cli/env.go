@@ -24,6 +24,8 @@ const (
 	cmdCost   = "cost"
 	cmdShift  = "shift"
 	cmdJump   = "jump"
+	cmdDrift  = "drift"
+	cmdAlign  = "align"
 	cmdExit   = "exit"
 	argBack   = "back"
 )

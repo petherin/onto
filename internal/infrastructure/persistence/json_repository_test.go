@@ -64,8 +64,8 @@ func TestLoad_MergeCoordinate_FillsMissingFieldsFromDefaults(t *testing.T) {
 		} `json:"coordinate"`
 	}
 	type payload struct {
-		Locations []rawLocation       `json:"locations"`
-		Edges     []universe.EdgeVO   `json:"edges"`
+		Locations []rawLocation     `json:"locations"`
+		Edges     []universe.EdgeVO `json:"edges"`
 	}
 
 	raw := payload{

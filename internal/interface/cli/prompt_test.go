@@ -40,8 +40,8 @@ func TestPrompt_AfterQuantumShiftAndTimelineJump(t *testing.T) {
 	app.Execute("shift")
 	app.Execute("jump")
 
-	// Timeline jump resets quantum to Q0; only T1 appears.
-	assert.Equal(t, "[T1/Leeds/Home] > ", app.Prompt())
+	// Timeline jumps preserve the current quantum branch.
+	assert.Equal(t, "[T1/Q1/Leeds/Home] > ", app.Prompt())
 }
 
 func TestPrompt_AfterTravelThenShiftThenJump(t *testing.T) {
@@ -50,8 +50,8 @@ func TestPrompt_AfterTravelThenShiftThenJump(t *testing.T) {
 	app.Execute("shift")
 	app.Execute("jump")
 
-	// Timeline jump resets quantum — only T1.
-	assert.Equal(t, "[T1/Leeds/Station] > ", app.Prompt())
+	// Timeline jumps preserve the current quantum branch.
+	assert.Equal(t, "[T1/Q1/Leeds/Station] > ", app.Prompt())
 }
 
 func TestPrompt_ShiftBackResetsQuantum(t *testing.T) {

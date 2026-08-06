@@ -23,8 +23,8 @@ type TravelResult struct {
 }
 
 // TravelCommand moves the session to a physical destination. It rejects paths
-// that cross non-physical boundaries (quantum, timeline) and optionally
-// invokes a LocationGeneratorService when the destination is a dead end.
+// that cross non-physical or reality boundaries and optionally invokes a
+// LocationGeneratorService when the destination is a dead end.
 type TravelCommand struct {
 	Universe       *universe.Aggregate
 	Session        *exploration.Entity
@@ -47,7 +47,12 @@ func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 	}
 	for _, e := range path {
 		if !e.Mode.IsPhysical() {
-			return nil, fmt.Errorf("no physical route to %s — quantum boundaries cannot be crossed on foot", target)
+			return nil, fmt.Errorf("no physical route to %s — reality-transition boundaries cannot be crossed on foot", target)
+		}
+		from, fromOK := c.Universe.GetLocation(e.From)
+		to, toOK := c.Universe.GetLocation(e.To)
+		if !fromOK || !toOK || !from.Coordinate.SamePhysicalReality(to.Coordinate) {
+			return nil, fmt.Errorf("no physical route to %s — normal travel cannot cross reality boundaries", target)
 		}
 	}
 
@@ -86,7 +91,7 @@ func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 // ensureOutgoing returns true if the location is a dead end and the handler created new edges.
 func ensureOutgoing(u *universe.Aggregate, id, cameFrom string, handler universe.LocationGeneratorService) bool {
 	for _, e := range u.EdgesFrom(id) {
-		if e.To != cameFrom {
+		if e.Mode.IsPhysical() && e.To != cameFrom {
 			return false
 		}
 	}

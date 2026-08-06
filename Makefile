@@ -1,4 +1,5 @@
 PKGSITE_BIN := $(shell go env GOPATH)/bin/pkgsite
+GOLANGCI_LINT_BIN := $(shell go env GOPATH)/bin/golangci-lint
 
 ## ── Run ──────────────────────────────────────────────────────────────────────
 
@@ -31,13 +32,13 @@ test:                  ## Run all tests
 	go test ./...
 
 .PHONY: lint
-lint:                  ## Run golangci-lint (requires: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
-	golangci-lint run ./...
+lint:                  ## Run golangci-lint v2 (requires: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest)
+	$(GOLANGCI_LINT_BIN) run ./...
 
 .PHONY: fmt
 fmt:                   ## Format all Go source files with gofmt
 	gofmt -w .
-	golangci-lint run --fix ./...
+	$(GOLANGCI_LINT_BIN) run --fix ./...
 
 .PHONY: mocks
 mocks:                 ## Regenerate testify mocks from domain interfaces (requires: go install github.com/vektra/mockery/v2@latest)

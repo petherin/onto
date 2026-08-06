@@ -112,6 +112,10 @@ func (a *App) Execute(input string) string {
 			return a.JumpBack()
 		}
 		return a.Jump()
+	case cmdDrift:
+		return a.Drift()
+	case cmdAlign:
+		return a.Align()
 	case cmdExit:
 		return msgGoodbye
 	default:
@@ -138,6 +142,8 @@ func (a *App) Help() string {
 		"shift back             Return to the previous quantum branch",
 		"jump                   Jump forward to the next timeline branch",
 		"jump back              Return to the previous timeline branch",
+		"drift                  Enter the next consensus divergence",
+		"align                  Return one level toward shared consensus",
 		"exit                   Leave the CLI",
 		"",
 		"Example destinations:",
@@ -236,6 +242,26 @@ func (a *App) JumpBack() string {
 	return a.formatJumpResult(result, saveErr)
 }
 
+// Drift enters the next consensus divergence.
+func (a *App) Drift() string {
+	cmd := &commands.DriftCommand{Universe: a.universe, Session: a.session, Repo: a.repo}
+	result, saveErr := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Drift failed: %v", saveErr)
+	}
+	return a.formatDriftResult(result, saveErr)
+}
+
+// Align returns the session one level toward shared consensus.
+func (a *App) Align() string {
+	cmd := &commands.DriftCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
+	result, saveErr := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot align: %v", saveErr)
+	}
+	return a.formatDriftResult(result, saveErr)
+}
+
 // GoHome builds and returns the route plan for returning the session to the
 // start location (no movement occurs). The run loop is responsible for
 // printing the plan, reading the user's confirmation, and calling
@@ -243,39 +269,89 @@ func (a *App) JumpBack() string {
 func (a *App) GoHome() string {
 	if a.session.Location() == defaultStartLocation &&
 		a.session.QuantumLevel() == 0 &&
-		a.session.TimelineLevel() == 0 {
+		a.session.TimelineLevel() == 0 &&
+		a.session.ConsensusLevel() == 0 {
 		return msgAlreadyHome
 	}
 
 	var planLines []string
 	estimatedCost := 0.0
+	plannedLocation := a.session.Location()
+
+	consensus := a.session.ConsensusLevel()
+	for i := consensus; i > 0; i-- {
+		planLines = append(planLines, fmt.Sprintf("  align      (consensus %d → %d)  cost %.0f", i, i-1, universe.ConsensusShiftCost))
+		estimatedCost += universe.ConsensusShiftCost
+		if next, ok := a.lowerContextDestination(plannedLocation, universe.ConsensusShift); ok {
+			plannedLocation = next
+		}
+	}
 
 	tl := a.session.TimelineLevel()
 	for i := tl; i > 0; i-- {
 		planLines = append(planLines, fmt.Sprintf("  jump back  (timeline %s → T%d)  cost %.0f", fmt.Sprintf("T%d", i), i-1, universe.TimelineShiftCost))
 		estimatedCost += universe.TimelineShiftCost
+		if next, ok := a.lowerContextDestination(plannedLocation, universe.TimelineShift); ok {
+			plannedLocation = next
+		}
 	}
 
 	ql := a.session.QuantumLevel()
 	for i := ql; i > 0; i-- {
 		planLines = append(planLines, fmt.Sprintf("  shift back (quantum Q%d → Q%d)  cost %.0f", i, i-1, universe.QuantumShiftCost))
 		estimatedCost += universe.QuantumShiftCost
+		if next, ok := a.lowerContextDestination(plannedLocation, universe.QuantumShift); ok {
+			plannedLocation = next
+		}
 	}
 
-	// Estimate physical leg cost via the route query (read-only, no movement).
-	if a.session.Location() != defaultStartLocation {
-		q := &queries.RouteQuery{Universe: a.universe, Session: a.session, Pathfinder: a.pathfinder}
-		if rr, err := q.Execute(defaultStartLocation); err == nil {
-			for _, edge := range rr.Steps {
+	// Estimate physical travel after all contextual returns have completed.
+	if plannedLocation != defaultStartLocation {
+		if path, ok := a.pathfinder.FindRoute(a.universe, plannedLocation, defaultStartLocation); ok {
+			for _, edge := range path {
+				if !edge.Mode.IsPhysical() {
+					planLines = append(planLines, "  travel     home (route unavailable after contextual returns)")
+					break
+				}
 				planLines = append(planLines, fmt.Sprintf("  travel     %s → %s (%s)  cost %.0f", a.locationName(edge.From), a.locationName(edge.To), edge.Mode, edge.Cost))
+				estimatedCost += edge.Cost
 			}
-			estimatedCost += rr.Cost
 		} else {
-			planLines = append(planLines, fmt.Sprintf("  travel     home (route unavailable: %v)", err))
+			planLines = append(planLines, "  travel     home (route unavailable)")
 		}
 	}
 
 	return fmt.Sprintf("Route home\n%s\n\nEstimated cost: %.0f\n\nProceed? [y/N]:", strings.Join(planLines, "\n"), estimatedCost)
+}
+
+func (a *App) lowerContextDestination(from string, mode universe.TravelModeVO) (string, bool) {
+	current, ok := a.universe.GetLocation(from)
+	if !ok {
+		return "", false
+	}
+	for _, edge := range a.universe.EdgesFrom(from) {
+		if edge.Mode != mode {
+			continue
+		}
+		dest, ok := a.universe.GetLocation(edge.To)
+		if ok && isLowerContextTransition(mode, current.Coordinate, dest.Coordinate) {
+			return dest.ID, true
+		}
+	}
+	return "", false
+}
+
+func isLowerContextTransition(mode universe.TravelModeVO, current, dest universe.CoordinateVO) bool {
+	switch mode {
+	case universe.ConsensusShift:
+		return dest.Consensus < current.Consensus
+	case universe.TimelineShift:
+		return dest.TimelineLevel() < current.TimelineLevel()
+	case universe.QuantumShift:
+		return dest.QuantumLevel() < current.QuantumLevel()
+	default:
+		return false
+	}
 }
 
 // GoHomeConfirm executes the home journey plan produced by GoHome. It unwinds
@@ -283,6 +359,15 @@ func (a *App) GoHome() string {
 // location. The run loop calls this after the user confirms.
 func (a *App) GoHomeConfirm() string {
 	var steps []string
+
+	for a.session.ConsensusLevel() > 0 {
+		cmd := &commands.DriftCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
+		result, err := cmd.Execute()
+		if err != nil {
+			return fmt.Sprintf("Failed while aligning with shared consensus: %v\n\nSteps taken so far:\n%s", err, strings.Join(steps, "\n"))
+		}
+		steps = append(steps, fmt.Sprintf("Consensus alignment → level %d at %s", result.Consensus, result.Location.Name))
+	}
 
 	for a.session.TimelineLevel() > 0 {
 		cmd := &commands.JumpCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
@@ -326,7 +411,8 @@ func (a *App) Route(target string) string {
 
 // Cost returns informational text about how travel costs are calculated.
 func (a *App) Cost() string {
-	return "Travel cost is estimated and currently local-only."
+	return fmt.Sprintf("Travel costs: local routes vary; quantum shifts %.0f; timeline jumps %.0f; consensus drifts %.0f.",
+		universe.QuantumShiftCost, universe.TimelineShiftCost, universe.ConsensusShiftCost)
 }
 
 // Run starts the interactive read-eval-print loop with readline (tab

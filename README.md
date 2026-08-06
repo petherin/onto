@@ -275,16 +275,17 @@ type CoordinateVO struct {
 }
 ```
 
-The current implementation populates the physical layers (planet through location) and the quantum and timeline axes. The higher axes (mathematics, universe, simulation) are present in the struct and ready to be navigated once higher-cost edge types are introduced.
+The current implementation navigates the physical layers (planet through location), quantum, timeline, and consensus axes. A non-spatial transition materializes coordinate-matched copies of reachable physical locations, so local travel remains within that context. The higher axes (mathematics, universe, simulation, and observer) are present in the struct and ready to be navigated once their edge types are introduced.
 
 ## Example CLI experience
 
-The prompt reflects your current position, including any non-default quantum or timeline level:
+The prompt reflects your current position, including non-default quantum, timeline, and consensus levels:
 
 ```text
-[Earth/United Kingdom/Leeds/Home] >
-[Earth/United Kingdom/Leeds/Station/Q1] >
-[Earth/United Kingdom/Leeds/Station/Q1/T2] >
+[Leeds/Home] >
+[Q1/Leeds/Station] >
+[T2/Q1/Leeds/Station] >
+[cons:1/Leeds/Station] >
 ```
 
 Current commands:
@@ -300,6 +301,8 @@ shift                  Jump to the next quantum branch (cost 20)
 shift back             Return to the previous quantum branch
 jump                   Jump to the next timeline branch (cost 800)
 jump back              Return to the previous timeline branch
+drift                  Enter the next consensus divergence (cost 5)
+align                  Return one level toward shared consensus
 cost                   Show travel cost information
 help                   List all commands
 exit                   Leave the CLI
@@ -310,14 +313,16 @@ exit                   Leave the CLI
 The app is functional. It includes:
 
 - a command entrypoint in `cmd/onto`
-- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `home`, `cost`, `shift`, `shift back`, `jump`, `jump back`, and `exit` commands
+- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `home`, `cost`, `shift`, `shift back`, `jump`, `jump back`, `drift`, `align`, and `exit` commands
 - BFS-based graph routing across locations with travel modes (walk, rail, etc.)
 - quantum branch navigation: `shift` jumps forward to the next branch (cost 20); `shift back` returns to the previous one
 - timeline branch navigation: `jump` jumps forward to the next alternate history (cost 800); `jump back` returns to the previous one
-- `travel` rejects routes that cross quantum or timeline boundaries — physical and non-physical travel are kept separate
-- `home` command: shows the full plan and estimated cost to unwind all timeline jumps, quantum shifts, and physical travel back to the start location, then asks for confirmation before executing
+- consensus divergence navigation: `drift` enters the next divergent state (cost 5); `align` returns one level toward shared consensus
+- each non-spatial transition creates coordinate-matched physical locations and contextual return edges, so local travel and returning remain available throughout a branch
+- `travel` rejects routes that cross any reality boundary (quantum, timeline, consensus, simulation, observer, or universe) — physical and non-physical travel are kept separate
+- `home` command: shows the full plan and estimated cost to align consensus, unwind timeline jumps and quantum shifts, then travel back to the start location before asking for confirmation
 - cumulative journey cost tracked across the session and shown in `where` output and after every move
-- a full coordinate model covering universe, timeline, quantum, planet, country, region, city, and location
+- a full coordinate model covering mathematics, universe, timeline, quantum, simulation, consensus, physical location, observer, and time
 - location and edge data loaded from `data/locations.json`, with a built-in fallback map
 - interactive prompting to create new locations when arriving at a dead-end node
 - auto-save of the universe graph back to `data/locations.json` after travel
@@ -394,9 +399,10 @@ Pushes to `main` automatically run unit tests and linting via GitHub Actions. Up
 4. ~~Support quantum transitions.~~ ✓ (`shift` / `shift back`)
 5. ~~Support timeline transitions.~~ ✓ (`jump` / `jump back`)
 6. ~~Add `home` command to return to start, unwinding all branches with confirmation.~~ ✓
-7. Support universe transitions (higher-cost exotic modes).
-8. Expand the coordinate model with more layers (simulation depth, observer shifts).
-9. Evolve the CLI into a true reality navigator.
+7. ~~Support consensus divergence transitions.~~ ✓ (`drift` / `align`)
+8. Support universe transitions (higher-cost exotic modes).
+9. Expand navigation with simulation depth and observer shifts.
+10. Evolve the CLI into a true reality navigator.
 
 ## Notes
 
@@ -414,4 +420,3 @@ The name "Onto" is chosen deliberately for two related reasons:
 - Onto-as-motion: colloquially "onto" suggests movement (putting something onto something else). The CLI is about moving "onto" other places, timelines, and perspectives — so the name also reads as an action.
 
 The dual meaning signals the project's intent: it's both a tool for describing kinds of existence (an ontology) and a navigator for moving through them. The UI reflects that by showing your current coordinate and making movement (routing/travel) the central operation.
-
