@@ -30,26 +30,50 @@ A few terms come up constantly.
 
 ```mermaid
 flowchart TB
-    User[User] --> CLI[Interface layer<br/>internal/interface/cli]
-    CLI --> Commands[Application commands<br/>Travel, Shift, Jump, Drift,<br/>Observe, CreateLocation, ReturnHome]
-    CLI --> Queries[Application queries<br/>Lookup, Route]
+    subgraph Domain["Domain layer — defines reality-navigation rules"]
+        Aggregate["Aggregate: universe.Aggregate<br/>Owns graph state and enforces invariants"]
+        Entities["Entities: LocationEntity, exploration.Entity<br/>Carry identity and changing session state"]
+        Values["Value objects: CoordinateVO, EdgeVO, TravelModeVO<br/>Describe reality positions and transitions"]
+        Services["Domain services and factories<br/>Branch services, NewNearbyLocation, PathfinderService"]
+        Repository["Repository: universe.Repository<br/>Defines persistence operations"]
+        Aggregate --> Entities
+        Aggregate --> Values
+        Services --> Aggregate
+    end
 
-    Commands --> Domain[Domain model<br/>Universe aggregate, exploration session,<br/>branch services, nearby factory]
-    Queries --> Domain
-    Commands --> RepositoryPort[Repository port<br/>universe.Repository]
-    Queries --> Pathfinder[Domain route policy<br/>BFSPathfinder]
+    subgraph Application["Application layer — orchestrates use cases"]
+        Commands["Commands: Travel, Shift, Jump, Drift,<br/>Observe, CreateLocation, ReturnHome<br/>Coordinate domain work and persistence"]
+        Queries["Queries: Lookup, Route<br/>Read domain state without mutation"]
+    end
 
-    JSON[Infrastructure<br/>JSONRepository] -. implements .-> RepositoryPort
-    RepositoryPort --> JSON
-    JSON --> Data[(data/locations.json)]
+    subgraph Interface["Interface layer — delivers the application"]
+        CLI["CLI<br/>Parses input, asks for confirmation, formats output"]
+    end
 
-    Domain --> Aggregate[Aggregate invariant boundary<br/>AddLocation / AddEdge]
+    subgraph Infrastructure["Infrastructure layer — implements technical details"]
+        JSON["JSONRepository<br/>Implements persistence"]
+        Data[(locations.json)]
+        JSON --> Data
+    end
+
+    User[User] --> CLI
+    CLI --> Commands
+    CLI --> Queries
+    Commands --> Aggregate
+    Commands --> Services
+    Commands --> Repository
+    Queries --> Aggregate
+    Queries --> Services
+    JSON -. implements .-> Repository
 ```
 
-The solid arrows show runtime calls. The dashed arrow shows an implementation
-dependency: infrastructure implements the domain-defined repository port, never
-the reverse. The CLI formats results and gathers input; application commands
-orchestrate use cases; the domain owns navigation rules and graph invariants.
+The domain layer contains all business meaning: aggregate invariants, entity
+state, value-object definitions, domain processes, and repository abstraction.
+Application code coordinates those concepts into use cases; it
+does not define reality-navigation rules. The interface translates terminal
+input and output, while infrastructure supplies technical implementations such
+as JSON persistence. The dashed arrow is dependency inversion: the outer JSON
+repository implements the domain-defined repository abstraction.
 
 ### The aggregate root — `universe.Aggregate`
 
