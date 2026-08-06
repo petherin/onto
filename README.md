@@ -345,6 +345,7 @@ The app is functional. It includes:
 - cumulative journey cost tracked across the session and shown in `where` output and after every move
 - a full coordinate model covering mathematics, universe, timeline, quantum, simulation, consensus, physical location, observer, and time
 - location and edge data loaded from `data/locations.json`, with a built-in fallback map
+- `make validate-locations` checks saved location IDs, edge references, and physical reality boundaries before committing graph data
 - interactive prompting to create new locations when arriving at a dead-end node
 - auto-save of the universe graph back to `data/locations.json` after travel
 
@@ -385,6 +386,12 @@ The `data/` directory is mounted as a bind mount, so locations you create or tra
 make docker-clean
 ```
 
+Validate the saved universe graph at any time:
+
+```bash
+make validate-locations
+```
+
 Environment variables can be set in `.env` (copy `.env.example` to get started) or overridden inline:
 
 | Variable | Default | Description |
@@ -410,7 +417,7 @@ make mocks
 
 **Continuous Integration & Tagging:**
 
-Pushes to `main` automatically run unit tests and linting via GitHub Actions. Upon success, semantic version tags (`vX.Y.Z`) are automatically generated and pushed based on [Conventional Commit](https://www.conventionalcommits.org/) message prefixes (`fix:`, `feat:`, `BREAKING CHANGE:`).
+Pushes to `main` automatically run unit tests, linting, and saved-universe validation via GitHub Actions. Upon success, semantic version tags (`vX.Y.Z`) are automatically generated and pushed based on [Conventional Commit](https://www.conventionalcommits.org/) message prefixes (`fix:`, `feat:`, `BREAKING CHANGE:`).
 
 ## Roadmap
 

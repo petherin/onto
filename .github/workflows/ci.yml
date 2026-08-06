@@ -29,9 +29,19 @@ jobs:
         with:
           version: v2.12.2
 
+  validate-locations:
+    name: Validate locations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: make validate-locations
+
   tag:
     name: Auto-Tag SemVer
-    needs: [test, lint]
+    needs: [test, lint, validate-locations]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -47,4 +57,3 @@ jobs:
           WITH_V: true
           DEFAULT_BUMP: patch
           RELEASE_BRANCHES: main
-

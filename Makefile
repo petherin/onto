@@ -31,6 +31,10 @@ docker-clean:          ## Stop and remove any leftover containers, anonymous vol
 test:                  ## Run all tests
 	go test ./...
 
+.PHONY: validate-locations
+validate-locations:    ## Validate data/locations.json graph invariants
+	go run ./scripts/validate_locations.go
+
 .PHONY: lint
 lint:                  ## Run golangci-lint v2 (requires: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest)
 	$(GOLANGCI_LINT_BIN) run ./...

@@ -62,6 +62,8 @@ The interface is defined in `internal/domain/universe/repository.go`. It has two
 
 `JSONRepository` in `internal/infrastructure/persistence/json_repository.go` is the only implementation. Swapping it for a database implementation would not touch a single line of domain code.
 
+`scripts/validate_locations.go`, invoked with `make validate-locations`, is an operational integrity check for the persisted JSON graph. It validates location identities, edge references, and the domain rule that physical edges cannot cross reality contexts; it does not mutate the aggregate or replace the repository.
+
 ### Application layer — commands and queries (CQRS)
 
 The application layer in `internal/application/` contains use cases, not business rules.
