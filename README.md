@@ -422,7 +422,7 @@ make mocks
 
 **Continuous Integration & Tagging:**
 
-Pushes to `main` automatically run unit tests, linting, and saved-universe validation via GitHub Actions. Upon success, semantic version tags (`vX.Y.Z`) are automatically generated and pushed based on [Conventional Commit](https://www.conventionalcommits.org/) message prefixes (`fix:`, `feat:`, `BREAKING CHANGE:`).
+Pushes to `main` automatically run unit tests, linting, and saved-universe validation via GitHub Actions. Upon success, semantic version tags (`vX.Y.Z`) are automatically generated and pushed based on [Conventional Commit](https://www.conventionalcommits.org/) messages: `BREAKING CHANGE` triggers a major bump, `feat:` triggers a minor bump, and `fix:` triggers a patch bump. Other commits use the configured patch fallback.
 
 ## Roadmap
 

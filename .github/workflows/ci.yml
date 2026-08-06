@@ -56,4 +56,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WITH_V: true
           DEFAULT_BUMP: patch
+          MAJOR_STRING_TOKEN: "BREAKING CHANGE"
+          MINOR_STRING_TOKEN: "feat:"
+          PATCH_STRING_TOKEN: "fix:"
           RELEASE_BRANCHES: main
