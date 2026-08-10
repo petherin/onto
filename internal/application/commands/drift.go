@@ -39,7 +39,7 @@ func (c *DriftCommand) Execute() (*DriftResult, error) {
 
 	nextLevel := c.Session.ConsensusLevel() + 1
 	destID := c.Session.NextConsensusID()
-	if err := universe.BranchConsensusService(c.Universe, c.Session.Location(), c.Session.Coordinate(), locationName(c.Universe, c.Session.Location()), destID, nextLevel); err != nil {
+	if err := universe.BranchConsensus(c.Universe, c.Session.Location(), c.Session.Coordinate(), locationName(c.Universe, c.Session.Location()), destID, nextLevel); err != nil {
 		return nil, err
 	}
 	return c.completeDrift(destID, nextLevel, false)

@@ -15,10 +15,10 @@ type ContextualTransitionSpec struct {
 	ReverseDescription string
 }
 
-// BranchContextualService creates the branch root and materializes every
+// BranchContextual creates the branch root and materializes every
 // reachable physical location in the destination context. Existing branches
 // are backfilled, so saved graphs from older versions gain contextual routes.
-func BranchContextualService(
+func BranchContextual(
 	u *Aggregate,
 	fromID string,
 	destCoord CoordinateVO,

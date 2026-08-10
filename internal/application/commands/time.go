@@ -61,7 +61,7 @@ func (c *TimeCommand) Execute() (*TimeResult, error) {
 		return nil, ErrTimeUnchanged
 	}
 	destID := fmt.Sprintf("%s-at-%s", c.Session.Location(), target.Format("20060102t150405z"))
-	if err := universe.BranchTimeService(c.Universe, c.Session.Location(), c.Session.Coordinate(), locationName(c.Universe, c.Session.Location()), destID, target); err != nil {
+	if err := universe.BranchTime(c.Universe, c.Session.Location(), c.Session.Coordinate(), locationName(c.Universe, c.Session.Location()), destID, target); err != nil {
 		return nil, err
 	}
 	loc, _ := c.Universe.GetLocation(destID)

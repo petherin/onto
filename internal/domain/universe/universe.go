@@ -1,7 +1,7 @@
 // Package universe is the core domain model. It defines the aggregate root
 // (Aggregate), entities (LocationEntity), value objects (CoordinateVO,
 // EdgeVO, TravelModeVO), the Repository interface, and contextual branch
-// services that encode the rules of reality navigation.
+// functions that encode the rules of reality navigation.
 // Nothing in this package may import other internal packages.
 package universe
 

@@ -2,12 +2,12 @@ package universe
 
 import "fmt"
 
-// BranchConsensusService creates a new consensus divergence from the given
+// BranchConsensus creates a new consensus divergence from the given
 // location, including a coordinate-matched physical subgraph.
-func BranchConsensusService(u *Aggregate, fromID string, fromCoord CoordinateVO, fromName, destID string, nextLevel int) error {
+func BranchConsensus(u *Aggregate, fromID string, fromCoord CoordinateVO, fromName, destID string, nextLevel int) error {
 	destCoord := fromCoord
 	destCoord.Consensus = nextLevel
-	return BranchContextualService(u, fromID, destCoord, fromName, destID,
+	return BranchContextual(u, fromID, destCoord, fromName, destID,
 		fmt.Sprintf("A reality diverged from shared consensus at depth %d. Its rules may no longer match the world you left behind.", nextLevel),
 		ContextualTransitionSpec{
 			Mode:               ConsensusShift,

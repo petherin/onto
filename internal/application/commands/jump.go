@@ -45,7 +45,7 @@ func (c *JumpCommand) jumpForward() (*JumpResult, error) {
 	nextT := fmt.Sprintf("T%d", c.Session.TimelineLevel()+1)
 	destID := c.Session.NextTimelineID()
 	currentName := locationName(c.Universe, c.Session.Location())
-	if err := universe.BranchTimelineService(c.Universe, c.Session.Location(), c.Session.Coordinate(), currentName, destID, nextT); err != nil {
+	if err := universe.BranchTimeline(c.Universe, c.Session.Location(), c.Session.Coordinate(), currentName, destID, nextT); err != nil {
 		return nil, err
 	}
 	return c.completeJump(destID, nextT, false)

@@ -2,12 +2,12 @@ package universe
 
 import "fmt"
 
-// BranchObserverService creates a new observer perspective from the given
+// BranchObserver creates a new observer perspective from the given
 // location, including a coordinate-matched physical subgraph.
-func BranchObserverService(u *Aggregate, fromID string, fromCoord CoordinateVO, fromName, destID, observer string) error {
+func BranchObserver(u *Aggregate, fromID string, fromCoord CoordinateVO, fromName, destID, observer string) error {
 	destCoord := fromCoord
 	destCoord.Observer = observer
-	return BranchContextualService(u, fromID, destCoord, fromName, destID,
+	return BranchContextual(u, fromID, destCoord, fromName, destID,
 		fmt.Sprintf("The same reality as perceived through %s.", observer),
 		ContextualTransitionSpec{
 			Mode:               ObserverShift,

@@ -5,12 +5,12 @@ import (
 	"time"
 )
 
-// BranchTimeService creates a temporal branch at target, including a
+// BranchTime creates a temporal branch at target, including a
 // coordinate-matched physical subgraph.
-func BranchTimeService(u *Aggregate, fromID string, fromCoord CoordinateVO, fromName, destID string, target time.Time) error {
+func BranchTime(u *Aggregate, fromID string, fromCoord CoordinateVO, fromName, destID string, target time.Time) error {
 	destCoord := fromCoord
 	destCoord.Time = target.UTC()
-	return BranchContextualService(u, fromID, destCoord, fromName, destID,
+	return BranchContextual(u, fromID, destCoord, fromName, destID,
 		fmt.Sprintf("The same reality at %s.", target.UTC().Format(time.RFC3339)),
 		ContextualTransitionSpec{
 			Mode:               TimeShift,

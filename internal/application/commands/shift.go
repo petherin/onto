@@ -45,7 +45,7 @@ func (c *ShiftCommand) shiftForward() (*ShiftResult, error) {
 	nextQ := fmt.Sprintf("Q%d", c.Session.QuantumLevel()+1)
 	destID := c.Session.NextQuantumID()
 	currentName := locationName(c.Universe, c.Session.Location())
-	if err := universe.BranchQuantumService(c.Universe, c.Session.Location(), c.Session.Coordinate(), currentName, destID, nextQ); err != nil {
+	if err := universe.BranchQuantum(c.Universe, c.Session.Location(), c.Session.Coordinate(), currentName, destID, nextQ); err != nil {
 		return nil, err
 	}
 	return c.completeShift(destID, nextQ, false)

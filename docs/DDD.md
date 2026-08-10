@@ -34,7 +34,7 @@ flowchart TB
         Aggregate["Aggregate: universe.Aggregate<br/>Owns graph state and enforces invariants"]
         Entities["Entities: LocationEntity, exploration.Entity<br/>Carry identity and changing session state"]
         Values["Value objects: CoordinateVO, EdgeVO, TravelModeVO<br/>Describe reality positions and transitions"]
-        Services["Domain services and factories<br/>Branch services, NewNearbyLocation, PathfinderService"]
+        Services["Domain functions, services, and factories<br/>Branch functions, NewNearbyLocation, PathfinderService"]
         Repository["Repository: universe.Repository<br/>Defines persistence operations"]
         Aggregate --> Entities
         Aggregate --> Values
@@ -95,16 +95,17 @@ This means the graph can never be left in a half-constructed state by a caller t
 
 `TravelModeVO` is a string type (`walk`, `quantum`, `timeline`, etc.) — a value object by nature, since two `walk` values are identical.
 
-### Domain services — contextual branching
+### Domain functions — contextual branching
 
 Creating a quantum, timeline, or consensus branch is not something a `LocationEntity` does to itself, and it is not something `UniverseAggregate` should know the details of. It is a process: create the destination location, materialize coordinate-matched copies of the reachable physical graph, add physical and contextual return edges, and enforce idempotency.
 
-`BranchContextualService` in `internal/domain/universe/branch.go` owns that shared process. `ContextualTransitionSpec` declares the shared transition policy (mode, cost, labels, and descriptions), while the caller supplies the destination coordinate. `BranchQuantumService`, `BranchTimelineService`, `BranchConsensusService`, and `BranchObserverService` provide the policies and destination coordinates for their respective axes. This keeps the aggregate responsible for storing graph state while the domain service protects navigation invariants.
+`BranchContextual` in `internal/domain/universe/branch.go` owns that shared process. `ContextualTransitionSpec` declares the shared transition policy (mode, cost, labels, and descriptions), while the caller supplies the destination coordinate. `BranchQuantum`, `BranchTimeline`, `BranchConsensus`, and `BranchObserver` provide the policies and destination coordinates for their respective axes. This keeps the aggregate responsible for storing graph state while these stateless domain functions protect navigation invariants. They are plain package-level functions rather than services — they have no dependencies to inject and no interface to swap, so the `Service` suffix would misleadingly imply otherwise.
 
-`PathfinderService` in `internal/domain/navigation/pathfinder.go` is a domain
-service interface. The supplied `BFSPathfinder` is the domain's route-selection
-policy: it finds the route with the fewest traversable transitions while
-enforcing reality-boundary rules.
+`PathfinderService` in `internal/domain/navigation/pathfinder.go` is a genuine domain
+service: it is an interface with a swappable implementation (`BFSPathfinder`),
+injected into callers rather than called as a free function. The supplied
+`BFSPathfinder` is the domain's route-selection policy: it finds the route with
+the fewest traversable transitions while enforcing reality-boundary rules.
 
 `NewNearbyLocation` is a domain factory that defines how a dead end expands into
 a nearby location and its bidirectional physical connections. `TravelCommand`
@@ -126,11 +127,11 @@ The application layer in `internal/application/` contains use cases, not busines
 
 **Commands** (in `commands/`) mutate state and persist the result:
 - `TravelCommand` — validates a physical route, moves the session, accumulates cost, handles dead ends, saves.
-- `ShiftCommand` — calls `BranchQuantumService`, moves the session, accumulates quantum shift cost, saves.
-- `JumpCommand` — calls `BranchTimelineService`, moves the session, accumulates timeline shift cost, saves.
-- `DriftCommand` — calls `BranchConsensusService`, moves the session, accumulates consensus-transition cost, saves.
-- `ObserveCommand` — calls `BranchObserverService`, moves the session, accumulates observer-shift cost, saves.
-- `TimeCommand` — calls `BranchTimeService`, moves the session to an RFC3339 timestamp, accumulates temporal-shift cost, saves.
+- `ShiftCommand` — calls `BranchQuantum`, moves the session, accumulates quantum shift cost, saves.
+- `JumpCommand` — calls `BranchTimeline`, moves the session, accumulates timeline shift cost, saves.
+- `DriftCommand` — calls `BranchConsensus`, moves the session, accumulates consensus-transition cost, saves.
+- `ObserveCommand` — calls `BranchObserver`, moves the session, accumulates observer-shift cost, saves.
+- `TimeCommand` — calls `BranchTime`, moves the session to an RFC3339 timestamp, accumulates temporal-shift cost, saves.
 
 **Queries** (in `queries/`) are pure reads with no side effects:
 - `LookupQuery` — `Where`, `Look`, `List`.
@@ -150,4 +151,4 @@ Commands and queries each return a result struct. The interface layer formats th
 
 ### Type-name suffixes
 
-Every exported domain type carries its role as a suffix — `Aggregate`, `Entity`, `VO`, `Service`, `Repository`, or `Spec`. This makes the role visible at the call site without needing to look up the definition. When you see `universe.CoordinateVO` in application code, you know immediately that it is a value object defined in the domain.
+Every exported domain type carries its role as a suffix — `Aggregate`, `Entity`, `VO`, `Service`, `Repository`, or `Spec`. This makes the role visible at the call site without needing to look up the definition. When you see `universe.CoordinateVO` in application code, you know immediately that it is a value object defined in the domain. The `Service` suffix is reserved for genuine services — interfaces with swappable implementations, such as `PathfinderService` — and is deliberately omitted from stateless domain functions like `BranchQuantum` or `BranchTimeline`, which are plain functions, not services.

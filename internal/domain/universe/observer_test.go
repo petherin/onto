@@ -8,12 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBranchObserverService_CreatesContextualPhysicalMap(t *testing.T) {
+func TestBranchObserver_CreatesContextualPhysicalMap(t *testing.T) {
 	u, coord := newBaseUniverse(t)
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "station", Coordinate: coord}))
 	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk, Cost: 1}))
 
-	require.NoError(t, universe.BranchObserverService(u, "home", coord, "Home", "home-o-machine", "Machine"))
+	require.NoError(t, universe.BranchObserver(u, "home", coord, "Home", "home-o-machine", "Machine"))
 
 	home, ok := u.GetLocation("home-o-machine")
 	require.True(t, ok)

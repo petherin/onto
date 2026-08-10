@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBranchTimeService_CreatesContextualPhysicalMap(t *testing.T) {
+func TestBranchTime_CreatesContextualPhysicalMap(t *testing.T) {
 	u, coord := newBaseUniverse(t)
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "station", Coordinate: coord}))
 	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk, Cost: 1}))
 	target := time.Date(2042, 1, 2, 3, 4, 5, 0, time.UTC)
 
-	require.NoError(t, universe.BranchTimeService(u, "home", coord, "Home", "home-at-20420102t030405z", target))
+	require.NoError(t, universe.BranchTime(u, "home", coord, "Home", "home-at-20420102t030405z", target))
 
 	home, ok := u.GetLocation("home-at-20420102t030405z")
 	require.True(t, ok)
