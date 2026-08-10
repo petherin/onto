@@ -28,6 +28,7 @@ type App struct {
 	session           *exploration.Entity
 	repo              universe.Repository
 	pathfinder        navigation.PathfinderService
+	locationGenerator universe.LocationGeneratorService
 	interactiveReader *bufio.Reader
 }
 
@@ -68,10 +69,11 @@ func NewAppWithError() (*App, error) {
 
 	loc, _ := u.GetLocation(start)
 	return &App{
-		universe:   u,
-		session:    exploration.NewEntity(start, loc.Coordinate),
-		repo:       repo,
-		pathfinder: navigation.NewBFSPathfinder(),
+		universe:          u,
+		session:           exploration.NewEntity(start, loc.Coordinate),
+		repo:              repo,
+		pathfinder:        navigation.NewBFSPathfinder(),
+		locationGenerator: universe.NewSequentialLocationGenerator(),
 	}, nil
 }
 
@@ -234,9 +236,10 @@ func (a *App) Travel(target string) string {
 		return output
 	}
 	location, err := (&commands.GenerateNearbyLocationCommand{
-		Universe: a.universe,
-		Repo:     a.repo,
-		OriginID: result.Location.ID,
+		Universe:  a.universe,
+		Repo:      a.repo,
+		Generator: a.locationGenerator,
+		OriginID:  result.Location.ID,
 	}).Execute()
 	if err != nil {
 		return fmt.Sprintf("%s\n\nUnable to generate a nearby location: %v", output, err)

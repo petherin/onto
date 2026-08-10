@@ -39,9 +39,10 @@ func (c *CreateLocationCommand) Execute() error {
 // GenerateNearbyLocationCommand expands a dead end according to the domain's
 // nearby-location policy.
 type GenerateNearbyLocationCommand struct {
-	Universe *universe.Aggregate
-	Repo     universe.Repository
-	OriginID string
+	Universe  *universe.Aggregate
+	Repo      universe.Repository
+	Generator universe.LocationGeneratorService
+	OriginID  string
 }
 
 // Execute creates and persists the next nearby location.
@@ -50,7 +51,7 @@ func (c *GenerateNearbyLocationCommand) Execute() (universe.LocationEntity, erro
 	if !ok {
 		return universe.LocationEntity{}, fmt.Errorf("%w: %s", universe.ErrUnknownEdgeEndpoint, c.OriginID)
 	}
-	location, outbound, returning, err := universe.NewNearbyLocation(c.Universe, c.OriginID, origin.Coordinate)
+	location, outbound, returning, err := c.Generator.Generate(c.Universe, c.OriginID, origin.Coordinate)
 	if err != nil {
 		return universe.LocationEntity{}, err
 	}

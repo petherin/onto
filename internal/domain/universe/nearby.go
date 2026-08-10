@@ -2,6 +2,31 @@ package universe
 
 import "fmt"
 
+// LocationGeneratorService is a domain service interface for the policy that
+// expands a dead end into a new nearby location and its bidirectional
+// physical connections. Depending on this abstraction — rather than the
+// concrete SequentialLocationGenerator — lets callers substitute a different
+// nearby-location policy without changing the command that uses it.
+type LocationGeneratorService interface {
+	Generate(u *Aggregate, originID string, coordinate CoordinateVO) (LocationEntity, EdgeVO, EdgeVO, error)
+}
+
+// SequentialLocationGenerator is the domain's standard nearby-location policy:
+// it numbers new locations sequentially off the origin ID (e.g. "home-1",
+// "home-2", ...).
+type SequentialLocationGenerator struct{}
+
+// NewSequentialLocationGenerator returns the standard, sequential-numbering
+// nearby-location generator.
+func NewSequentialLocationGenerator() *SequentialLocationGenerator {
+	return &SequentialLocationGenerator{}
+}
+
+// Generate implements LocationGeneratorService using the sequential-numbering policy.
+func (SequentialLocationGenerator) Generate(u *Aggregate, originID string, coordinate CoordinateVO) (LocationEntity, EdgeVO, EdgeVO, error) {
+	return NewNearbyLocation(u, originID, coordinate)
+}
+
 // NewNearbyLocation returns the next available nearby location and its
 // bidirectional physical connections. It contains the domain policy for
 // expanding a dead end without performing any persistence or user interaction.
