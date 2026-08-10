@@ -145,9 +145,12 @@ func (s *Entity) QuantumLevel() int {
 	return s.currentCoordinate.QuantumLevel()
 }
 
-// NextQuantumID returns the location ID that 'shift' would move to from the current position.
+// NextQuantumID returns the location ID that 'shift' would move to from the
+// current position. IDs are canonicalized so reaching the same coordinate via
+// a different order of shifts (e.g. shift-then-drift vs. drift-then-shift)
+// always produces the same location ID.
 func (s *Entity) NextQuantumID() string {
-	return fmt.Sprintf("%s-q%d", s.currentLocation, s.QuantumLevel()+1)
+	return universe.CanonicalIDWithQuantum(s.currentLocation, s.QuantumLevel()+1)
 }
 
 // TimelineLevel returns the numeric timeline level of the current position ("Prime" → 0, "T1" → 1, …).
@@ -155,9 +158,10 @@ func (s *Entity) TimelineLevel() int {
 	return s.currentCoordinate.TimelineLevel()
 }
 
-// NextTimelineID returns the location ID that 'jump' would move to from the current position.
+// NextTimelineID returns the location ID that 'jump' would move to from the
+// current position, canonicalized (see NextQuantumID).
 func (s *Entity) NextTimelineID() string {
-	return fmt.Sprintf("%s-t%d", s.currentLocation, s.TimelineLevel()+1)
+	return universe.CanonicalIDWithTimeline(s.currentLocation, s.TimelineLevel()+1)
 }
 
 // ConsensusLevel returns the current depth of divergence from shared consensus.
@@ -166,7 +170,23 @@ func (s *Entity) ConsensusLevel() int {
 }
 
 // NextConsensusID returns the location ID that 'drift' would move to from the
-// current position.
+// current position, canonicalized (see NextQuantumID).
 func (s *Entity) NextConsensusID() string {
-	return fmt.Sprintf("%s-c%d", s.currentLocation, s.ConsensusLevel()+1)
+	return universe.CanonicalIDWithConsensus(s.currentLocation, s.ConsensusLevel()+1)
+}
+
+// NextObserverID returns the location ID that 'observe' would move to from
+// the current position for the given observer, canonicalized (see
+// NextQuantumID). Unlike the numeric axes, observer suffixes are always
+// appended outermost/sequentially since perspective-nesting order is
+// semantically meaningful.
+func (s *Entity) NextObserverID(observerToken string) string {
+	return universe.CanonicalIDWithObserver(s.currentLocation, observerToken)
+}
+
+// NextTimeID returns the location ID that 'time' would move to from the
+// current position for the given timestamp token, canonicalized (see
+// NextQuantumID).
+func (s *Entity) NextTimeID(timeToken string) string {
+	return universe.CanonicalIDWithTime(s.currentLocation, timeToken)
 }

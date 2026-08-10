@@ -1,7 +1,6 @@
 package commands_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/petherin/onto/internal/application/commands"
@@ -12,17 +11,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newDriftFixture(t *testing.T) (*universe.Aggregate, *exploration.Entity, *mocks.MockRepository) {
+func newDriftFixture() (*universe.Aggregate, *exploration.Entity) {
 	u := mocks.NewTestUniverse()
 	loc, _ := u.GetLocation("home")
-	return u, exploration.NewEntity("home", loc.Coordinate), mocks.NewMockRepository(t)
+	return u, exploration.NewEntity("home", loc.Coordinate)
 }
 
 func TestDriftCommand_CreatesAndEntersConsensusDivergence(t *testing.T) {
-	u, sess, repo := newDriftFixture(t)
-	repo.EXPECT().Save(u).Return(nil)
+	u, sess := newDriftFixture()
 
-	result, err := (&commands.DriftCommand{Universe: u, Session: sess, Repo: repo}).Execute()
+	result, err := (&commands.DriftCommand{Universe: u, Session: sess}).Execute()
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.Consensus)
@@ -32,15 +30,13 @@ func TestDriftCommand_CreatesAndEntersConsensusDivergence(t *testing.T) {
 }
 
 func TestDriftCommand_AlignsToLowerConsensusLevel(t *testing.T) {
-	u, _, repo := newDriftFixture(t)
+	u, _ := newDriftFixture()
 	coord := universe.DefaultCoordinateVO()
 	coord.Consensus = 1
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-c1", Coordinate: coord}))
 	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home-c1", To: "home", Mode: universe.ConsensusShift, Cost: universe.ConsensusShiftCost}))
 	sess := exploration.NewEntity("home-c1", coord)
-	repo.EXPECT().Save(u).Return(nil)
-
-	result, err := (&commands.DriftCommand{Universe: u, Session: sess, Repo: repo, Back: true}).Execute()
+	result, err := (&commands.DriftCommand{Universe: u, Session: sess, Back: true}).Execute()
 
 	require.NoError(t, err)
 	assert.True(t, result.Reversed)
@@ -49,20 +45,9 @@ func TestDriftCommand_AlignsToLowerConsensusLevel(t *testing.T) {
 }
 
 func TestDriftCommand_AlignAtConsensusReturnsError(t *testing.T) {
-	u, sess, repo := newDriftFixture(t)
+	u, sess := newDriftFixture()
 
-	_, err := (&commands.DriftCommand{Universe: u, Session: sess, Repo: repo, Back: true}).Execute()
+	_, err := (&commands.DriftCommand{Universe: u, Session: sess, Back: true}).Execute()
 
 	require.ErrorIs(t, err, commands.ErrAlreadyAtConsensus)
-	repo.AssertNotCalled(t, "Save")
-}
-
-func TestDriftCommand_SaveErrorReturnsMovementResult(t *testing.T) {
-	u, sess, repo := newDriftFixture(t)
-	repo.EXPECT().Save(u).Return(errors.New("write failed"))
-
-	result, err := (&commands.DriftCommand{Universe: u, Session: sess, Repo: repo}).Execute()
-
-	require.NotNil(t, result)
-	assert.EqualError(t, err, "write failed")
 }

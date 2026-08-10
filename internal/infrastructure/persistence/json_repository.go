@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/petherin/onto/internal/domain/universe"
 )
@@ -95,6 +96,8 @@ func mergeCoordinate(c, defaults universe.CoordinateVO) universe.CoordinateVO {
 }
 
 // Save serialises the Aggregate to indented JSON and writes it to disk atomically.
+// The parent directory is created if it doesn't exist yet (e.g. on a fresh
+// checkout, before any runtime save file has been written).
 func (r *JSONRepository) Save(u *universe.Aggregate) error {
 	s := serialized{
 		Locations: u.AllLocations(),
@@ -104,6 +107,11 @@ func (r *JSONRepository) Save(u *universe.Aggregate) error {
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
+	}
+	if dir := filepath.Dir(r.path); dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("create data directory %s: %w", dir, err)
+		}
 	}
 	return os.WriteFile(r.path, data, 0644)
 }

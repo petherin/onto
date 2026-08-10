@@ -14,7 +14,6 @@ import (
 type ReturnHomeCommand struct {
 	Universe        *universe.Aggregate
 	Session         *exploration.Entity
-	Repo            universe.Repository
 	Pathfinder      navigation.PathfinderService
 	HomeID          string
 	DefaultObserver string
@@ -111,7 +110,7 @@ func (c *ReturnHomeCommand) Execute() ([]ReturnHomeStep, error) {
 	}
 	var steps []ReturnHomeStep
 	for c.Session.Coordinate().Observer != c.DefaultObserver {
-		result, err := (&ObserveCommand{Universe: c.Universe, Session: c.Session, Repo: c.Repo, Back: true}).Execute()
+		result, err := (&ObserveCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		if err != nil {
 			return steps, err
 		}
@@ -119,35 +118,35 @@ func (c *ReturnHomeCommand) Execute() ([]ReturnHomeStep, error) {
 		steps = append(steps, ReturnHomeStep{Action: "observe back", Detail: result.Observer, Cost: universe.ObserverShiftCost})
 	}
 	for c.Session.ConsensusLevel() > 0 {
-		result, err := (&DriftCommand{Universe: c.Universe, Session: c.Session, Repo: c.Repo, Back: true}).Execute()
+		result, err := (&DriftCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		if err != nil {
 			return steps, err
 		}
 		steps = append(steps, ReturnHomeStep{Action: "align", Detail: fmt.Sprintf("%d", result.Consensus), Cost: universe.ConsensusShiftCost})
 	}
 	for c.Session.TimelineLevel() > 0 {
-		result, err := (&JumpCommand{Universe: c.Universe, Session: c.Session, Repo: c.Repo, Back: true}).Execute()
+		result, err := (&JumpCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		if err != nil {
 			return steps, err
 		}
 		steps = append(steps, ReturnHomeStep{Action: "jump back", Detail: result.NextTimeline, Cost: universe.TimelineShiftCost})
 	}
 	for c.Session.QuantumLevel() > 0 {
-		result, err := (&ShiftCommand{Universe: c.Universe, Session: c.Session, Repo: c.Repo, Back: true}).Execute()
+		result, err := (&ShiftCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		if err != nil {
 			return steps, err
 		}
 		steps = append(steps, ReturnHomeStep{Action: "shift back", Detail: result.NextQuantum, Cost: universe.QuantumShiftCost})
 	}
 	for !c.Session.Coordinate().Time.IsZero() {
-		result, err := (&TimeCommand{Universe: c.Universe, Session: c.Session, Repo: c.Repo, Back: true}).Execute()
+		result, err := (&TimeCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		if err != nil {
 			return steps, err
 		}
 		steps = append(steps, ReturnHomeStep{Action: "time back", Detail: result.Time.Format("2006-01-02T15:04:05Z07:00"), Cost: universe.TimeShiftCost})
 	}
 	if c.Session.Location() != c.HomeID {
-		result, err := (&TravelCommand{Universe: c.Universe, Session: c.Session, Repo: c.Repo, Pathfinder: c.Pathfinder}).Execute(c.HomeID)
+		result, err := (&TravelCommand{Universe: c.Universe, Session: c.Session, Pathfinder: c.Pathfinder}).Execute(c.HomeID)
 		if err != nil {
 			return steps, err
 		}
@@ -212,7 +211,7 @@ func (c *ReturnHomeCommand) unwindRecordedTransitions() ([]ReturnHomeStep, error
 	}
 
 	if c.Session.Location() != c.HomeID {
-		result, err := (&TravelCommand{Universe: c.Universe, Session: c.Session, Repo: c.Repo, Pathfinder: c.Pathfinder}).Execute(c.HomeID)
+		result, err := (&TravelCommand{Universe: c.Universe, Session: c.Session, Pathfinder: c.Pathfinder}).Execute(c.HomeID)
 		if err != nil {
 			return steps, err
 		}
@@ -257,19 +256,19 @@ func planDetail(mode universe.TravelModeVO, current, origin universe.LocationEnt
 func (c *ReturnHomeCommand) unwind(mode universe.TravelModeVO) error {
 	switch mode {
 	case universe.ObserverShift:
-		_, err := (&ObserveCommand{Universe: c.Universe, Session: c.Session, Repo: c.Repo, Back: true}).Execute()
+		_, err := (&ObserveCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		return err
 	case universe.ConsensusShift:
-		_, err := (&DriftCommand{Universe: c.Universe, Session: c.Session, Repo: c.Repo, Back: true}).Execute()
+		_, err := (&DriftCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		return err
 	case universe.TimelineShift:
-		_, err := (&JumpCommand{Universe: c.Universe, Session: c.Session, Repo: c.Repo, Back: true}).Execute()
+		_, err := (&JumpCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		return err
 	case universe.QuantumShift:
-		_, err := (&ShiftCommand{Universe: c.Universe, Session: c.Session, Repo: c.Repo, Back: true}).Execute()
+		_, err := (&ShiftCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		return err
 	case universe.TimeShift:
-		_, err := (&TimeCommand{Universe: c.Universe, Session: c.Session, Repo: c.Repo, Back: true}).Execute()
+		_, err := (&TimeCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		return err
 	}
 	return fmt.Errorf("cannot unwind contextual transition %q", mode)

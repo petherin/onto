@@ -28,7 +28,6 @@ type JumpResult struct {
 type JumpCommand struct {
 	Universe *universe.Aggregate
 	Session  *exploration.Entity
-	Repo     universe.Repository
 	Back     bool // if true, traverse the reverse timeline edge instead of creating a new branch
 }
 
@@ -84,11 +83,6 @@ func (c *JumpCommand) completeJump(destID, timeline string, reversed bool) (*Jum
 		Edges:        c.Universe.EdgesFrom(destID),
 		History:      c.Session.History(),
 		Reversed:     reversed,
-	}
-
-	if err := c.Repo.Save(c.Universe); err != nil {
-		// Jump succeeded; return the result alongside the save error.
-		return result, err
 	}
 	return result, nil
 }

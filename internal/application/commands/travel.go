@@ -1,7 +1,7 @@
 // Package commands contains the write-side use cases (CQRS commands) that
-// mutate session and universe state. Each command validates its inputs, applies
-// domain logic, persists the result through the Repository interface, and
-// returns a result struct for the interface layer to render.
+// mutate session and universe state. Each command validates its inputs,
+// applies domain logic, and returns a result struct for the interface layer
+// to render.
 package commands
 
 import (
@@ -27,7 +27,6 @@ type TravelResult struct {
 type TravelCommand struct {
 	Universe   *universe.Aggregate
 	Session    *exploration.Entity
-	Repo       universe.Repository
 	Pathfinder navigation.PathfinderService
 }
 

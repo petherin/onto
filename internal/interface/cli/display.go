@@ -25,7 +25,7 @@ func (a *App) Where() string {
 	)
 }
 
-func (a *App) formatDriftResult(r *commands.DriftResult, saveErr error) string {
+func (a *App) formatDriftResult(r *commands.DriftResult) string {
 	verb := "Consensus divergence entered"
 	if r.Reversed {
 		verb = "Shared consensus approached"
@@ -34,13 +34,10 @@ func (a *App) formatDriftResult(r *commands.DriftResult, saveErr error) string {
 		verb, r.Consensus, r.Location.Description,
 		a.session.CumulativeCost(), a.formatEdges(r.Edges),
 	)
-	if saveErr != nil {
-		return base + fmt.Sprintf(fmtSaveWarning, saveErr)
-	}
-	return base + fmt.Sprintf("\n\nPersisted to %s", dataFile())
+	return base
 }
 
-func (a *App) formatObserveResult(r *commands.ObserveResult, saveErr error) string {
+func (a *App) formatObserveResult(r *commands.ObserveResult) string {
 	verb := "Observer perspective entered"
 	if r.Reversed {
 		verb = "Observer perspective restored"
@@ -50,13 +47,10 @@ func (a *App) formatObserveResult(r *commands.ObserveResult, saveErr error) stri
 		verb, r.Observer, r.Location.Description,
 		a.session.CumulativeCost(), a.formatEdges(r.Edges),
 	)
-	if saveErr != nil {
-		return base + fmt.Sprintf(fmtSaveWarning, saveErr)
-	}
-	return base + fmt.Sprintf("\n\nPersisted to %s", dataFile())
+	return base
 }
 
-func (a *App) formatTimeResult(r *commands.TimeResult, saveErr error) string {
+func (a *App) formatTimeResult(r *commands.TimeResult) string {
 	verb := "Temporal branch entered"
 	if r.Reversed {
 		verb = "Temporal branch exited"
@@ -65,10 +59,7 @@ func (a *App) formatTimeResult(r *commands.TimeResult, saveErr error) string {
 		verb, r.Time.Format(time.RFC3339), r.Location.Description,
 		a.session.CumulativeCost(), a.formatEdges(r.Edges),
 	)
-	if saveErr != nil {
-		return base + fmt.Sprintf(fmtSaveWarning, saveErr)
-	}
-	return base + fmt.Sprintf("\n\nPersisted to %s", dataFile())
+	return base
 }
 
 // Look formats the name and description of the current location.
@@ -88,22 +79,15 @@ func (a *App) List() string {
 	return a.formatEdges(r.Edges)
 }
 
-func (a *App) formatTravelResult(r *commands.TravelResult, saveErr error) string {
-	base := fmt.Sprintf("%s\n\nArrived.\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
+func (a *App) formatTravelResult(r *commands.TravelResult) string {
+	return fmt.Sprintf("%s\n\nArrived.\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
 		travelVerb(r.Path),
 		a.session.CumulativeCost(),
 		a.formatEdges(r.Edges),
 	)
-	if r.DeadEndHandled {
-		if saveErr != nil {
-			return base + fmt.Sprintf(fmtSaveWarning, saveErr)
-		}
-		return base + fmt.Sprintf("\n\nPersisted auto-generated route(s) to %s", dataFile())
-	}
-	return base
 }
 
-func (a *App) formatShiftResult(r *commands.ShiftResult, saveErr error) string {
+func (a *App) formatShiftResult(r *commands.ShiftResult) string {
 	verb := "Quantum branch entered"
 	if r.Reversed {
 		verb = "Quantum branch exited"
@@ -113,13 +97,10 @@ func (a *App) formatShiftResult(r *commands.ShiftResult, saveErr error) string {
 		a.session.CumulativeCost(),
 		a.formatEdges(r.Edges),
 	)
-	if saveErr != nil {
-		return base + fmt.Sprintf(fmtSaveWarning, saveErr)
-	}
-	return base + fmt.Sprintf("\n\nPersisted to %s", dataFile())
+	return base
 }
 
-func (a *App) formatJumpResult(r *commands.JumpResult, saveErr error) string {
+func (a *App) formatJumpResult(r *commands.JumpResult) string {
 	verb := "Timeline branch entered"
 	if r.Reversed {
 		verb = "Timeline branch exited"
@@ -129,10 +110,7 @@ func (a *App) formatJumpResult(r *commands.JumpResult, saveErr error) string {
 		a.session.CumulativeCost(),
 		a.formatEdges(r.Edges),
 	)
-	if saveErr != nil {
-		return base + fmt.Sprintf(fmtSaveWarning, saveErr)
-	}
-	return base + fmt.Sprintf("\n\nPersisted to %s", dataFile())
+	return base
 }
 
 func (a *App) formatRouteResult(r *queries.RouteResult) string {

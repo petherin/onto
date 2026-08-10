@@ -28,7 +28,6 @@ type ShiftResult struct {
 type ShiftCommand struct {
 	Universe *universe.Aggregate
 	Session  *exploration.Entity
-	Repo     universe.Repository
 	Back     bool // if true, traverse the reverse quantum edge instead of creating a new branch
 }
 
@@ -84,11 +83,6 @@ func (c *ShiftCommand) completeShift(destID, quantum string, reversed bool) (*Sh
 		Edges:       c.Universe.EdgesFrom(destID),
 		History:     c.Session.History(),
 		Reversed:    reversed,
-	}
-
-	if err := c.Repo.Save(c.Universe); err != nil {
-		// Shift succeeded; return the result alongside the save error.
-		return result, err
 	}
 	return result, nil
 }

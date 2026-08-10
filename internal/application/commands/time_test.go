@@ -16,18 +16,16 @@ func TestTimeCommand_EntersAndLeavesTemporalBranch(t *testing.T) {
 	u := mocks.NewTestUniverse()
 	home, _ := u.GetLocation("home")
 	session := exploration.NewEntity("home", home.Coordinate)
-	repo := mocks.NewMockRepository(t)
-	repo.EXPECT().Save(u).Return(nil).Twice()
 	target := time.Date(2042, 1, 2, 3, 4, 5, 0, time.UTC)
 
-	result, err := (&commands.TimeCommand{Universe: u, Session: session, Repo: repo, Target: target.Format(time.RFC3339)}).Execute()
+	result, err := (&commands.TimeCommand{Universe: u, Session: session, Target: target.Format(time.RFC3339)}).Execute()
 
 	require.NoError(t, err)
 	assert.Equal(t, target, result.Time)
 	assert.Equal(t, "home-at-20420102t030405z", session.Location())
 	assert.Equal(t, universe.TimeShiftCost, session.CumulativeCost())
 
-	result, err = (&commands.TimeCommand{Universe: u, Session: session, Repo: repo, Back: true}).Execute()
+	result, err = (&commands.TimeCommand{Universe: u, Session: session, Back: true}).Execute()
 
 	require.NoError(t, err)
 	assert.True(t, result.Reversed)

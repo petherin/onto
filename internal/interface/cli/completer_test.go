@@ -21,7 +21,7 @@ func TestCompleter_EmptyLine_OffersAllCommands(t *testing.T) {
 
 	assert.Equal(t, 0, length)
 	names := runeStr(candidates)
-	for _, cmd := range []string{cmdWhere, cmdTravel, cmdShift, cmdJump, cmdExit} {
+	for _, cmd := range []string{cmdWhere, cmdTravel, cmdShift, cmdJump, cmdSave, cmdExit} {
 		assert.Contains(t, names, cmd)
 	}
 }

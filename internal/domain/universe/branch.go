@@ -2,7 +2,6 @@ package universe
 
 import (
 	"fmt"
-	"strings"
 )
 
 // ContextualTransitionSpec defines how one non-spatial transition creates a
@@ -39,18 +38,21 @@ func BranchContextual(
 }
 
 // materializePhysicalBranch copies the physical graph reachable from fromID
-// into the destination reality context. Each copied location receives the
-// branch suffix, keeping physical travel within the same reality.
+// into the destination reality context. Each copied location's ID is
+// canonicalized onto the SAME axis that fromID→destID just changed (rather
+// than string-concatenated), so neighbor IDs stay consistent and correctly
+// ordered even if fromID or a neighbor already carries other reality-branch
+// suffixes.
 func materializePhysicalBranch(
 	u *Aggregate,
 	fromID, destID string,
 	destCoord CoordinateVO,
 	spec ContextualTransitionSpec,
 ) error {
-	suffix := strings.TrimPrefix(destID, fromID)
-	if suffix == "" {
+	if destID == fromID {
 		return nil
 	}
+	_, destAxes := parseLocationID(destID)
 
 	ids := map[string]string{fromID: destID}
 	queue := []string{fromID}
@@ -85,7 +87,7 @@ func materializePhysicalBranch(
 
 			targetID, exists := ids[edge.To]
 			if !exists {
-				targetID = edge.To + suffix
+				targetID = neighborBranchID(edge.To, spec.Mode, destAxes)
 				ids[edge.To] = targetID
 				queue = append(queue, edge.To)
 
@@ -124,6 +126,29 @@ func materializePhysicalBranch(
 		}
 	}
 	return nil
+}
+
+// neighborBranchID computes a physically-reachable neighbor's ID in the
+// destination reality context: it parses the neighbor's own base/axes and
+// overwrites just the axis this branch operation changed (spec.Mode) with
+// the destination's value for that axis, then reassembles canonically. This
+// mirrors withRealityContext, which overwrites the same single axis on the
+// neighbor's Coordinate.
+func neighborBranchID(neighborID string, mode TravelModeVO, destAxes axisSuffixes) string {
+	base, ax := parseLocationID(neighborID)
+	switch mode {
+	case QuantumShift:
+		ax.quantum = destAxes.quantum
+	case TimelineShift:
+		ax.timeline = destAxes.timeline
+	case ConsensusShift:
+		ax.consensus = destAxes.consensus
+	case TimeShift:
+		ax.time = destAxes.time
+	case ObserverShift:
+		ax.observer = destAxes.observer
+	}
+	return buildLocationID(base, ax)
 }
 
 func withRealityContext(coord, context CoordinateVO) CoordinateVO {

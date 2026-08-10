@@ -10,14 +10,13 @@ import (
 // connection to an existing location.
 type CreateLocationCommand struct {
 	Universe *universe.Aggregate
-	Repo     universe.Repository
 	OriginID string
 	Location universe.LocationEntity
 	Distance float64
 	Cost     float64
 }
 
-// Execute applies the graph change atomically in the aggregate and persists it.
+// Execute applies the graph change atomically in the aggregate.
 func (c *CreateLocationCommand) Execute() error {
 	if _, exists := c.Universe.GetLocation(c.OriginID); !exists {
 		return fmt.Errorf("%w: %s", universe.ErrUnknownEdgeEndpoint, c.OriginID)
@@ -33,19 +32,18 @@ func (c *CreateLocationCommand) Execute() error {
 	if err := c.Universe.AddEdge(returning); err != nil {
 		return err
 	}
-	return c.Repo.Save(c.Universe)
+	return nil
 }
 
 // GenerateNearbyLocationCommand expands a dead end according to the domain's
 // nearby-location policy.
 type GenerateNearbyLocationCommand struct {
 	Universe  *universe.Aggregate
-	Repo      universe.Repository
 	Generator universe.LocationGeneratorService
 	OriginID  string
 }
 
-// Execute creates and persists the next nearby location.
+// Execute creates the next nearby location.
 func (c *GenerateNearbyLocationCommand) Execute() (universe.LocationEntity, error) {
 	origin, ok := c.Universe.GetLocation(c.OriginID)
 	if !ok {
@@ -62,9 +60,6 @@ func (c *GenerateNearbyLocationCommand) Execute() (universe.LocationEntity, erro
 		return universe.LocationEntity{}, err
 	}
 	if err := c.Universe.AddEdge(returning); err != nil {
-		return universe.LocationEntity{}, err
-	}
-	if err := c.Repo.Save(c.Universe); err != nil {
 		return universe.LocationEntity{}, err
 	}
 	return location, nil

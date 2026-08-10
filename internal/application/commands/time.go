@@ -33,7 +33,6 @@ type TimeResult struct {
 type TimeCommand struct {
 	Universe *universe.Aggregate
 	Session  *exploration.Entity
-	Repo     universe.Repository
 	Target   string
 	Back     bool
 }
@@ -60,7 +59,7 @@ func (c *TimeCommand) Execute() (*TimeResult, error) {
 	if target.Equal(c.Session.Coordinate().Time) {
 		return nil, ErrTimeUnchanged
 	}
-	destID := fmt.Sprintf("%s-at-%s", c.Session.Location(), target.Format("20060102t150405z"))
+	destID := c.Session.NextTimeID(target.Format("20060102t150405z"))
 	if err := universe.BranchTime(c.Universe, c.Session.Location(), c.Session.Coordinate(), locationName(c.Universe, c.Session.Location()), destID, target); err != nil {
 		return nil, err
 	}
@@ -71,8 +70,5 @@ func (c *TimeCommand) Execute() (*TimeResult, error) {
 func (c *TimeCommand) complete(loc universe.LocationEntity, reversed bool) (*TimeResult, error) {
 	c.Session.TransitionTo(loc, universe.TimeShiftCost, universe.TimeShift, reversed)
 	result := &TimeResult{Time: loc.Coordinate.Time, Location: loc, Edges: c.Universe.EdgesFrom(loc.ID), History: c.Session.History(), Reversed: reversed}
-	if err := c.Repo.Save(c.Universe); err != nil {
-		return result, err
-	}
 	return result, nil
 }

@@ -15,10 +15,8 @@ func TestObserveCommand_ChangesObserverPerspective(t *testing.T) {
 	u := mocks.NewTestUniverse()
 	loc, _ := u.GetLocation("home")
 	sess := exploration.NewEntity("home", loc.Coordinate)
-	repo := mocks.NewMockRepository(t)
-	repo.EXPECT().Save(u).Return(nil)
 
-	result, err := (&commands.ObserveCommand{Universe: u, Session: sess, Repo: repo, Observer: "Machine"}).Execute()
+	result, err := (&commands.ObserveCommand{Universe: u, Session: sess, Observer: "Machine"}).Execute()
 
 	require.NoError(t, err)
 	assert.Equal(t, "Machine", result.Observer)
@@ -50,10 +48,8 @@ func TestObserveCommand_ReturnsToPreviousPerspective(t *testing.T) {
 		Description: "Observer shift to Bat",
 	}))
 	sess := exploration.NewEntity("home-o-machine", machine)
-	repo := mocks.NewMockRepository(t)
-	repo.EXPECT().Save(u).Return(nil)
 
-	result, err := (&commands.ObserveCommand{Universe: u, Session: sess, Repo: repo, Back: true}).Execute()
+	result, err := (&commands.ObserveCommand{Universe: u, Session: sess, Back: true}).Execute()
 
 	require.NoError(t, err)
 	assert.True(t, result.Reversed)

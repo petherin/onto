@@ -30,6 +30,7 @@ type App struct {
 	pathfinder        navigation.PathfinderService
 	locationGenerator universe.LocationGeneratorService
 	interactiveReader *bufio.Reader
+	dirty             bool
 }
 
 // NewApp loads (or initialises) the universe from disk and returns a ready App.
@@ -153,6 +154,15 @@ func (a *App) Execute(input string) string {
 			return a.TimeBack()
 		}
 		return a.Time(args)
+	case cmdSave:
+		if args != "" {
+			return "Usage: save"
+		}
+		msg, err := a.Save()
+		if err != nil {
+			return err.Error()
+		}
+		return msg
 	case cmdExit:
 		return msgGoodbye
 	default:
@@ -185,6 +195,7 @@ func (a *App) Help() string {
 		"observe back           Return to the previous observer perspective",
 		"time <RFC3339>         Enter a temporal branch",
 		"time back              Return to the previous temporal branch",
+		"save                   Persist the current universe graph to disk",
 		"<number>               Take a numbered possible journey",
 		"exit                   Leave the CLI",
 		"",
@@ -204,11 +215,10 @@ func (a *App) Travel(target string) string {
 	cmd := &commands.TravelCommand{
 		Universe:   a.universe,
 		Session:    a.session,
-		Repo:       a.repo,
 		Pathfinder: a.pathfinder,
 	}
 
-	result, saveErr := cmd.Execute(target)
+	result, err := cmd.Execute(target)
 	if result == nil {
 		// Domain error — no movement occurred.
 		norm := strings.ToLower(strings.ReplaceAll(target, " ", "-"))
@@ -228,121 +238,131 @@ func (a *App) Travel(target string) string {
 			return a.routeUnavailableDiagnostics(target)
 		}
 		// Destination exists but is unreachable — surface the real reason.
-		return saveErr.Error()
+		return err.Error()
 	}
 
-	output := a.formatTravelResult(result, saveErr)
+	output := a.formatTravelResult(result)
 	if !result.DeadEndHandled {
 		return output
 	}
 	location, err := (&commands.GenerateNearbyLocationCommand{
 		Universe:  a.universe,
-		Repo:      a.repo,
 		Generator: a.locationGenerator,
 		OriginID:  result.Location.ID,
 	}).Execute()
 	if err != nil {
 		return fmt.Sprintf("%s\n\nUnable to generate a nearby location: %v", output, err)
 	}
+	a.markDirty()
 	return fmt.Sprintf("%s\n\nAuto-generated: %s (%s)", output, location.Name, location.ID)
 }
 
 // Shift jumps the session forward to the next quantum branch of the current location.
 func (a *App) Shift() string {
-	cmd := &commands.ShiftCommand{Universe: a.universe, Session: a.session, Repo: a.repo}
-	result, saveErr := cmd.Execute()
+	cmd := &commands.ShiftCommand{Universe: a.universe, Session: a.session}
+	result, err := cmd.Execute()
 	if result == nil {
-		return fmt.Sprintf("Shift failed: %v", saveErr)
+		return fmt.Sprintf("Shift failed: %v", err)
 	}
-	return a.formatShiftResult(result, saveErr)
+	a.markDirty()
+	return a.formatShiftResult(result)
 }
 
 // ShiftBack returns the session to the previous quantum branch.
 func (a *App) ShiftBack() string {
-	cmd := &commands.ShiftCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
-	result, saveErr := cmd.Execute()
+	cmd := &commands.ShiftCommand{Universe: a.universe, Session: a.session, Back: true}
+	result, err := cmd.Execute()
 	if result == nil {
-		return fmt.Sprintf("Cannot shift back: %v", saveErr)
+		return fmt.Sprintf("Cannot shift back: %v", err)
 	}
-	return a.formatShiftResult(result, saveErr)
+	a.markDirty()
+	return a.formatShiftResult(result)
 }
 
 // Jump moves the session forward to the next timeline branch of the current location.
 func (a *App) Jump() string {
-	cmd := &commands.JumpCommand{Universe: a.universe, Session: a.session, Repo: a.repo}
-	result, saveErr := cmd.Execute()
+	cmd := &commands.JumpCommand{Universe: a.universe, Session: a.session}
+	result, err := cmd.Execute()
 	if result == nil {
-		return fmt.Sprintf("Jump failed: %v", saveErr)
+		return fmt.Sprintf("Jump failed: %v", err)
 	}
-	return a.formatJumpResult(result, saveErr)
+	a.markDirty()
+	return a.formatJumpResult(result)
 }
 
 // JumpBack returns the session to the previous timeline branch.
 func (a *App) JumpBack() string {
-	cmd := &commands.JumpCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
-	result, saveErr := cmd.Execute()
+	cmd := &commands.JumpCommand{Universe: a.universe, Session: a.session, Back: true}
+	result, err := cmd.Execute()
 	if result == nil {
-		return fmt.Sprintf("Cannot jump back: %v", saveErr)
+		return fmt.Sprintf("Cannot jump back: %v", err)
 	}
-	return a.formatJumpResult(result, saveErr)
+	a.markDirty()
+	return a.formatJumpResult(result)
 }
 
 // Drift enters the next consensus divergence.
 func (a *App) Drift() string {
-	cmd := &commands.DriftCommand{Universe: a.universe, Session: a.session, Repo: a.repo}
-	result, saveErr := cmd.Execute()
+	cmd := &commands.DriftCommand{Universe: a.universe, Session: a.session}
+	result, err := cmd.Execute()
 	if result == nil {
-		return fmt.Sprintf("Drift failed: %v", saveErr)
+		return fmt.Sprintf("Drift failed: %v", err)
 	}
-	return a.formatDriftResult(result, saveErr)
+	a.markDirty()
+	return a.formatDriftResult(result)
 }
 
 // Align returns the session one level toward shared consensus.
 func (a *App) Align() string {
-	cmd := &commands.DriftCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
-	result, saveErr := cmd.Execute()
+	cmd := &commands.DriftCommand{Universe: a.universe, Session: a.session, Back: true}
+	result, err := cmd.Execute()
 	if result == nil {
-		return fmt.Sprintf("Cannot align: %v", saveErr)
+		return fmt.Sprintf("Cannot align: %v", err)
 	}
-	return a.formatDriftResult(result, saveErr)
+	a.markDirty()
+	return a.formatDriftResult(result)
 }
 
 // Observe changes the current observer perspective.
 func (a *App) Observe(observer string) string {
-	cmd := &commands.ObserveCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Observer: observer}
-	result, saveErr := cmd.Execute()
+	cmd := &commands.ObserveCommand{Universe: a.universe, Session: a.session, Observer: observer}
+	result, err := cmd.Execute()
 	if result == nil {
-		return fmt.Sprintf("Observer shift failed: %v", saveErr)
+		return fmt.Sprintf("Observer shift failed: %v", err)
 	}
-	return a.formatObserveResult(result, saveErr)
+	a.markDirty()
+	return a.formatObserveResult(result)
 }
 
 // ObserveBack returns to the previous observer perspective.
 func (a *App) ObserveBack() string {
-	cmd := &commands.ObserveCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}
-	result, saveErr := cmd.Execute()
+	cmd := &commands.ObserveCommand{Universe: a.universe, Session: a.session, Back: true}
+	result, err := cmd.Execute()
 	if result == nil {
-		return fmt.Sprintf("Cannot return observer perspective: %v", saveErr)
+		return fmt.Sprintf("Cannot return observer perspective: %v", err)
 	}
-	return a.formatObserveResult(result, saveErr)
+	a.markDirty()
+	return a.formatObserveResult(result)
 }
 
 // Time enters the temporal branch at target.
 func (a *App) Time(target string) string {
-	result, saveErr := (&commands.TimeCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Target: target}).Execute()
+	result, err := (&commands.TimeCommand{Universe: a.universe, Session: a.session, Target: target}).Execute()
 	if result == nil {
-		return fmt.Sprintf("Time shift failed: %v", saveErr)
+		return fmt.Sprintf("Time shift failed: %v", err)
 	}
-	return a.formatTimeResult(result, saveErr)
+	a.markDirty()
+	return a.formatTimeResult(result)
 }
 
 // TimeBack returns to the preceding temporal branch.
 func (a *App) TimeBack() string {
-	result, saveErr := (&commands.TimeCommand{Universe: a.universe, Session: a.session, Repo: a.repo, Back: true}).Execute()
+	result, err := (&commands.TimeCommand{Universe: a.universe, Session: a.session, Back: true}).Execute()
 	if result == nil {
-		return fmt.Sprintf("Cannot return through time: %v", saveErr)
+		return fmt.Sprintf("Cannot return through time: %v", err)
 	}
-	return a.formatTimeResult(result, saveErr)
+	a.markDirty()
+	return a.formatTimeResult(result)
 }
 
 // ExecuteJourney executes the one-based journey option currently shown by ls.
@@ -385,7 +405,6 @@ func (a *App) GoHome() string {
 	cmd := &commands.ReturnHomeCommand{
 		Universe:        a.universe,
 		Session:         a.session,
-		Repo:            a.repo,
 		Pathfinder:      a.pathfinder,
 		HomeID:          defaultStartLocation,
 		DefaultObserver: universe.DefaultCoordinateVO().Observer,
@@ -415,7 +434,6 @@ func (a *App) GoHomeConfirm() string {
 	cmd := &commands.ReturnHomeCommand{
 		Universe:        a.universe,
 		Session:         a.session,
-		Repo:            a.repo,
 		Pathfinder:      a.pathfinder,
 		HomeID:          defaultStartLocation,
 		DefaultObserver: universe.DefaultCoordinateVO().Observer,
@@ -424,6 +442,7 @@ func (a *App) GoHomeConfirm() string {
 	if err != nil {
 		return fmt.Sprintf("Failed while returning home: %v", err)
 	}
+	a.markDirty()
 	var lines []string
 	for _, step := range commandSteps {
 		switch step.Action {
@@ -457,6 +476,41 @@ func (a *App) Cost() string {
 		universe.QuantumShiftCost, universe.TimelineShiftCost, universe.ConsensusShiftCost, universe.ObserverShiftCost)
 }
 
+func (a *App) markDirty() {
+	a.dirty = true
+}
+
+// SaveIfDirty persists the universe to disk if there are unsaved mutations
+// (from shift/jump/drift/observe/time/travel/dead-end/home commands), and
+// clears the dirty flag on success. It is a no-op if nothing has changed.
+func (a *App) SaveIfDirty() error {
+	if !a.dirty {
+		return nil
+	}
+	if err := a.repo.Save(a.universe); err != nil {
+		return err
+	}
+	a.dirty = false
+	return nil
+}
+
+// Save unconditionally persists the universe to disk, regardless of the
+// dirty flag, and reports a user-facing confirmation message. It backs the
+// explicit "save" command.
+func (a *App) Save() (string, error) {
+	if err := a.repo.Save(a.universe); err != nil {
+		return "", err
+	}
+	a.dirty = false
+	return msgSaved, nil
+}
+
+func (a *App) warnIfSaveBeforeExitFails() {
+	if err := a.SaveIfDirty(); err != nil {
+		fmt.Printf(fmtExitSaveWarning+"\n", err)
+	}
+}
+
 // Run starts the interactive read-eval-print loop with readline (tab
 // completion, history, arrow-key editing). Falls back to a plain bufio loop
 // when stdout is not a TTY (e.g. in tests or pipes).
@@ -486,6 +540,7 @@ func (a *App) Run() {
 		rl.SetPrompt(a.Prompt())
 		line, err := rl.Readline()
 		if err != nil { // EOF or ^C
+			a.warnIfSaveBeforeExitFails()
 			break
 		}
 		trimmed := strings.TrimSpace(line)
@@ -509,6 +564,7 @@ func (a *App) Run() {
 
 		response := a.Execute(trimmed)
 		if response == msgGoodbye {
+			a.warnIfSaveBeforeExitFails()
 			fmt.Println(response)
 			break
 		}
@@ -526,6 +582,7 @@ func (a *App) runPlain() {
 		fmt.Print(a.Prompt())
 		input, err := reader.ReadString('\n')
 		if err != nil {
+			a.warnIfSaveBeforeExitFails()
 			break
 		}
 		trimmed := strings.TrimSpace(input)
@@ -548,6 +605,7 @@ func (a *App) runPlain() {
 
 		response := a.Execute(trimmed)
 		if response == msgGoodbye {
+			a.warnIfSaveBeforeExitFails()
 			fmt.Println(response)
 			break
 		}

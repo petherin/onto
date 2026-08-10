@@ -2,7 +2,6 @@ package commands
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"unicode"
 
@@ -31,7 +30,6 @@ type ObserveResult struct {
 type ObserveCommand struct {
 	Universe *universe.Aggregate
 	Session  *exploration.Entity
-	Repo     universe.Repository
 	Observer string
 	Back     bool
 }
@@ -46,7 +44,7 @@ func (c *ObserveCommand) Execute() (*ObserveResult, error) {
 	}
 
 	observer := strings.TrimSpace(c.Observer)
-	destID := fmt.Sprintf("%s-o-%s", c.Session.Location(), observerID(observer))
+	destID := c.Session.NextObserverID(observerID(observer))
 	if err := universe.BranchObserver(c.Universe, c.Session.Location(), c.Session.Coordinate(), locationName(c.Universe, c.Session.Location()), destID, observer); err != nil {
 		return nil, err
 	}
@@ -75,9 +73,6 @@ func (c *ObserveCommand) completeObserve(destID, observer string, reversed bool)
 		Edges:    c.Universe.EdgesFrom(destID),
 		History:  c.Session.History(),
 		Reversed: reversed,
-	}
-	if err := c.Repo.Save(c.Universe); err != nil {
-		return result, err
 	}
 	return result, nil
 }

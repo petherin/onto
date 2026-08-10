@@ -23,6 +23,7 @@ func (a *App) Commands() []Command {
 		{Name: cmdAlign, Description: "Return one level toward shared consensus"},
 		{Name: cmdObserve, Description: "Change observer perspective"},
 		{Name: cmdTime, Description: "Enter a temporal branch at an RFC3339 timestamp"},
+		{Name: cmdSave, Description: "Persist the current universe graph to disk"},
 		{Name: cmdExit, Description: "Exit the CLI"},
 	}
 }

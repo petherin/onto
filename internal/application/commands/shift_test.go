@@ -1,7 +1,6 @@
 package commands_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/petherin/onto/internal/application/commands"
@@ -12,19 +11,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newShiftFixture(t *testing.T) (*universe.Aggregate, *exploration.Entity, *mocks.MockRepository) {
+func newShiftFixture() (*universe.Aggregate, *exploration.Entity) {
 	u := mocks.NewTestUniverse()
 	loc, _ := u.GetLocation("home")
 	sess := exploration.NewEntity("home", loc.Coordinate)
-	repo := mocks.NewMockRepository(t)
-	return u, sess, repo
+	return u, sess
 }
 
 func TestShiftCommand_CreatesNewQuantumLocation(t *testing.T) {
-	u, sess, repo := newShiftFixture(t)
-	repo.EXPECT().Save(u).Return(nil)
+	u, sess := newShiftFixture()
 
-	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Repo: repo}
+	cmd := &commands.ShiftCommand{Universe: u, Session: sess}
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)
@@ -36,10 +33,9 @@ func TestShiftCommand_CreatesNewQuantumLocation(t *testing.T) {
 }
 
 func TestShiftCommand_AddsQuantumEdgesBothWays(t *testing.T) {
-	u, sess, repo := newShiftFixture(t)
-	repo.EXPECT().Save(u).Return(nil)
+	u, sess := newShiftFixture()
 
-	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Repo: repo}
+	cmd := &commands.ShiftCommand{Universe: u, Session: sess}
 	_, err := cmd.Execute()
 	require.NoError(t, err)
 
@@ -65,7 +61,7 @@ func TestShiftCommand_AddsQuantumEdgesBothWays(t *testing.T) {
 }
 
 func TestShiftCommand_ShiftsToExistingQuantumLocation(t *testing.T) {
-	u, sess, repo := newShiftFixture(t)
+	u, sess := newShiftFixture()
 
 	// pre-populate Q1 location
 	q1Coord := universe.DefaultCoordinateVO()
@@ -75,9 +71,7 @@ func TestShiftCommand_ShiftsToExistingQuantumLocation(t *testing.T) {
 	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home-q1", To: "home", Mode: universe.QuantumShift, Cost: universe.QuantumShiftCost}))
 
 	initialEdgeCount := len(u.EdgesFrom("home"))
-	repo.EXPECT().Save(u).Return(nil)
-
-	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Repo: repo}
+	cmd := &commands.ShiftCommand{Universe: u, Session: sess}
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)
@@ -86,7 +80,7 @@ func TestShiftCommand_ShiftsToExistingQuantumLocation(t *testing.T) {
 }
 
 func TestShiftCommand_QuantumIncrements(t *testing.T) {
-	u, _, repo := newShiftFixture(t)
+	u, _ := newShiftFixture()
 
 	// simulate already being in Q1
 	q1Coord := universe.DefaultCoordinateVO()
@@ -94,44 +88,18 @@ func TestShiftCommand_QuantumIncrements(t *testing.T) {
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-q1", Name: "Home (Q1)", Coordinate: q1Coord}))
 	sess := exploration.NewEntity("home-q1", q1Coord)
 
-	repo.EXPECT().Save(u).Return(nil)
-
-	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Repo: repo}
+	cmd := &commands.ShiftCommand{Universe: u, Session: sess}
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)
 	assert.Equal(t, "Q2", result.NextQuantum)
-	assert.Equal(t, "home-q1-q2", result.Location.ID)
-}
-
-func TestShiftCommand_PersistsAfterShift(t *testing.T) {
-	u, sess, repo := newShiftFixture(t)
-	repo.EXPECT().Save(u).Return(nil)
-
-	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Repo: repo}
-	result, err := cmd.Execute()
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-}
-
-func TestShiftCommand_SaveError(t *testing.T) {
-	u, sess, repo := newShiftFixture(t)
-	repo.EXPECT().Save(u).Return(errors.New("write failed"))
-
-	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Repo: repo}
-	result, err := cmd.Execute()
-
-	// Shift succeeded but persistence failed — both result and err are non-nil.
-	require.NotNil(t, result)
-	assert.EqualError(t, err, "write failed")
+	assert.Equal(t, "home-q2", result.Location.ID)
 }
 
 func TestShiftCommand_UpdatesSession(t *testing.T) {
-	u, sess, repo := newShiftFixture(t)
-	repo.EXPECT().Save(u).Return(nil)
+	u, sess := newShiftFixture()
 
-	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Repo: repo}
+	cmd := &commands.ShiftCommand{Universe: u, Session: sess}
 	_, err := cmd.Execute()
 
 	require.NoError(t, err)
@@ -142,7 +110,7 @@ func TestShiftCommand_UpdatesSession(t *testing.T) {
 // ── Shift back ────────────────────────────────────────────────────────────────
 
 func TestShiftBack_ReturnsToLowerBranch(t *testing.T) {
-	u, _, repo := newShiftFixture(t)
+	u, _ := newShiftFixture()
 
 	// Place session in Q1
 	q1Coord := universe.DefaultCoordinateVO()
@@ -151,9 +119,7 @@ func TestShiftBack_ReturnsToLowerBranch(t *testing.T) {
 	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home-q1", To: "home", Mode: universe.QuantumShift, Cost: universe.QuantumShiftCost}))
 	sess := exploration.NewEntity("home-q1", q1Coord)
 
-	repo.EXPECT().Save(u).Return(nil)
-
-	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Repo: repo, Back: true}
+	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Back: true}
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)
@@ -164,17 +130,16 @@ func TestShiftBack_ReturnsToLowerBranch(t *testing.T) {
 }
 
 func TestShiftBack_AtBaseLevel_ReturnsError(t *testing.T) {
-	u, sess, repo := newShiftFixture(t)
+	u, sess := newShiftFixture()
 
-	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Repo: repo, Back: true}
+	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Back: true}
 	_, err := cmd.Execute()
 
 	require.ErrorIs(t, err, commands.ErrAlreadyAtBaseQuantum)
-	repo.AssertNotCalled(t, "Save")
 }
 
 func TestShiftBack_NoReverseEdge_ReturnsError(t *testing.T) {
-	u, _, repo := newShiftFixture(t)
+	u, _ := newShiftFixture()
 
 	// Q1 session but no reverse quantum edge in the graph
 	q1Coord := universe.DefaultCoordinateVO()
@@ -182,9 +147,8 @@ func TestShiftBack_NoReverseEdge_ReturnsError(t *testing.T) {
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-q1", Name: "Home (Q1)", Coordinate: q1Coord}))
 	sess := exploration.NewEntity("home-q1", q1Coord)
 
-	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Repo: repo, Back: true}
+	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Back: true}
 	_, err := cmd.Execute()
 
 	require.ErrorIs(t, err, commands.ErrNoQuantumPathBack)
-	repo.AssertNotCalled(t, "Save")
 }

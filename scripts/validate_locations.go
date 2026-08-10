@@ -23,6 +23,12 @@ func main() {
 
 	file, err := os.Open(*path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			// No runtime save file yet is expected/normal — the app falls
+			// back to its in-code starter universe until the first save.
+			fmt.Printf("%s does not exist yet — nothing to validate (the app will use its built-in starter universe).\n", *path)
+			return
+		}
 		fail("open %s: %v", *path, err)
 	}
 	defer func() {
@@ -54,6 +60,10 @@ func main() {
 		locations[location.ID] = location
 	}
 
+	for _, location := range saved.Locations {
+		problems = append(problems, checkIDMatchesCoordinate(location)...)
+	}
+
 	for _, edge := range saved.Edges {
 		from, fromExists := locations[edge.From]
 		to, toExists := locations[edge.To]
@@ -80,4 +90,52 @@ func main() {
 func fail(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
 	os.Exit(1)
+}
+
+// checkIDMatchesCoordinate catches the class of corruption this validator
+// previously missed: a location's own coordinate fields disagreeing with
+// what its ID suffix claims (e.g. an ID with no "-c" segment but a non-zero
+// Consensus, or an ID claiming "-q1" while Coordinate.Quantum is still "Q0").
+// This is exactly the bug that produced the "physical edge crosses reality
+// boundary" data corruption fixed in this repo's history.
+//
+// Auto-generated nearby/dead-end locations (see internal/domain/universe/nearby.go)
+// are intentionally skipped: their IDs use plain sequential numbering (e.g.
+// "home-1") rather than reality-branch suffixes, and NewNearbyLocation marks
+// them with a generic Coordinate.Location of "Nearby N" — that's the signal
+// used here to exclude them from this check.
+func checkIDMatchesCoordinate(location universe.LocationEntity) []string {
+	if strings.HasPrefix(location.Coordinate.Location, "Nearby ") {
+		return nil
+	}
+
+	_, idQuantum, idTimeline, idConsensus, idTime, idObserver := universe.ParseLocationID(location.ID)
+
+	var problems []string
+	if idQuantum != location.Coordinate.QuantumLevel() {
+		problems = append(problems, fmt.Sprintf(
+			"location %q: ID suggests quantum level %d but Coordinate.Quantum is %q (level %d)",
+			location.ID, idQuantum, location.Coordinate.Quantum, location.Coordinate.QuantumLevel()))
+	}
+	if idTimeline != location.Coordinate.TimelineLevel() {
+		problems = append(problems, fmt.Sprintf(
+			"location %q: ID suggests timeline level %d but Coordinate.Timeline is %q (level %d)",
+			location.ID, idTimeline, location.Coordinate.Timeline, location.Coordinate.TimelineLevel()))
+	}
+	if idConsensus != location.Coordinate.Consensus {
+		problems = append(problems, fmt.Sprintf(
+			"location %q: ID suggests consensus level %d but Coordinate.Consensus is %d",
+			location.ID, idConsensus, location.Coordinate.Consensus))
+	}
+	if (idTime != "") != !location.Coordinate.Time.IsZero() {
+		problems = append(problems, fmt.Sprintf(
+			"location %q: ID time suffix presence (%v) does not match whether Coordinate.Time is set (%v)",
+			location.ID, idTime != "", !location.Coordinate.Time.IsZero()))
+	}
+	if (idObserver != "") != (location.Coordinate.Observer != "" && location.Coordinate.Observer != universe.DefaultCoordinateVO().Observer) {
+		problems = append(problems, fmt.Sprintf(
+			"location %q: ID observer suffix presence (%v) does not match whether Coordinate.Observer (%q) differs from the default observer",
+			location.ID, idObserver != "", location.Coordinate.Observer))
+	}
+	return problems
 }

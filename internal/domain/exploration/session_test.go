@@ -82,8 +82,8 @@ func TestQuantumLevelAndNextID(t *testing.T) {
 		wantNextID string
 	}{
 		{"base Q0", "home", "Q0", 0, "home-q1"},
-		{"Q2", "home-q2", "Q2", 2, "home-q2-q3"},
-		{"Q3", "home-q3", "Q3", 3, "home-q3-q4"},
+		{"Q2", "home-q2", "Q2", 2, "home-q3"},
+		{"Q3", "home-q3", "Q3", 3, "home-q4"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -105,8 +105,8 @@ func TestTimelineLevelAndNextID(t *testing.T) {
 		wantNextID string
 	}{
 		{"Prime", "home", "Prime", 0, "home-t1"},
-		{"T1", "home-t1", "T1", 1, "home-t1-t2"},
-		{"T2", "home-t2", "T2", 2, "home-t2-t3"},
+		{"T1", "home-t1", "T1", 1, "home-t2"},
+		{"T2", "home-t2", "T2", 2, "home-t3"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

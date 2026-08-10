@@ -82,7 +82,7 @@ func allCommandNames() []string {
 	return []string{
 		cmdHelp, cmdWhere, cmdLook, cmdList,
 		cmdRoute, cmdTravel, cmdHome, cmdCost,
-		cmdShift, cmdJump, cmdDrift, cmdAlign, cmdObserve, cmdTime, cmdExit,
+		cmdShift, cmdJump, cmdDrift, cmdAlign, cmdObserve, cmdTime, cmdSave, cmdExit,
 	}
 }
 

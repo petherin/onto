@@ -5,7 +5,11 @@ GOLANGCI_LINT_BIN := $(shell go env GOPATH)/bin/golangci-lint
 
 .PHONY: run
 run:                   ## Run the app natively (requires Go installed)
-	go run ./cmd/onto
+	go run ./cmd/cli
+
+.PHONY: dashboard
+dashboard:             ## Run the multi-pane TUI dashboard natively (requires Go installed)
+	go run ./cmd/dashboard
 
 .PHONY: docker-run
 docker-run: docker-build  ## Build (if needed) and run the app in Docker
@@ -15,7 +19,11 @@ docker-run: docker-build  ## Build (if needed) and run the app in Docker
 
 .PHONY: build
 build:                 ## Build the native binary to ./onto
-	go build -o onto ./cmd/onto
+	go build -o onto ./cmd/cli
+
+.PHONY: build-dashboard
+build-dashboard:       ## Build the native dashboard binary to ./onto-dashboard
+	go build -o onto-dashboard ./cmd/dashboard
 
 .PHONY: docker-build
 docker-build:          ## Build the Docker image

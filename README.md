@@ -329,6 +329,7 @@ observe <observer>     Change observer perspective (cost 2)
 observe back           Return to the previous observer perspective
 time <RFC3339>         Enter a temporal branch (cost 100)
 time back               Return to the previous temporal branch
+save                    Persist the current universe graph to disk
 <number>               Take the corresponding numbered possible journey
 cost                   Show travel cost information
 help                   List all commands
@@ -339,8 +340,8 @@ exit                   Leave the CLI
 
 The app is functional. It includes:
 
-- a command entrypoint in `cmd/onto`
-- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `home`, `cost`, `shift`, `shift back`, `jump`, `jump back`, `drift`, `align`, `observe`, `observe back`, `time`, `time back`, and `exit` commands
+- a command entrypoint in `cmd/cli` (plain REPL) and a multi-pane TUI entrypoint in `cmd/dashboard`
+- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `home`, `cost`, `shift`, `shift back`, `jump`, `jump back`, `drift`, `align`, `observe`, `observe back`, `time`, `time back`, `save`, and `exit` commands
 - BFS-based graph routing across locations with travel modes (walk, rail, etc.)
 - quantum branch navigation: `shift` jumps forward to the next branch (cost 20); `shift back` returns to the previous one
 - timeline branch navigation: `jump` jumps forward to the next alternate history (cost 800); `jump back` returns to the previous one
@@ -355,7 +356,7 @@ The app is functional. It includes:
 - location and edge data loaded from `data/locations.json`, with a built-in fallback map
 - `make validate-locations` checks saved location IDs, edge references, and physical reality boundaries before committing graph data
 - interactive prompting to create new locations when arriving at a dead-end node
-- auto-save of the universe graph back to `data/locations.json` after travel
+- universe graph mutations accumulate in memory during a session and are written to `data/locations.json` when you run `save` or exit cleanly from either the plain CLI or the TUI dashboard
 
 ## Architecture
 
@@ -366,7 +367,7 @@ Four layers, each importing only inward:
 | Domain | `internal/domain/` | Business rules, no I/O |
 | Application | `internal/application/` | Use-case orchestration |
 | Infrastructure | `internal/infrastructure/` | File I/O, graph algorithms |
-| Interface | `internal/interface/cli/` | Terminal delivery |
+| Interface | `internal/interface/cli/`, `internal/interface/tui/` | Terminal delivery (plain REPL and multi-pane dashboard) |
 
 The domain defines the types and interfaces; every other layer depends on it, never the reverse. See [docs/DDD.md](docs/DDD.md) for how DDD patterns are applied here.
 
@@ -377,7 +378,15 @@ The domain defines the types and interfaces; every other layer depends on it, ne
 ```bash
 make run
 # or directly:
-go run ./cmd/onto
+go run ./cmd/cli
+```
+
+For the multi-pane dashboard instead:
+
+```bash
+make dashboard
+# or directly:
+go run ./cmd/dashboard
 ```
 
 **In Docker** (requires Docker):

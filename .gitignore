@@ -33,3 +33,11 @@ coverage.out
 
 # Local environment variables
 .env
+
+# Runtime save data. This is generated/appended to during play (every shift,
+# jump, drift, observe, time-travel, and dead-end discovery can add new
+# locations here) and is NOT a curated fixture — it must never be committed,
+# since exploration order and bugs from past runs bake themselves permanently
+# into whatever gets checked in. A fresh checkout starts from the small
+# in-code seed graph in internal/interface/cli/default_universe.go instead.
+data/locations.json

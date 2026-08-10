@@ -1,7 +1,6 @@
 package commands_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/petherin/onto/internal/application/commands"
@@ -12,19 +11,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newJumpFixture(t *testing.T) (*universe.Aggregate, *exploration.Entity, *mocks.MockRepository) {
+func newJumpFixture() (*universe.Aggregate, *exploration.Entity) {
 	u := mocks.NewTestUniverse()
 	loc, _ := u.GetLocation("home")
 	sess := exploration.NewEntity("home", loc.Coordinate)
-	repo := mocks.NewMockRepository(t)
-	return u, sess, repo
+	return u, sess
 }
 
 func TestJumpCommand_CreatesNewTimelineLocation(t *testing.T) {
-	u, sess, repo := newJumpFixture(t)
-	repo.EXPECT().Save(u).Return(nil)
+	u, sess := newJumpFixture()
 
-	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo}
+	cmd := &commands.JumpCommand{Universe: u, Session: sess}
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)
@@ -36,10 +33,9 @@ func TestJumpCommand_CreatesNewTimelineLocation(t *testing.T) {
 }
 
 func TestJumpCommand_AddsTimelineEdgesBothWays(t *testing.T) {
-	u, sess, repo := newJumpFixture(t)
-	repo.EXPECT().Save(u).Return(nil)
+	u, sess := newJumpFixture()
 
-	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo}
+	cmd := &commands.JumpCommand{Universe: u, Session: sess}
 	_, err := cmd.Execute()
 	require.NoError(t, err)
 
@@ -65,7 +61,7 @@ func TestJumpCommand_AddsTimelineEdgesBothWays(t *testing.T) {
 }
 
 func TestJumpCommand_JumpsToExistingTimelineLocation(t *testing.T) {
-	u, sess, repo := newJumpFixture(t)
+	u, sess := newJumpFixture()
 
 	// pre-populate T1 location
 	t1Coord := universe.DefaultCoordinateVO()
@@ -75,9 +71,7 @@ func TestJumpCommand_JumpsToExistingTimelineLocation(t *testing.T) {
 	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home-t1", To: "home", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost}))
 
 	initialEdgeCount := len(u.EdgesFrom("home"))
-	repo.EXPECT().Save(u).Return(nil)
-
-	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo}
+	cmd := &commands.JumpCommand{Universe: u, Session: sess}
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)
@@ -86,7 +80,7 @@ func TestJumpCommand_JumpsToExistingTimelineLocation(t *testing.T) {
 }
 
 func TestJumpCommand_TimelineIncrements(t *testing.T) {
-	u, _, repo := newJumpFixture(t)
+	u, _ := newJumpFixture()
 
 	// simulate already being in T1
 	t1Coord := universe.DefaultCoordinateVO()
@@ -94,44 +88,18 @@ func TestJumpCommand_TimelineIncrements(t *testing.T) {
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord}))
 	sess := exploration.NewEntity("home-t1", t1Coord)
 
-	repo.EXPECT().Save(u).Return(nil)
-
-	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo}
+	cmd := &commands.JumpCommand{Universe: u, Session: sess}
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)
 	assert.Equal(t, "T2", result.NextTimeline)
-	assert.Equal(t, "home-t1-t2", result.Location.ID)
-}
-
-func TestJumpCommand_PersistsAfterJump(t *testing.T) {
-	u, sess, repo := newJumpFixture(t)
-	repo.EXPECT().Save(u).Return(nil)
-
-	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo}
-	result, err := cmd.Execute()
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-}
-
-func TestJumpCommand_SaveError(t *testing.T) {
-	u, sess, repo := newJumpFixture(t)
-	repo.EXPECT().Save(u).Return(errors.New("write failed"))
-
-	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo}
-	result, err := cmd.Execute()
-
-	// Jump succeeded but persistence failed — both result and err are non-nil.
-	require.NotNil(t, result)
-	assert.EqualError(t, err, "write failed")
+	assert.Equal(t, "home-t2", result.Location.ID)
 }
 
 func TestJumpCommand_UpdatesSession(t *testing.T) {
-	u, sess, repo := newJumpFixture(t)
-	repo.EXPECT().Save(u).Return(nil)
+	u, sess := newJumpFixture()
 
-	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo}
+	cmd := &commands.JumpCommand{Universe: u, Session: sess}
 	_, err := cmd.Execute()
 
 	require.NoError(t, err)
@@ -142,7 +110,7 @@ func TestJumpCommand_UpdatesSession(t *testing.T) {
 // ── Jump back ────────────────────────────────────────────────────────────────
 
 func TestJumpBack_ReturnsToLowerBranch(t *testing.T) {
-	u, _, repo := newJumpFixture(t)
+	u, _ := newJumpFixture()
 
 	// Place session in T1
 	t1Coord := universe.DefaultCoordinateVO()
@@ -151,9 +119,7 @@ func TestJumpBack_ReturnsToLowerBranch(t *testing.T) {
 	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home-t1", To: "home", Mode: universe.TimelineShift, Cost: universe.TimelineShiftCost}))
 	sess := exploration.NewEntity("home-t1", t1Coord)
 
-	repo.EXPECT().Save(u).Return(nil)
-
-	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo, Back: true}
+	cmd := &commands.JumpCommand{Universe: u, Session: sess, Back: true}
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)
@@ -164,17 +130,16 @@ func TestJumpBack_ReturnsToLowerBranch(t *testing.T) {
 }
 
 func TestJumpBack_AtBaseLevel_ReturnsError(t *testing.T) {
-	u, sess, repo := newJumpFixture(t)
+	u, sess := newJumpFixture()
 
-	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo, Back: true}
+	cmd := &commands.JumpCommand{Universe: u, Session: sess, Back: true}
 	_, err := cmd.Execute()
 
 	require.ErrorIs(t, err, commands.ErrAlreadyAtBaseTimeline)
-	repo.AssertNotCalled(t, "Save")
 }
 
 func TestJumpBack_NoReverseEdge_ReturnsError(t *testing.T) {
-	u, _, repo := newJumpFixture(t)
+	u, _ := newJumpFixture()
 
 	// T1 session but no reverse timeline edge in the graph
 	t1Coord := universe.DefaultCoordinateVO()
@@ -182,9 +147,8 @@ func TestJumpBack_NoReverseEdge_ReturnsError(t *testing.T) {
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord}))
 	sess := exploration.NewEntity("home-t1", t1Coord)
 
-	cmd := &commands.JumpCommand{Universe: u, Session: sess, Repo: repo, Back: true}
+	cmd := &commands.JumpCommand{Universe: u, Session: sess, Back: true}
 	_, err := cmd.Execute()
 
 	require.ErrorIs(t, err, commands.ErrNoTimelinePathBack)
-	repo.AssertNotCalled(t, "Save")
 }

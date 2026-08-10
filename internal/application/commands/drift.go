@@ -27,7 +27,6 @@ type DriftResult struct {
 type DriftCommand struct {
 	Universe *universe.Aggregate
 	Session  *exploration.Entity
-	Repo     universe.Repository
 	Back     bool
 }
 
@@ -73,9 +72,6 @@ func (c *DriftCommand) completeDrift(destID string, consensus int, reversed bool
 		Edges:     c.Universe.EdgesFrom(destID),
 		History:   c.Session.History(),
 		Reversed:  reversed,
-	}
-	if err := c.Repo.Save(c.Universe); err != nil {
-		return result, err
 	}
 	return result, nil
 }

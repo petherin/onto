@@ -11,8 +11,9 @@ const (
 
 	msgGoodbye            = "Goodbye."
 	msgAlreadyHome        = "You are already home."
+	msgSaved              = "Saved."
 	fmtUnknownDestSuggest = "Unknown destination: %s\n\nDid you mean '%s'?"
-	fmtSaveWarning        = "\n\nWarning: failed to save config: %v"
+	fmtExitSaveWarning    = "Warning: failed to save before exit: %v"
 
 	cmdHelp    = "help"
 	cmdWhere   = "where"
@@ -28,6 +29,7 @@ const (
 	cmdAlign   = "align"
 	cmdObserve = "observe"
 	cmdTime    = "time"
+	cmdSave    = "save"
 	cmdExit    = "exit"
 	argBack    = "back"
 )

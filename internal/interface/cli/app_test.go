@@ -7,7 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/petherin/onto/internal/domain/exploration"
+	"github.com/petherin/onto/internal/domain/navigation"
+	"github.com/petherin/onto/internal/domain/universe"
+	"github.com/petherin/onto/internal/mocks"
 	"github.com/stretchr/testify/assert"
+	testifymock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,6 +38,20 @@ func TestAppWhere(t *testing.T) {
 
 	assert.Contains(t, output, "Reality Coordinate")
 	assert.Contains(t, output, "Earth")
+}
+
+func newMockedApp(t *testing.T) (*App, *mocks.MockRepository) {
+	t.Helper()
+	u := mocks.NewTestUniverse()
+	loc, _ := u.GetLocation("home")
+	repo := mocks.NewMockRepository(t)
+	return &App{
+		universe:          u,
+		session:           exploration.NewEntity("home", loc.Coordinate),
+		repo:              repo,
+		pathfinder:        navigation.NewBFSPathfinder(),
+		locationGenerator: universe.NewSequentialLocationGenerator(),
+	}, repo
 }
 
 func TestAppRouteToStation(t *testing.T) {
@@ -254,9 +273,52 @@ func TestAppHelp_ListsAllCommands(t *testing.T) {
 	app := NewApp()
 	output := app.Execute("help")
 
-	for _, cmd := range []string{"where", "look", "ls", "route", "travel", "shift", "drift", "align", "observe", "exit"} {
+	for _, cmd := range []string{"where", "look", "ls", "route", "travel", "shift", "drift", "align", "observe", "save", "exit"} {
 		assert.Contains(t, output, cmd, "help should list command %q", cmd)
 	}
+}
+
+func TestAppShift_DoesNotSaveImmediately(t *testing.T) {
+	app, repo := newMockedApp(t)
+
+	output := app.Execute("shift")
+
+	assert.Contains(t, output, "Quantum branch entered")
+	repo.AssertNotCalled(t, "Save", testifymock.Anything)
+	assert.True(t, app.dirty)
+}
+
+func TestAppSaveCommand_SavesAndReportsSuccess(t *testing.T) {
+	app, repo := newMockedApp(t)
+	app.Execute("shift")
+	repo.EXPECT().Save(app.universe).Return(nil).Once()
+
+	output := app.Execute("save")
+
+	assert.Equal(t, msgSaved, output)
+	assert.False(t, app.dirty)
+}
+
+func TestAppSaveIfDirty_OnlySavesWhenDirty(t *testing.T) {
+	t.Run("dirty", func(t *testing.T) {
+		app, repo := newMockedApp(t)
+		app.dirty = true
+		repo.EXPECT().Save(app.universe).Return(nil).Once()
+
+		err := app.SaveIfDirty()
+
+		require.NoError(t, err)
+		assert.False(t, app.dirty)
+	})
+
+	t.Run("clean", func(t *testing.T) {
+		app, repo := newMockedApp(t)
+
+		err := app.SaveIfDirty()
+
+		require.NoError(t, err)
+		repo.AssertNotCalled(t, "Save", testifymock.Anything)
+	})
 }
 
 func TestAppUnknownCommand_SuggestsAlternative(t *testing.T) {
