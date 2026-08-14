@@ -42,3 +42,27 @@ func TestTimeCommand_RejectsInvalidTimestamp(t *testing.T) {
 
 	require.ErrorIs(t, err, commands.ErrInvalidTimeTarget)
 }
+
+func TestTimeCommand_SameTimeReturnsError(t *testing.T) {
+	u := mocks.NewTestUniverse()
+	home, _ := u.GetLocation("home")
+	session := exploration.NewEntity("home", home.Coordinate)
+
+	_, err := (&commands.TimeCommand{Universe: u, Session: session, Target: home.Coordinate.Time.Format(time.RFC3339)}).Execute()
+
+	require.ErrorIs(t, err, commands.ErrTimeUnchanged)
+}
+
+func TestTimeCommand_BackNoReverseEdge_ReturnsError(t *testing.T) {
+	u := mocks.NewTestUniverse()
+	home, _ := u.GetLocation("home")
+	target := time.Date(2042, 1, 2, 3, 4, 5, 0, time.UTC)
+	coord := home.Coordinate
+	coord.Time = target
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-at-20420102t030405z", Coordinate: coord}))
+	session := exploration.NewEntity("home-at-20420102t030405z", coord)
+
+	_, err := (&commands.TimeCommand{Universe: u, Session: session, Back: true}).Execute()
+
+	require.ErrorIs(t, err, commands.ErrNoTimePathBack)
+}

@@ -51,3 +51,17 @@ func TestDriftCommand_AlignAtConsensusReturnsError(t *testing.T) {
 
 	require.ErrorIs(t, err, commands.ErrAlreadyAtConsensus)
 }
+
+func TestDriftCommand_AlignNoReverseEdge_ReturnsError(t *testing.T) {
+	u, _ := newDriftFixture()
+
+	// Consensus 1 location exists but has no consensus-shift edge back to a lower level.
+	coord := universe.DefaultCoordinateVO()
+	coord.Consensus = 1
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-c1", Coordinate: coord}))
+	sess := exploration.NewEntity("home-c1", coord)
+
+	_, err := (&commands.DriftCommand{Universe: u, Session: sess, Back: true}).Execute()
+
+	require.ErrorIs(t, err, commands.ErrNoConsensusPathBack)
+}

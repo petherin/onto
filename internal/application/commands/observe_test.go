@@ -55,3 +55,26 @@ func TestObserveCommand_ReturnsToPreviousPerspective(t *testing.T) {
 	assert.True(t, result.Reversed)
 	assert.Equal(t, "Human", sess.Coordinate().Observer)
 }
+
+func TestObserveCommand_SamePerspectiveReturnsError(t *testing.T) {
+	u := mocks.NewTestUniverse()
+	loc, _ := u.GetLocation("home")
+	sess := exploration.NewEntity("home", loc.Coordinate)
+
+	_, err := (&commands.ObserveCommand{Universe: u, Session: sess, Observer: sess.Coordinate().Observer}).Execute()
+
+	require.ErrorIs(t, err, commands.ErrObserverUnchanged)
+}
+
+func TestObserveCommand_BackNoReverseEdge_ReturnsError(t *testing.T) {
+	u := mocks.NewTestUniverse()
+	base, _ := u.GetLocation("home")
+	machine := base.Coordinate
+	machine.Observer = "Machine"
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-o-machine", Coordinate: machine}))
+	sess := exploration.NewEntity("home-o-machine", machine)
+
+	_, err := (&commands.ObserveCommand{Universe: u, Session: sess, Back: true}).Execute()
+
+	require.ErrorIs(t, err, commands.ErrNoObserverPathBack)
+}
