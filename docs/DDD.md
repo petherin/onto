@@ -149,6 +149,56 @@ Commands and queries each return a result struct. The interface layer formats th
 
 `internal/interface/cli/` is the delivery mechanism. It knows about `bufio`, `fmt`, and the terminal. The domain has no knowledge that a CLI exists. Replacing the CLI with an HTTP API or a TUI would mean writing a new `interface/` package and leaving everything else untouched.
 
+### Example: tracing a `travel station` command through the layers
+
+Walking one request end-to-end shows how the layers hand off to each other
+without leaking responsibilities across boundaries.
+
+1. **Interface layer.** The user types `travel station`. `App.Execute` (in
+   `internal/interface/cli/app.go`) splits the input into command `travel` and
+   argument `station`, then dispatches to `App.Travel("station")`.
+2. **Interface → Application.** `App.Travel` constructs a `commands.TravelCommand`,
+   wiring in the current `*universe.Aggregate`, the user's `*exploration.Entity`
+   session, and the injected `navigation.PathfinderService`. It calls
+   `cmd.Execute("station")`. The CLI does not know *how* a route is found or
+   *what* makes a location reachable — it only knows how to invoke the command
+   and format whatever it returns.
+3. **Application → Domain (read).** `TravelCommand.Execute` normalises the
+   target to a location ID (`station`), confirms it exists via
+   `Universe.GetLocation`, then asks the injected `Pathfinder.FindRoute` (the
+   `BFSPathfinder` domain service) for the shortest path of `EdgeVO`s from the
+   session's current location to `station`.
+4. **Domain rule enforcement.** Still inside `TravelCommand.Execute`, each edge
+   in the returned path is checked against domain rules: `EdgeVO.Mode.IsPhysical()`
+   must hold, and both endpoints' `CoordinateVO`s must satisfy
+   `SamePhysicalReality`. This is where the domain concept "normal travel
+   cannot cross reality boundaries" is enforced — the application layer relies
+   on the domain to decide what is legal, it does not reimplement the rule.
+5. **Domain → Application (write).** Once the route passes validation,
+   `TravelCommand` sums the path's edge costs and calls
+   `Session.MoveTo(loc, pathCost)` on the `exploration.Entity`, which updates
+   the entity's current location, appends to its travel history, and
+   accumulates `CumulativeCost`. `TravelCommand` also calls the package-level
+   `isDeadEnd` helper to check whether `station` has any outgoing physical
+   edge other than the one just arrived from.
+6. **Result back to Interface.** `TravelCommand.Execute` returns a
+   `TravelResult` (destination `LocationEntity`, traversed `Path`, outgoing
+   `Edges`, updated `History`, and a `DeadEndHandled` flag) — plain data, no
+   strings. `App.Travel` passes it to `formatTravelResult` (in
+   `internal/interface/cli/display.go`), which renders the arrival message,
+   cumulative cost, and possible onward journeys as terminal text.
+7. **Dead-end branch (conditional).** If `DeadEndHandled` is true, `App.Travel`
+   runs a second use case, `commands.GenerateNearbyLocationCommand`, which
+   uses the domain factory `NewNearbyLocation` to materialise a new location
+   and bidirectional edges from `station`, then persists the updated universe
+   via the `Repository`. This keeps "report a dead end" (a read-like concern
+   inside `TravelCommand`) separate from "expand the graph" (a distinct
+   mutating use case), even though both are triggered by the same user input.
+
+At no point does the CLI decide what counts as a valid route, and at no point
+does the domain know it is being driven by a terminal. That separation is the
+practical payoff of the layering described above.
+
 ### Type-name suffixes
 
 Every exported domain type carries its role as a suffix — `Aggregate`, `Entity`, `VO`, `Service`, `Repository`, or `Spec`. This makes the role visible at the call site without needing to look up the definition. When you see `universe.CoordinateVO` in application code, you know immediately that it is a value object defined in the domain. The `Service` suffix is reserved for genuine services — interfaces with swappable implementations, such as `PathfinderService` — and is deliberately omitted from stateless domain functions like `BranchQuantum` or `BranchTimeline`, which are plain functions, not services.
