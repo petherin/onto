@@ -27,6 +27,7 @@ const (
 	cmdJump      = "jump"
 	cmdUniverse  = "universe"
 	cmdStructure = "structure"
+	cmdSimulate  = "simulate"
 	cmdDrift     = "drift"
 	cmdAlign     = "align"
 	cmdObserve   = "observe"

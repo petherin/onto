@@ -53,6 +53,7 @@ func (c *ReturnHomeCommand) Plan() ([]ReturnHomeStep, float64) {
 		count  int
 	}{
 		{universe.ConsensusShift, "align", universe.ConsensusShiftCost, c.Session.ConsensusLevel()},
+		{universe.SimulationEntry, "simulate back", universe.SimulationExitCost, c.Session.SimulationLevel()},
 		{universe.TimelineShift, "jump back", universe.TimelineShiftCost, c.Session.TimelineLevel()},
 		{universe.QuantumShift, "shift back", universe.QuantumShiftCost, c.Session.QuantumLevel()},
 		{universe.UniverseShift, "universe back", universe.UniverseShiftCost, c.Session.UniverseLevel()},
@@ -64,6 +65,8 @@ func (c *ReturnHomeCommand) Plan() ([]ReturnHomeStep, float64) {
 			switch transition.mode {
 			case universe.ConsensusShift:
 				detail = fmt.Sprintf("consensus %d → %d", current.Coordinate.Consensus, current.Coordinate.Consensus-1)
+			case universe.SimulationEntry:
+				detail = fmt.Sprintf("simulation %d → %d", current.Coordinate.Simulation, current.Coordinate.Simulation-1)
 			case universe.TimelineShift:
 				detail = fmt.Sprintf("timeline %s → T%d", current.Coordinate.Timeline, current.Coordinate.TimelineLevel()-1)
 			case universe.QuantumShift:
@@ -129,6 +132,13 @@ func (c *ReturnHomeCommand) Execute() ([]ReturnHomeStep, error) {
 			return steps, err
 		}
 		steps = append(steps, ReturnHomeStep{Action: "align", Detail: fmt.Sprintf("%d", result.Consensus), Cost: universe.ConsensusShiftCost})
+	}
+	for c.Session.SimulationLevel() > 0 {
+		result, err := (&SimulateCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
+		if err != nil {
+			return steps, err
+		}
+		steps = append(steps, ReturnHomeStep{Action: "simulate back", Detail: fmt.Sprintf("%d", result.Simulation), Cost: universe.SimulationExitCost})
 	}
 	for c.Session.TimelineLevel() > 0 {
 		result, err := (&JumpCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
@@ -210,7 +220,7 @@ func (c *ReturnHomeCommand) returnDestination(from string, mode universe.TravelM
 		return c.observerReturn(from)
 	case universe.TimeShift:
 		return c.timeReturn(from)
-	case universe.ConsensusShift, universe.TimelineShift, universe.QuantumShift, universe.UniverseShift, universe.MathematicalShift:
+	case universe.ConsensusShift, universe.SimulationEntry, universe.TimelineShift, universe.QuantumShift, universe.UniverseShift, universe.MathematicalShift:
 		return c.lowerContext(from, mode)
 	}
 	return "", false
@@ -246,6 +256,8 @@ func returnDetail(mode universe.TravelModeVO, current, origin universe.LocationE
 		return origin.Coordinate.Observer
 	case universe.ConsensusShift:
 		return fmt.Sprintf("%d", origin.Coordinate.Consensus)
+	case universe.SimulationEntry:
+		return fmt.Sprintf("%d", origin.Coordinate.Simulation)
 	case universe.TimelineShift:
 		return origin.Coordinate.Timeline
 	case universe.QuantumShift:
@@ -267,6 +279,8 @@ func planDetail(mode universe.TravelModeVO, current, origin universe.LocationEnt
 		return fmt.Sprintf("%s → %s", current.Coordinate.Observer, origin.Coordinate.Observer)
 	case universe.ConsensusShift:
 		return fmt.Sprintf("consensus %d → %d", current.Coordinate.Consensus, origin.Coordinate.Consensus)
+	case universe.SimulationEntry:
+		return fmt.Sprintf("simulation %d → %d", current.Coordinate.Simulation, origin.Coordinate.Simulation)
 	case universe.TimelineShift:
 		return fmt.Sprintf("timeline %s → %s", current.Coordinate.Timeline, origin.Coordinate.Timeline)
 	case universe.QuantumShift:
@@ -288,6 +302,9 @@ func (c *ReturnHomeCommand) unwind(mode universe.TravelModeVO) error {
 		return err
 	case universe.ConsensusShift:
 		_, err := (&DriftCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
+		return err
+	case universe.SimulationEntry:
+		_, err := (&SimulateCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		return err
 	case universe.TimelineShift:
 		_, err := (&JumpCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
@@ -314,6 +331,8 @@ func returnAction(mode universe.TravelModeVO) string {
 		return "observe back"
 	case universe.ConsensusShift:
 		return "align"
+	case universe.SimulationEntry:
+		return "simulate back"
 	case universe.TimelineShift:
 		return "jump back"
 	case universe.QuantumShift:
@@ -334,6 +353,8 @@ func returnCost(mode universe.TravelModeVO) float64 {
 		return universe.ObserverShiftCost
 	case universe.ConsensusShift:
 		return universe.ConsensusShiftCost
+	case universe.SimulationEntry:
+		return universe.SimulationExitCost
 	case universe.TimelineShift:
 		return universe.TimelineShiftCost
 	case universe.QuantumShift:
@@ -361,6 +382,10 @@ func (c *ReturnHomeCommand) lowerContext(from string, mode universe.TravelModeVO
 		switch mode {
 		case universe.ConsensusShift:
 			if dest.Coordinate.Consensus < current.Coordinate.Consensus {
+				return dest.ID, true
+			}
+		case universe.SimulationEntry:
+			if dest.Coordinate.Simulation < current.Coordinate.Simulation {
 				return dest.ID, true
 			}
 		case universe.TimelineShift:

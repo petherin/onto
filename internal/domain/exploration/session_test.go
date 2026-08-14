@@ -141,3 +141,26 @@ func TestMathematicsLevelAndNextID(t *testing.T) {
 		})
 	}
 }
+
+func TestSimulationLevelAndNextID(t *testing.T) {
+	tests := []struct {
+		name       string
+		locationID string
+		simulation int
+		wantLevel  int
+		wantNextID string
+	}{
+		{"base", "home", 0, 0, "home-s1"},
+		{"s1", "home-s1", 1, 1, "home-s2"},
+		{"s2", "home-s2", 2, 2, "home-s3"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			coord := defaultCoord()
+			coord.Simulation = tc.simulation
+			e := exploration.NewEntity(tc.locationID, coord)
+			assert.Equal(t, tc.wantLevel, e.SimulationLevel())
+			assert.Equal(t, tc.wantNextID, e.NextSimulationID())
+		})
+	}
+}

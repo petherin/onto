@@ -9,9 +9,17 @@ import (
 type ContextualTransitionSpec struct {
 	Mode               TravelModeVO
 	Cost               float64
+	ReverseCost        float64 // if zero, reverse edges use Cost
 	Label              string
 	ForwardDescription string
 	ReverseDescription string
+}
+
+func (s ContextualTransitionSpec) reverseCost() float64 {
+	if s.ReverseCost != 0 {
+		return s.ReverseCost
+	}
+	return s.Cost
 }
 
 // BranchContextual creates the branch root and materializes every
@@ -74,7 +82,7 @@ func materializePhysicalBranch(
 			From:        currentBranchID,
 			To:          currentID,
 			Mode:        spec.Mode,
-			Cost:        spec.Cost,
+			Cost:        spec.reverseCost(),
 			Description: spec.ReverseDescription,
 		}); err != nil {
 			return err
@@ -151,6 +159,8 @@ func neighborBranchID(neighborID string, mode TravelModeVO, destAxes axisSuffixe
 		ax.universe = destAxes.universe
 	case MathematicalShift:
 		ax.mathematics = destAxes.mathematics
+	case SimulationEntry:
+		ax.simulation = destAxes.simulation
 	}
 	return buildLocationID(base, ax)
 }

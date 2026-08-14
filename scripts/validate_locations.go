@@ -109,7 +109,7 @@ func checkIDMatchesCoordinate(location universe.LocationEntity) []string {
 		return nil
 	}
 
-	_, idMathematics, idUniverse, idQuantum, idTimeline, idConsensus, idTime, idObserver := universe.ParseLocationID(location.ID)
+	_, idMathematics, idUniverse, idQuantum, idTimeline, idConsensus, idSimulation, idTime, idObserver := universe.ParseLocationID(location.ID)
 
 	var problems []string
 	if idMathematics != location.Coordinate.MathematicsLevel() {
@@ -136,6 +136,11 @@ func checkIDMatchesCoordinate(location universe.LocationEntity) []string {
 		problems = append(problems, fmt.Sprintf(
 			"location %q: ID suggests consensus level %d but Coordinate.Consensus is %d",
 			location.ID, idConsensus, location.Coordinate.Consensus))
+	}
+	if idSimulation != location.Coordinate.Simulation {
+		problems = append(problems, fmt.Sprintf(
+			"location %q: ID suggests simulation depth %d but Coordinate.Simulation is %d",
+			location.ID, idSimulation, location.Coordinate.Simulation))
 	}
 	if (idTime != "") != !location.Coordinate.Time.IsZero() {
 		problems = append(problems, fmt.Sprintf(

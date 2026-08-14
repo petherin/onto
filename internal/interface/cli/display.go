@@ -16,9 +16,9 @@ func (a *App) Where() string {
 	r := q.Where()
 	coord := r.Coordinate
 	return fmt.Sprintf(
-		"Reality Coordinate\n%s\n\nMathematics: %s\nUniverse : %s\nTimeline : %s\nQuantum  : %s\nConsensus: %d\nPlanet   : %s\nCountry  : %s\nRegion   : %s\nCity     : %s\nLocation : %s\nObserver : %s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
+		"Reality Coordinate\n%s\n\nMathematics: %s\nUniverse : %s\nTimeline : %s\nQuantum  : %s\nSimulation: %d\nConsensus: %d\nPlanet   : %s\nCountry  : %s\nRegion   : %s\nCity     : %s\nLocation : %s\nObserver : %s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
 		coord.OntoAddress(),
-		coord.Mathematics, coord.Universe, coord.Timeline, coord.Quantum, coord.Consensus,
+		coord.Mathematics, coord.Universe, coord.Timeline, coord.Quantum, coord.Simulation, coord.Consensus,
 		coord.Planet, coord.Country, coord.Region, coord.City, coord.Location, coord.Observer,
 		a.session.CumulativeCost(),
 		a.formatEdges(r.Edges),
@@ -139,6 +139,19 @@ func (a *App) formatStructureResult(r *commands.StructureResult) string {
 	return base
 }
 
+func (a *App) formatSimulateResult(r *commands.SimulateResult) string {
+	verb := "Simulation layer entered"
+	if r.Reversed {
+		verb = "Simulation layer exited"
+	}
+	base := fmt.Sprintf("Crossing the simulation boundary...\n\n%s: depth %d\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
+		verb, r.Simulation, r.Location.Description,
+		a.session.CumulativeCost(),
+		a.formatEdges(r.Edges),
+	)
+	return base
+}
+
 func (a *App) formatRouteResult(r *queries.RouteResult) string {
 	var steps []string
 	for _, edge := range r.Steps {
@@ -173,6 +186,8 @@ const (
 	journeyUniverseBack
 	journeyStructure
 	journeyStructureBack
+	journeySimulate
+	journeySimulateBack
 	journeyDrift
 	journeyAlign
 	journeyObserveBack
@@ -191,6 +206,7 @@ func (a *App) journeyOptions(edges []universe.EdgeVO) ([]journeyOption, bool) {
 	hasReverseTimeline := false
 	hasReverseUniverse := false
 	hasReverseMathematics := false
+	hasReverseSimulation := false
 	hasReverseConsensus := false
 	hasReverseObserver := false
 	hasReverseTime := false
@@ -233,6 +249,13 @@ func (a *App) journeyOptions(edges []universe.EdgeVO) ([]journeyOption, bool) {
 			if dest, ok := a.universe.GetLocation(edge.To); ok {
 				if dest.Coordinate.MathematicsLevel() < a.session.MathematicsLevel() {
 					hasReverseMathematics = true
+				}
+			}
+		case universe.SimulationEntry:
+			// Don't list simulation edges as regular journeys — they need 'simulate' or 'simulate back'.
+			if dest, ok := a.universe.GetLocation(edge.To); ok {
+				if dest.Coordinate.Simulation < a.session.SimulationLevel() {
+					hasReverseSimulation = true
 				}
 			}
 		case universe.ConsensusShift:
@@ -290,6 +313,16 @@ func (a *App) journeyOptions(edges []universe.EdgeVO) ([]journeyOption, bool) {
 		options = append(options, journeyOption{
 			kind:        journeyStructureBack,
 			description: "Return to the previous mathematical structure (structure back)",
+		})
+	}
+	options = append(options, journeyOption{
+		kind:        journeySimulate,
+		description: fmt.Sprintf("%s (simulation, %.0f — simulate)", a.session.NextSimulationID(), universe.SimulationEntryCost),
+	})
+	if hasReverseSimulation {
+		options = append(options, journeyOption{
+			kind:        journeySimulateBack,
+			description: fmt.Sprintf("Exit one simulation layer (simulate back, %.0f)", universe.SimulationExitCost),
 		})
 	}
 	options = append(options, journeyOption{

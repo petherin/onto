@@ -42,7 +42,7 @@ flowchart TB
     end
 
     subgraph Application["Application layer — orchestrates use cases"]
-        Commands["Commands: Travel, Shift, Jump, Universe, Structure,<br/>Drift, Observe, Time, CreateLocation, ReturnHome<br/>Coordinate domain work and persistence"]
+        Commands["Commands: Travel, Shift, Jump, Universe, Structure,<br/>Simulate, Drift, Observe, Time, CreateLocation, ReturnHome<br/>Coordinate domain work and persistence"]
         Queries["Queries: Lookup, Route<br/>Read domain state without mutation"]
     end
 
@@ -99,7 +99,7 @@ This means the graph can never be left in a half-constructed state by a caller t
 
 Creating a quantum, timeline, or consensus branch is not something a `LocationEntity` does to itself, and it is not something `UniverseAggregate` should know the details of. It is a process: create the destination location, materialize coordinate-matched copies of the reachable physical graph, add physical and contextual return edges, and enforce idempotency.
 
-`BranchContextual` in `internal/domain/universe/branch.go` owns that shared process. `ContextualTransitionSpec` declares the shared transition policy (mode, cost, labels, and descriptions), while the caller supplies the destination coordinate. `BranchQuantum`, `BranchTimeline`, `BranchUniverse`, `BranchMathematics`, `BranchConsensus`, and `BranchObserver` provide the policies and destination coordinates for their respective axes. This keeps the aggregate responsible for storing graph state while these stateless domain functions protect navigation invariants. They are plain package-level functions rather than services — they have no dependencies to inject and no interface to swap, so the `Service` suffix would misleadingly imply otherwise.
+`BranchContextual` in `internal/domain/universe/branch.go` owns that shared process. `ContextualTransitionSpec` declares the shared transition policy (mode, cost, optional reverse cost, labels, and descriptions), while the caller supplies the destination coordinate. `BranchQuantum`, `BranchTimeline`, `BranchUniverse`, `BranchMathematics`, `BranchSimulation`, `BranchConsensus`, and `BranchObserver` provide the policies and destination coordinates for their respective axes. This keeps the aggregate responsible for storing graph state while these stateless domain functions protect navigation invariants. They are plain package-level functions rather than services — they have no dependencies to inject and no interface to swap, so the `Service` suffix would misleadingly imply otherwise.
 
 `PathfinderService` in `internal/domain/navigation/pathfinder.go` is a genuine domain
 service: it is an interface with a swappable implementation (`BFSPathfinder`),
@@ -131,6 +131,7 @@ The application layer in `internal/application/` contains use cases, not busines
 - `JumpCommand` — calls `BranchTimeline`, moves the session, accumulates timeline shift cost, saves.
 - `UniverseCommand` — calls `BranchUniverse`, moves the session, accumulates bubble-universe shift cost, saves.
 - `StructureCommand` — calls `BranchMathematics`, moves the session, accumulates mathematical-structure shift cost, saves.
+- `SimulateCommand` — calls `BranchSimulation`, moves the session, accumulates simulation entry/exit cost, saves.
 - `DriftCommand` — calls `BranchConsensus`, moves the session, accumulates consensus-transition cost, saves.
 - `ObserveCommand` — calls `BranchObserver`, moves the session, accumulates observer-shift cost, saves.
 - `TimeCommand` — calls `BranchTime`, moves the session to an RFC3339 timestamp, accumulates temporal-shift cost, saves.
@@ -141,10 +142,10 @@ The application layer in `internal/application/` contains use cases, not busines
 
 `ReturnHomeCommand` in the application layer orchestrates multiple commands in
 sequence (repeated `ObserveCommand` returns, `DriftCommand` alignment,
-`TimeCommand` returns, `JumpCommand` back, `ShiftCommand` back, `UniverseCommand`
-back, `StructureCommand` back, then `TravelCommand` to the start location). The
-CLI asks for confirmation and formats the command's plan and result, but
-contains none of the return-home workflow.
+`SimulateCommand` exits, `TimeCommand` returns, `JumpCommand` back, `ShiftCommand`
+back, `UniverseCommand` back, `StructureCommand` back, then `TravelCommand` to the
+start location). The CLI asks for confirmation and formats the command's plan
+and result, but contains none of the return-home workflow.
 
 Commands and queries each return a result struct. The interface layer formats that struct for the terminal; the application layer never touches a string.
 

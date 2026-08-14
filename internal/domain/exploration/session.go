@@ -83,6 +83,12 @@ func (s *Entity) TransitionTo(loc universe.LocationEntity, cost float64, mode un
 		label = "consensus drift"
 	case universe.MathematicalShift:
 		label = "mathematical structure shift"
+	case universe.SimulationEntry:
+		if reversed {
+			label = "simulation exit"
+		} else {
+			label = "simulation entry"
+		}
 	}
 	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (%s)", prev, loc.ID, label))
 	if reversed {
@@ -152,6 +158,17 @@ func (s *Entity) ConsensusLevel() int {
 // current position, canonicalized (see NextQuantumID).
 func (s *Entity) NextConsensusID() string {
 	return universe.CanonicalIDWithConsensus(s.currentLocation, s.ConsensusLevel()+1)
+}
+
+// SimulationLevel returns the current nested-simulation depth (0 = base reality).
+func (s *Entity) SimulationLevel() int {
+	return s.currentCoordinate.Simulation
+}
+
+// NextSimulationID returns the location ID that 'simulate' would move to from
+// the current position, canonicalized (see NextQuantumID).
+func (s *Entity) NextSimulationID() string {
+	return universe.CanonicalIDWithSimulation(s.currentLocation, s.SimulationLevel()+1)
 }
 
 // NextObserverID returns the location ID that 'observe' would move to from

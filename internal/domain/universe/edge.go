@@ -55,6 +55,14 @@ const ObserverShiftCost = 2.0
 // TimeShiftCost is the cost of changing the temporal coordinate.
 const TimeShiftCost = 100.0
 
+// SimulationEntryCost is the cost of entering one simulation layer deeper.
+// The boundary is intentionally cheap to cross inward.
+const SimulationEntryCost = 10.0
+
+// SimulationExitCost is the cost of leaving one simulation layer.
+// Exiting is harder than entering — you must find or construct a way out.
+const SimulationExitCost = 50.0
+
 // IsPhysical reports whether a TravelModeVO can be used with the travel command.
 // Non-physical modes (quantum, timeline, etc.) require dedicated commands.
 func (m TravelModeVO) IsPhysical() bool {

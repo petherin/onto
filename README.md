@@ -70,7 +70,7 @@ A coarser historical fork than quantum mechanics — a macroscopic divergence po
 Every universe has a temporal dimension. Navigating to a different point in time within the same location, branch, and timeline — past or future — is cheaper than most transitions, but increasingly expensive the further you travel.
 
 #### Simulation depth
-If a reality can be computed, it can be nested. Simulation depth tracks whether you are in base reality or inside a computed world running on top of it. A simulated reality contains its own complete universe: its own Level I spatial regions, Level III quantum branches, and all the branching/temporal axes within. Entering a simulation is relatively cheap; the boundary is designed to be crossed. Exiting requires finding or constructing a way out.
+If a reality can be computed, it can be nested. Simulation depth tracks whether you are in base reality or inside a computed world running on top of it. A simulated reality contains its own complete universe: its own Level I spatial regions, Level III quantum branches, and all the branching/temporal axes within. `simulate` enters one layer deeper (cost 10); `simulate back` exits one layer toward base reality (cost 50 — harder to leave than to enter).
 
 #### Observer (umwelt)
 Reality is never perceived directly — it is filtered through the senses and cognition of an observer. Two observers in the same location, same quantum branch, same timeline, same time, same simulation depth can inhabit entirely different experienced worlds. A bat, a human, and an AI standing in the same room share the same full coordinate but different umwelts. An observer shift changes whose perceptual frame you occupy. Cost: low, but hard to reverse.
@@ -275,7 +275,7 @@ type CoordinateVO struct {
 }
 ```
 
-The current implementation navigates the physical layers (planet through location), quantum, timeline, consensus, observer, universe (Tegmark Level II), and mathematics (Tegmark Level IV) axes. A non-spatial transition materializes coordinate-matched copies of reachable physical locations, so local travel remains within that context. Simulation depth is present in the struct and ready to be navigated once its edge type is introduced.
+The current implementation navigates the physical layers (planet through location), quantum, timeline, consensus, observer, simulation, universe (Tegmark Level II), and mathematics (Tegmark Level IV) axes. A non-spatial transition materializes coordinate-matched copies of reachable physical locations, so local travel remains within that context.
 
 ### Contextual transition rules
 
@@ -289,16 +289,16 @@ preserves every other active context.
 | `drift` | Quantum, timeline, simulation, observer, and physical location | Nothing |
 | Observer shift | Every other axis | Nothing |
 | Time travel | Every other axis | Nothing |
-| Simulation entry | Observer and consensus | The simulated world's universe, timeline, quantum, and physical map |
+| Simulation entry | Every other axis (nested map is rematerialized at the new depth) | Nothing (stacks) |
 | Universe transition | Mathematics and applicable observer/experience overlays | Nothing (stacks; physical map is rematerialized in the new bubble) |
 | Mathematical-structure transition | Applicable observer/experience overlays and lower axes | Nothing (stacks; physical map is rematerialized in the new formal system) |
 
-`shift`, `jump`, `drift`, observer shifts, time shifts, `universe` shifts, and
-`structure` (mathematical-structure) shifts are implemented. The remaining row
-(simulation entry) defines the intended behavior for a future transition type.
-`home` is the explicit unwind operation: it returns consensus, time, timeline,
-quantum, universe, and mathematics axes to their base levels and restores the
-default observer before travelling physically to the start location.
+`shift`, `jump`, `drift`, observer shifts, time shifts, `simulate` / `simulate back`,
+`universe` shifts, and `structure` (mathematical-structure) shifts are all
+implemented. `home` is the explicit unwind operation: it returns consensus,
+simulation, time, timeline, quantum, universe, and mathematics axes to their
+base levels and restores the default observer before travelling physically to
+the start location.
 
 ## Example CLI experience
 
@@ -328,6 +328,8 @@ universe               Shift forward to the next bubble universe (cost 5000)
 universe back          Return to the previous bubble universe
 structure              Shift forward to the next mathematical structure (cost 50000)
 structure back         Return to the previous mathematical structure
+simulate               Enter the next nested simulation layer (cost 10)
+simulate back          Exit one simulation layer toward base reality (cost 50)
 drift                  Enter the next consensus divergence (cost 5)
 align                  Return one level toward shared consensus
 observe <observer>     Change observer perspective (cost 2)
@@ -346,18 +348,19 @@ exit                   Leave the CLI
 The app is functional. It includes:
 
 - a command entrypoint in `cmd/cli` (plain REPL) and a multi-pane TUI entrypoint in `cmd/dashboard`
-- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `home`, `cost`, `shift`, `shift back`, `jump`, `jump back`, `universe`, `universe back`, `structure`, `structure back`, `drift`, `align`, `observe`, `observe back`, `time`, `time back`, `save`, and `exit` commands
+- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `home`, `cost`, `shift`, `shift back`, `jump`, `jump back`, `universe`, `universe back`, `structure`, `structure back`, `simulate`, `simulate back`, `drift`, `align`, `observe`, `observe back`, `time`, `time back`, `save`, and `exit` commands
 - BFS-based graph routing across locations with travel modes (walk, rail, etc.)
 - quantum branch navigation: `shift` jumps forward to the next branch (cost 20); `shift back` returns to the previous one
 - timeline branch navigation: `jump` jumps forward to the next alternate history (cost 800); `jump back` returns to the previous one
 - bubble-universe navigation: `universe` shifts forward to the next universe (cost 5000); `universe back` returns to the previous one
 - mathematical-structure navigation (Tegmark Level IV): `structure` shifts forward to the next formal system (cost 50000); `structure back` returns to the previous one
+- simulation-depth navigation: `simulate` enters one nested layer (cost 10); `simulate back` exits one layer (cost 50)
 - consensus divergence navigation: `drift` enters the next divergent state (cost 5); `align` returns one level toward shared consensus
 - observer navigation: `observe <observer>` changes perception (cost 2); `observe back` returns to the prior perspective
 - temporal navigation: `time <RFC3339>` enters a timestamped branch (cost 100); `time back` returns to the prior temporal branch
 - each non-spatial transition creates coordinate-matched physical locations and contextual return edges, so local travel and returning remain available throughout a branch
 - `travel` rejects routes that cross any reality boundary (quantum, timeline, consensus, simulation, observer, universe, or mathematics) — physical and non-physical travel are kept separate
-- `home` command: shows the full plan and estimated cost to restore the observer, align consensus, unwind temporal, timeline, quantum, universe, and mathematics shifts, then travel back to the start location before asking for confirmation
+- `home` command: shows the full plan and estimated cost to restore the observer, align consensus, unwind simulation, temporal, timeline, quantum, universe, and mathematics shifts, then travel back to the start location before asking for confirmation
 - cumulative journey cost tracked across the session and shown in `where` output and after every move
 - a full coordinate model covering mathematics, universe, timeline, quantum, simulation, consensus, physical location, observer, and time
 - location and edge data loaded from `data/locations.json`, with a built-in fallback map
@@ -454,7 +457,7 @@ Pushes to `main` automatically run unit tests, linting, and saved-universe valid
 7. ~~Support consensus divergence transitions.~~ ✓ (`drift` / `align`)
 8. ~~Support universe transitions (higher-cost exotic modes).~~ ✓ (`universe` / `universe back`)
 9. ~~Support mathematical-structure transitions (Tegmark Level IV).~~ ✓ (`structure` / `structure back`)
-10. Expand navigation with simulation depth.
+10. ~~Expand navigation with simulation depth.~~ ✓ (`simulate` / `simulate back`)
 11. Evolve the CLI into a true reality navigator.
 
 ## Notes

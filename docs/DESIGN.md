@@ -223,10 +223,10 @@ Simulation axis
 The `Simulation int` axis represents depth within nested simulations. At depth 0 you are in base reality (or what you take to be base reality). Each `SimulationEntry` edge increments the depth by one. Simulations can be arbitrarily nested, and the routing graph can represent them as subgraphs reachable only through a simulation boundary edge.
 
 Cost implications:
-- Entering a simulation: low cost (the boundary is intentionally designed to be crossed)
-- Exiting a simulation: moderate cost (requires finding or constructing an exit)
+- Entering a simulation: low cost (10) — the boundary is intentionally designed to be crossed (`simulate`)
+- Exiting a simulation: moderate cost (50) — requires finding or constructing an exit (`simulate back`)
 - Determining whether you are inside a simulation: undefined — this is left to the observer
 
-The simulation axis interacts with the observer axis: changing umwelt inside a simulation may be easier than in base reality, because the simulation's rules are malleable.
+The simulation axis interacts with the observer axis: changing umwelt inside a simulation may be easier than in base reality, because the simulation's rules are malleable. Implementation uses `BranchSimulation` with asymmetric forward/reverse edge costs via `ContextualTransitionSpec.ReverseCost`.
 
 Use these notes as a guide when extending Onto beyond local navigation: they explain the address model, rendering choices, and the vector-based view that unifies walking and exotic reality transitions.

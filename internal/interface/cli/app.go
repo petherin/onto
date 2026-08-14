@@ -144,6 +144,11 @@ func (a *App) Execute(input string) string {
 			return a.StructureBack()
 		}
 		return a.Structure()
+	case cmdSimulate:
+		if args == argBack {
+			return a.SimulateBack()
+		}
+		return a.Simulate()
 	case cmdDrift:
 		return a.Drift()
 	case cmdAlign:
@@ -203,6 +208,8 @@ func (a *App) Help() string {
 		"universe back          Return to the previous bubble universe",
 		"structure              Shift forward to the next mathematical structure",
 		"structure back         Return to the previous mathematical structure",
+		"simulate               Enter the next nested simulation layer",
+		"simulate back          Exit one simulation layer toward base reality",
 		"drift                  Enter the next consensus divergence",
 		"align                  Return one level toward shared consensus",
 		"observe <observer>     Change observer perspective",
@@ -251,6 +258,9 @@ func (a *App) Travel(target string) string {
 			}
 			if norm == a.session.NextMathematicsID() {
 				return fmt.Sprintf("%s is a mathematical structure — use 'structure' to enter it", target)
+			}
+			if norm == a.session.NextSimulationID() {
+				return fmt.Sprintf("%s is a nested simulation — use 'simulate' to enter it", target)
 			}
 			// Destination not found — try a fuzzy suggestion.
 			if suggestion := a.suggestDestination(target); suggestion != "" {
@@ -366,6 +376,28 @@ func (a *App) StructureBack() string {
 	return a.formatStructureResult(result)
 }
 
+// Simulate enters the next nested simulation layer.
+func (a *App) Simulate() string {
+	cmd := &commands.SimulateCommand{Universe: a.universe, Session: a.session}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Simulation entry failed: %v", err)
+	}
+	a.markDirty()
+	return a.formatSimulateResult(result)
+}
+
+// SimulateBack exits one simulation layer toward base reality.
+func (a *App) SimulateBack() string {
+	cmd := &commands.SimulateCommand{Universe: a.universe, Session: a.session, Back: true}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot exit simulation: %v", err)
+	}
+	a.markDirty()
+	return a.formatSimulateResult(result)
+}
+
 // Drift enters the next consensus divergence.
 func (a *App) Drift() string {
 	cmd := &commands.DriftCommand{Universe: a.universe, Session: a.session}
@@ -457,6 +489,10 @@ func (a *App) ExecuteJourney(number int) string {
 		return a.Structure()
 	case journeyStructureBack:
 		return a.StructureBack()
+	case journeySimulate:
+		return a.Simulate()
+	case journeySimulateBack:
+		return a.SimulateBack()
 	case journeyDrift:
 		return a.Drift()
 	case journeyAlign:
