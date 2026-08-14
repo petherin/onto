@@ -70,54 +70,6 @@ func (s *Entity) MoveTo(loc universe.LocationEntity, cost float64) {
 	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s", prev, loc.ID))
 }
 
-// ShiftTo updates position for a quantum shift, adds cost, and records it in travel history.
-func (s *Entity) ShiftTo(loc universe.LocationEntity, cost float64) {
-	prev := s.currentLocation
-	s.currentLocation = loc.ID
-	s.currentCoordinate = loc.Coordinate
-	s.cumulativeCost += cost
-	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (quantum shift)", prev, loc.ID))
-}
-
-// JumpTo updates position for a timeline shift, adds cost, and records it in travel history.
-func (s *Entity) JumpTo(loc universe.LocationEntity, cost float64) {
-	prev := s.currentLocation
-	s.currentLocation = loc.ID
-	s.currentCoordinate = loc.Coordinate
-	s.cumulativeCost += cost
-	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (timeline shift)", prev, loc.ID))
-}
-
-// DriftTo updates position for a consensus divergence transition, adds cost,
-// and records it in travel history.
-func (s *Entity) DriftTo(loc universe.LocationEntity, cost float64) {
-	prev := s.currentLocation
-	s.currentLocation = loc.ID
-	s.currentCoordinate = loc.Coordinate
-	s.cumulativeCost += cost
-	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (consensus drift)", prev, loc.ID))
-}
-
-// ObserveTo updates position for an observer shift, adds cost, and records it
-// in travel history.
-func (s *Entity) ObserveTo(loc universe.LocationEntity, cost float64) {
-	prev := s.currentLocation
-	s.currentLocation = loc.ID
-	s.currentCoordinate = loc.Coordinate
-	s.cumulativeCost += cost
-	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (observer shift)", prev, loc.ID))
-}
-
-// TimeTo updates position for a temporal shift, adds cost, and records it in
-// travel history.
-func (s *Entity) TimeTo(loc universe.LocationEntity, cost float64) {
-	prev := s.currentLocation
-	s.currentLocation = loc.ID
-	s.currentCoordinate = loc.Coordinate
-	s.cumulativeCost += cost
-	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (time shift)", prev, loc.ID))
-}
-
 // TransitionTo applies a contextual movement and records or removes its
 // ancestry entry. Reversed transitions only pop the matching latest entry.
 func (s *Entity) TransitionTo(loc universe.LocationEntity, cost float64, mode universe.TravelModeVO, reversed bool) {

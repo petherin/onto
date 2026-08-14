@@ -45,13 +45,13 @@ func TestMoveTo_AccumulatesCostAcrossMultipleMoves(t *testing.T) {
 	assert.Equal(t, 10.0, e.CumulativeCost())
 }
 
-func TestShiftTo_RecordsQuantumShiftInHistory(t *testing.T) {
+func TestTransitionTo_RecordsQuantumShiftInHistory(t *testing.T) {
 	e := exploration.NewEntity("home", defaultCoord())
 	q1Coord := defaultCoord()
 	q1Coord.Quantum = "Q1"
 	loc := universe.LocationEntity{ID: "home-q1", Coordinate: q1Coord}
 
-	e.ShiftTo(loc, 20.0)
+	e.TransitionTo(loc, 20.0, universe.QuantumShift, false)
 
 	assert.Equal(t, "home-q1", e.Location())
 	assert.Equal(t, "Q1", e.Coordinate().Quantum)
@@ -59,13 +59,13 @@ func TestShiftTo_RecordsQuantumShiftInHistory(t *testing.T) {
 	assert.Contains(t, e.History(), "home -> home-q1 (quantum shift)")
 }
 
-func TestJumpTo_RecordsTimelineShiftInHistory(t *testing.T) {
+func TestTransitionTo_RecordsTimelineShiftInHistory(t *testing.T) {
 	e := exploration.NewEntity("home", defaultCoord())
 	t1Coord := defaultCoord()
 	t1Coord.Timeline = "T1"
 	loc := universe.LocationEntity{ID: "home-t1", Coordinate: t1Coord}
 
-	e.JumpTo(loc, 800.0)
+	e.TransitionTo(loc, 800.0, universe.TimelineShift, false)
 
 	assert.Equal(t, "home-t1", e.Location())
 	assert.Equal(t, "T1", e.Coordinate().Timeline)
