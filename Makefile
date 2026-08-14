@@ -31,6 +31,16 @@ debug-dashboard:       ## Start a headless Delve debug server on :2345 for the d
 	@echo "Delve listening on :$(DEBUG_PORT) — attach your IDE debugger now (VS Code: 'Attach to Onto (Delve)')"
 	$(DLV_BIN) debug ./cmd/dashboard --headless --listen=:$(DEBUG_PORT) --api-version=2 --accept-multiclient
 
+.PHONY: debug-kill
+debug-kill:            ## Force-kill any stuck dlv/debug processes (use if a debug session hangs, e.g. paused at a breakpoint after the client disconnects)
+	@pids=$$(pgrep -f 'dlv debug|dlv exec|__debug_bin|debugserver.*__debug_bin' 2>/dev/null); \
+	if [ -z "$$pids" ]; then \
+		echo "No stuck debug processes found."; \
+	else \
+		echo "Killing: $$pids"; \
+		kill -9 $$pids; \
+	fi
+
 .PHONY: docker-run
 docker-run: docker-build  ## Build (if needed) and run the app in Docker
 	docker compose run --rm onto

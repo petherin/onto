@@ -10,6 +10,7 @@ bin/
 *.so
 *.dylib
 *.test
+__debug_bin*
 
 # Editor directories and files
 .idea/
