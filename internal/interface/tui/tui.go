@@ -21,6 +21,22 @@ const (
 	msgGoodbye     = "Goodbye."
 	msgAlreadyHome = "You are already home."
 	cmdHome        = "home"
+	cmdList        = "ls"
+
+	// maxNavPaneHeight caps how many content rows the Navigation Options
+	// pane can grow to before it becomes an internally scrollable viewport,
+	// so a long list of options can never push the Log pane off screen.
+	maxNavPaneHeight = 8
+)
+
+// focusTarget identifies which scrollable pane (Log or Navigation Options)
+// currently receives arrow/page-up/page-down key presses. Tab cycles focus
+// between them; the command input always receives text regardless of focus.
+type focusTarget int
+
+const (
+	focusLog focusTarget = iota
+	focusNav
 )
 
 var (
@@ -28,6 +44,9 @@ var (
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("62")).
 			Padding(0, 1)
+
+	focusedPaneStyle = paneStyle.Copy().
+				BorderForeground(lipgloss.Color("205"))
 
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -45,12 +64,22 @@ type Model struct {
 	app   *cli.App
 	input textinput.Model
 	log   viewport.Model
+	nav   viewport.Model
 
 	width  int
 	height int
 	ready  bool
 
 	history []string
+
+	// navContent is the last wrapped Navigation Options body rendered into
+	// the nav viewport; refreshNav compares against it so a re-render with
+	// unchanged content doesn't reset the user's scroll position.
+	navContent string
+
+	// focus selects which scrollable pane (Log or Navigation Options)
+	// receives arrow/page-up/page-down keys; Tab toggles it.
+	focus focusTarget
 
 	// awaitingHomeConfirm is set while the user is being asked to confirm the
 	// 'home' journey plan produced by App.GoHome.
@@ -98,11 +127,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.ready {
 			m.log = viewport.New(m.logContentWidth(), 3)
 			m.log.SetContent(m.wrappedHistory())
+			m.nav = viewport.New(m.logContentWidth(), 1)
 			m.ready = true
 		} else {
 			m.log.Width = m.logContentWidth()
 			m.log.SetContent(m.wrappedHistory())
+			m.nav.Width = m.logContentWidth()
 		}
+		m.refreshNav()
 		m.input.Width = m.width - 4
 		return m, nil
 
@@ -110,6 +142,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			return m.quit()
+		case tea.KeyTab:
+			if m.focus == focusLog {
+				m.focus = focusNav
+			} else {
+				m.focus = focusLog
+			}
+			return m, nil
 		case tea.KeyEnter:
 			line := strings.TrimSpace(m.input.Value())
 			m.input.SetValue("")
@@ -120,7 +159,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
 	var cmd2 tea.Cmd
-	m.log, cmd2 = m.log.Update(msg)
+	if m.focus == focusNav {
+		m.nav, cmd2 = m.nav.Update(msg)
+	} else {
+		m.log, cmd2 = m.log.Update(msg)
+	}
 	return m, tea.Batch(cmd, cmd2)
 }
 
@@ -139,6 +182,7 @@ func (m Model) handleLine(line string) (tea.Model, tea.Cmd) {
 			m.appendLog("Cancelled.")
 		}
 		m.refreshLog()
+		m.refreshNav()
 		return m, nil
 	}
 
@@ -152,6 +196,7 @@ func (m Model) handleLine(line string) (tea.Model, tea.Cmd) {
 			m.awaitingHomeConfirm = true
 		}
 		m.refreshLog()
+		m.refreshNav()
 		return m, nil
 	}
 
@@ -161,11 +206,25 @@ func (m Model) handleLine(line string) (tea.Model, tea.Cmd) {
 		m.refreshLog()
 		return m.quit()
 	}
-	if response != "" {
-		m.appendLog(response)
+	// The 'ls' command's response, and the "Possible journeys" section that
+	// several other commands (travel, shift, jump, drift, observe, time)
+	// append to their own output, just repeat the Navigation Options pane,
+	// which is always visible, so don't also clutter the Log with them.
+	if response != "" && fields[0] != cmdList {
+		m.appendLog(stripPossibleJourneys(response))
 	}
 	m.refreshLog()
+	m.refreshNav()
 	return m, nil
+}
+
+// stripPossibleJourneys removes a trailing "Possible journeys" section (and
+// its blank-line separator) from a command's response text, if present.
+func stripPossibleJourneys(s string) string {
+	if idx := strings.Index(s, "\n\nPossible journeys"); idx != -1 {
+		return strings.TrimRight(s[:idx], "\n")
+	}
+	return s
 }
 
 func (m Model) quit() (tea.Model, tea.Cmd) {
@@ -205,6 +264,34 @@ func (m *Model) refreshLog() {
 	m.log.SetYOffset(newestStart)
 }
 
+// refreshNav re-renders the Navigation Options pane's content into its
+// viewport and sizes the viewport to fit the content up to maxNavPaneHeight,
+// so a short options list keeps a compact pane while a long one becomes
+// scrollable instead of growing without bound and pushing the Log pane off
+// screen. It only resets the scroll position when the content actually
+// changed, so refreshing after an unrelated command doesn't jump the user
+// back to the top if they had scrolled the pane themselves.
+func (m *Model) refreshNav() {
+	if !m.ready {
+		return
+	}
+	content := lipgloss.NewStyle().Width(m.logContentWidth()).Render(m.app.List())
+	height := strings.Count(content, "\n") + 1
+	if height > maxNavPaneHeight {
+		height = maxNavPaneHeight
+	}
+	if height < 1 {
+		height = 1
+	}
+	m.nav.Height = height
+	if content == m.navContent {
+		return
+	}
+	m.navContent = content
+	m.nav.SetContent(content)
+	m.nav.GotoTop()
+}
+
 // wrappedHistoryEntries returns each log entry word-wrapped to the log
 // pane's current content width, so long lines fold instead of being
 // truncated by the viewport.
@@ -240,9 +327,21 @@ func (m Model) View() string {
 	leftWidth := topWidth / 2
 	rightWidth := topWidth - leftWidth
 
-	locationPane := m.pane("Location", m.app.Look(), leftWidth)
-	costPane := m.pane("Cost", m.app.Cost(), rightWidth)
-	navPane := m.pane("Navigation Options", m.app.List(), topWidth)
+	locationPane := m.pane("Location", m.app.Look(), leftWidth, false)
+	costPane := m.pane("Cost", m.app.Cost(), rightWidth, false)
+
+	navStyle := paneStyle
+	navTitle := "Navigation Options"
+	if m.focus == focusNav {
+		navStyle = focusedPaneStyle
+		navTitle += " (↑/↓ scroll, Tab to switch)"
+	} else if strings.Count(m.navContent, "\n")+1 > maxNavPaneHeight {
+		navTitle += " (Tab to scroll)"
+	}
+	m.nav.Width = m.logContentWidth()
+	navPane := navStyle.Width(topWidth).Render(
+		titleStyle.Render(navTitle) + "\n" + m.nav.View(),
+	)
 
 	top := lipgloss.JoinHorizontal(lipgloss.Top, locationPane, costPane)
 
@@ -251,25 +350,35 @@ func (m Model) View() string {
 	// Reserve space for everything except the log pane, then give the log
 	// pane whatever rows remain (minimum 3 for its border + one content line).
 	reserved := lipgloss.Height(top) + lipgloss.Height(navPane) + lipgloss.Height(inputLine)
-	logHeight := m.height - reserved - 2 // -2 for the log pane's own border
+	logHeight := m.height - reserved - 3 // -3 for the log pane's own top/bottom border plus its title row
 	if logHeight < 1 {
 		logHeight = 1
 	}
 	m.log.Width = m.logContentWidth()
 	m.log.Height = logHeight
 
-	logPane := paneStyle.Width(topWidth).Render(
-		titleStyle.Render("Log") + "\n" + m.log.View(),
+	logStyle := paneStyle
+	logTitle := "Log"
+	if m.focus == focusLog {
+		logStyle = focusedPaneStyle
+		logTitle += " (↑/↓ scroll, Tab to switch)"
+	}
+	logPane := logStyle.Width(topWidth).Render(
+		titleStyle.Render(logTitle) + "\n" + m.log.View(),
 	)
 
 	return lipgloss.JoinVertical(lipgloss.Left, top, navPane, logPane, inputLine)
 }
 
-func (m Model) pane(title, body string, width int) string {
+func (m Model) pane(title, body string, width int, focused bool) string {
 	if width < 10 {
 		width = 10
 	}
-	return paneStyle.Width(width - 2).Render(titleStyle.Render(title) + "\n" + body)
+	style := paneStyle
+	if focused {
+		style = focusedPaneStyle
+	}
+	return style.Width(width - 2).Render(titleStyle.Render(title) + "\n" + body)
 }
 
 func (m Model) logContentWidth() int {
