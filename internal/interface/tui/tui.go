@@ -97,10 +97,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		if !m.ready {
 			m.log = viewport.New(m.logContentWidth(), 3)
-			m.log.SetContent(strings.Join(m.history, "\n\n"))
+			m.log.SetContent(m.wrappedHistory())
 			m.ready = true
 		} else {
 			m.log.Width = m.logContentWidth()
+			m.log.SetContent(m.wrappedHistory())
 		}
 		m.input.Width = m.width - 4
 		return m, nil
@@ -190,17 +191,36 @@ func (m *Model) refreshLog() {
 	if !m.ready {
 		return
 	}
+	wrapped := m.wrappedHistoryEntries()
 	// Scroll to the top of the most recently appended entry rather than the
 	// absolute bottom of the log. Jumping straight to the bottom can hide the
 	// start of long responses (e.g. a multi-step 'home' route plan) behind
 	// whatever short line was appended after it (like a confirmation prompt).
 	newestStart := 0
-	if len(m.history) > 1 {
-		prior := strings.Join(m.history[:len(m.history)-1], "\n\n")
+	if len(wrapped) > 1 {
+		prior := strings.Join(wrapped[:len(wrapped)-1], "\n\n")
 		newestStart = strings.Count(prior, "\n") + 2 // prior's lines, plus the "\n\n" separator
 	}
-	m.log.SetContent(strings.Join(m.history, "\n\n"))
+	m.log.SetContent(strings.Join(wrapped, "\n\n"))
 	m.log.SetYOffset(newestStart)
+}
+
+// wrappedHistoryEntries returns each log entry word-wrapped to the log
+// pane's current content width, so long lines fold instead of being
+// truncated by the viewport.
+func (m Model) wrappedHistoryEntries() []string {
+	w := m.logContentWidth()
+	wrapped := make([]string, len(m.history))
+	for i, s := range m.history {
+		wrapped[i] = lipgloss.NewStyle().Width(w).Render(s)
+	}
+	return wrapped
+}
+
+// wrappedHistory returns the full log history as a single word-wrapped
+// string, joining entries with a blank line between them.
+func (m Model) wrappedHistory() string {
+	return strings.Join(m.wrappedHistoryEntries(), "\n\n")
 }
 
 // View implements tea.Model, laying out the location, navigation, and cost
