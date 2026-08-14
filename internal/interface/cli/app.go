@@ -470,10 +470,9 @@ func (a *App) Route(target string) string {
 	return a.formatRouteResult(result)
 }
 
-// Cost returns informational text about how travel costs are calculated.
+// Cost returns the session's total running travel cost.
 func (a *App) Cost() string {
-	return fmt.Sprintf("Travel costs: local routes vary; quantum shifts %.0f; timeline jumps %.0f; consensus drifts %.0f; observer shifts %.0f.",
-		universe.QuantumShiftCost, universe.TimelineShiftCost, universe.ConsensusShiftCost, universe.ObserverShiftCost)
+	return fmt.Sprintf("Total journey cost: %.0f", a.session.CumulativeCost())
 }
 
 func (a *App) markDirty() {
