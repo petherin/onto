@@ -51,26 +51,19 @@ func (c *JumpCommand) jumpForward() (*JumpResult, error) {
 }
 
 func (c *JumpCommand) jumpBack() (*JumpResult, error) {
-	currentLevel := c.Session.TimelineLevel()
-	if currentLevel == 0 {
+	if c.Session.TimelineLevel() == 0 {
 		return nil, ErrAlreadyAtBaseTimeline
 	}
 
-	// Find the timeline edge that leads to a lower timeline level.
-	for _, e := range c.Universe.EdgesFrom(c.Session.Location()) {
-		if e.Mode != universe.TimelineShift {
-			continue
-		}
-		dest, ok := c.Universe.GetLocation(e.To)
-		if !ok {
-			continue
-		}
-		if dest.Coordinate.TimelineLevel() < currentLevel {
-			return c.completeJump(dest.ID, dest.Coordinate.Timeline, true)
-		}
+	destID, err := universe.EnsureLowerContext(c.Universe, c.Session.Location(), universe.TimelineShift)
+	if err != nil {
+		return nil, ErrNoTimelinePathBack
 	}
-
-	return nil, ErrNoTimelinePathBack
+	dest, ok := c.Universe.GetLocation(destID)
+	if !ok {
+		return nil, ErrNoTimelinePathBack
+	}
+	return c.completeJump(dest.ID, dest.Coordinate.Timeline, true)
 }
 
 func (c *JumpCommand) completeJump(destID, timeline string, reversed bool) (*JumpResult, error) {

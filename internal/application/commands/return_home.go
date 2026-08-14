@@ -188,22 +188,71 @@ func (c *ReturnHomeCommand) Execute() ([]ReturnHomeStep, error) {
 func (c *ReturnHomeCommand) planRecordedTransitions(transitions []exploration.ContextTransition) ([]ReturnHomeStep, float64) {
 	steps := make([]ReturnHomeStep, 0, len(transitions))
 	var total float64
-	current, _ := c.Universe.GetLocation(c.Session.Location())
+	current, ok := c.Universe.GetLocation(c.Session.Location())
+	if !ok {
+		return nil, 0
+	}
+	// Track coordinates independently of graph lookup success so plan labels
+	// always show the true N → N-1 change even when a reverse edge was never
+	// materialised (common after generating nearby places inside a branch).
+	plannedCoord := current.Coordinate
+	plannedID := current.ID
+	lastExistingID := current.ID
+
 	for i := len(transitions) - 1; i >= 0; i-- {
 		mode := transitions[i].Mode
-		origin := current
-		if id, ok := c.returnDestination(current.ID, mode); ok {
-			origin, _ = c.Universe.GetLocation(id)
+		fromCoord := plannedCoord
+		toCoord, ok := universe.LowerContextCoordinate(fromCoord, mode)
+		if !ok {
+			// Observer/time and unknown modes: fall back to edge lookup only.
+			if id, found := c.returnDestination(plannedID, mode); found {
+				origin, _ := c.Universe.GetLocation(id)
+				steps = append(steps, ReturnHomeStep{
+					Action: returnAction(mode),
+					Detail: planDetail(mode, locationWithCoord(plannedID, fromCoord), origin),
+					Cost:   returnCost(mode),
+				})
+				total += returnCost(mode)
+				plannedID = origin.ID
+				plannedCoord = origin.Coordinate
+				lastExistingID = origin.ID
+				continue
+			}
+			steps = append(steps, ReturnHomeStep{Action: returnAction(mode), Detail: "return path unavailable"})
+			continue
 		}
-		steps = append(steps, ReturnHomeStep{Action: returnAction(mode), Detail: planDetail(mode, current, origin), Cost: returnCost(mode)})
+
+		detail := planDetailCoords(mode, fromCoord, toCoord)
+		if id, found := c.returnDestination(plannedID, mode); found {
+			origin, _ := c.Universe.GetLocation(id)
+			toCoord = origin.Coordinate
+			detail = planDetailCoords(mode, fromCoord, toCoord)
+			plannedID = origin.ID
+			plannedCoord = origin.Coordinate
+			lastExistingID = origin.ID
+		} else if id, found := universe.LowerContextID(plannedID, mode); found {
+			// Advance the planned identity even if the node is absent so later
+			// steps keep decreasing the right axis instead of repeating N → N.
+			plannedID = id
+			plannedCoord = toCoord
+			if _, exists := c.Universe.GetLocation(id); exists {
+				lastExistingID = id
+			}
+		} else {
+			plannedCoord = toCoord
+		}
+
+		steps = append(steps, ReturnHomeStep{Action: returnAction(mode), Detail: detail, Cost: returnCost(mode)})
 		total += returnCost(mode)
-		current = origin
 	}
 
-	if current.ID != c.HomeID {
-		if path, ok := c.Pathfinder.FindRoute(c.Universe, current.ID, c.HomeID); ok {
+	if lastExistingID != c.HomeID {
+		if path, ok := c.Pathfinder.FindRoute(c.Universe, lastExistingID, c.HomeID); ok {
 			for _, edge := range path {
 				if !edge.Mode.IsPhysical() {
+					// Context should already be unwound; a non-physical hop means
+					// the residual route is not a pure walk home — stop rather than
+					// pretend later physical edges are reachable without it.
 					break
 				}
 				steps = append(steps, ReturnHomeStep{Action: "travel", Detail: fmt.Sprintf("%s -> %s", edge.From, edge.To), Cost: edge.Cost})
@@ -212,6 +261,34 @@ func (c *ReturnHomeCommand) planRecordedTransitions(transitions []exploration.Co
 		}
 	}
 	return steps, total
+}
+
+func locationWithCoord(id string, coord universe.CoordinateVO) universe.LocationEntity {
+	return universe.LocationEntity{ID: id, Coordinate: coord}
+}
+
+// planDetailCoords formats a from → to label using coordinates directly so the
+// plan never depends on a successfully resolved destination entity.
+func planDetailCoords(mode universe.TravelModeVO, from, to universe.CoordinateVO) string {
+	switch mode {
+	case universe.ObserverShift:
+		return fmt.Sprintf("%s → %s", from.Observer, to.Observer)
+	case universe.ConsensusShift:
+		return fmt.Sprintf("consensus %d → %d", from.Consensus, to.Consensus)
+	case universe.SimulationEntry:
+		return fmt.Sprintf("simulation %d → %d", from.Simulation, to.Simulation)
+	case universe.TimelineShift:
+		return fmt.Sprintf("timeline %s → %s", from.Timeline, to.Timeline)
+	case universe.QuantumShift:
+		return fmt.Sprintf("quantum %s → %s", from.Quantum, to.Quantum)
+	case universe.UniverseShift:
+		return fmt.Sprintf("universe %s → %s", from.Universe, to.Universe)
+	case universe.MathematicalShift:
+		return fmt.Sprintf("mathematics %s → %s", from.Mathematics, to.Mathematics)
+	case universe.TimeShift:
+		return fmt.Sprintf("%s → %s", from.Time.Format("2006-01-02T15:04:05Z07:00"), to.Time.Format("2006-01-02T15:04:05Z07:00"))
+	}
+	return ""
 }
 
 func (c *ReturnHomeCommand) returnDestination(from string, mode universe.TravelModeVO) (string, bool) {
@@ -370,43 +447,11 @@ func returnCost(mode universe.TravelModeVO) float64 {
 }
 
 func (c *ReturnHomeCommand) lowerContext(from string, mode universe.TravelModeVO) (string, bool) {
-	current, ok := c.Universe.GetLocation(from)
-	if !ok {
-		return "", false
-	}
-	for _, edge := range c.Universe.EdgesFrom(from) {
-		dest, ok := c.Universe.GetLocation(edge.To)
-		if !ok || edge.Mode != mode {
-			continue
-		}
-		switch mode {
-		case universe.ConsensusShift:
-			if dest.Coordinate.Consensus < current.Coordinate.Consensus {
-				return dest.ID, true
-			}
-		case universe.SimulationEntry:
-			if dest.Coordinate.Simulation < current.Coordinate.Simulation {
-				return dest.ID, true
-			}
-		case universe.TimelineShift:
-			if dest.Coordinate.TimelineLevel() < current.Coordinate.TimelineLevel() {
-				return dest.ID, true
-			}
-		case universe.QuantumShift:
-			if dest.Coordinate.QuantumLevel() < current.Coordinate.QuantumLevel() {
-				return dest.ID, true
-			}
-		case universe.UniverseShift:
-			if dest.Coordinate.UniverseLevel() < current.Coordinate.UniverseLevel() {
-				return dest.ID, true
-			}
-		case universe.MathematicalShift:
-			if dest.Coordinate.MathematicsLevel() < current.Coordinate.MathematicsLevel() {
-				return dest.ID, true
-			}
-		}
-	}
-	return "", false
+	// Ensure (not just Find) so planning a return home also backfills missing
+	// reverse edges — the same repair Execute needs when nearby places were
+	// spawned inside a branch without reverse contextual links.
+	id, err := universe.EnsureLowerContext(c.Universe, from, mode)
+	return id, err == nil
 }
 
 func (c *ReturnHomeCommand) observerReturn(from string) (string, bool) {

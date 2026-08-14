@@ -49,25 +49,19 @@ func (c *SimulateCommand) simulateForward() (*SimulateResult, error) {
 }
 
 func (c *SimulateCommand) simulateBack() (*SimulateResult, error) {
-	currentLevel := c.Session.SimulationLevel()
-	if currentLevel == 0 {
+	if c.Session.SimulationLevel() == 0 {
 		return nil, ErrAlreadyAtBaseReality
 	}
 
-	for _, e := range c.Universe.EdgesFrom(c.Session.Location()) {
-		if e.Mode != universe.SimulationEntry {
-			continue
-		}
-		dest, ok := c.Universe.GetLocation(e.To)
-		if !ok {
-			continue
-		}
-		if dest.Coordinate.Simulation < currentLevel {
-			return c.completeSimulate(dest.ID, dest.Coordinate.Simulation, true)
-		}
+	destID, err := universe.EnsureLowerContext(c.Universe, c.Session.Location(), universe.SimulationEntry)
+	if err != nil {
+		return nil, ErrNoSimulationPathBack
 	}
-
-	return nil, ErrNoSimulationPathBack
+	dest, ok := c.Universe.GetLocation(destID)
+	if !ok {
+		return nil, ErrNoSimulationPathBack
+	}
+	return c.completeSimulate(dest.ID, dest.Coordinate.Simulation, true)
 }
 
 func (c *SimulateCommand) completeSimulate(destID string, depth int, reversed bool) (*SimulateResult, error) {

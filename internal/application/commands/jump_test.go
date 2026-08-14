@@ -138,17 +138,20 @@ func TestJumpBack_AtBaseLevel_ReturnsError(t *testing.T) {
 	require.ErrorIs(t, err, commands.ErrAlreadyAtBaseTimeline)
 }
 
-func TestJumpBack_NoReverseEdge_ReturnsError(t *testing.T) {
+func TestJumpBack_NoReverseEdge_BackfillsPath(t *testing.T) {
 	u, _ := newJumpFixture()
 
-	// T1 session but no reverse timeline edge in the graph
+	// T1 session but no reverse timeline edge — EnsureLowerContext reconstructs it.
 	t1Coord := universe.DefaultCoordinateVO()
 	t1Coord.Timeline = "T1"
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-t1", Name: "Home (T1)", Coordinate: t1Coord}))
 	sess := exploration.NewEntity("home-t1", t1Coord)
 
 	cmd := &commands.JumpCommand{Universe: u, Session: sess, Back: true}
-	_, err := cmd.Execute()
+	result, err := cmd.Execute()
 
-	require.ErrorIs(t, err, commands.ErrNoTimelinePathBack)
+	require.NoError(t, err)
+	require.Equal(t, "home", result.Location.ID)
+	require.Equal(t, "Prime", result.NextTimeline)
+	require.True(t, result.Reversed)
 }

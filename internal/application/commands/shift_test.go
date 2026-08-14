@@ -138,17 +138,20 @@ func TestShiftBack_AtBaseLevel_ReturnsError(t *testing.T) {
 	require.ErrorIs(t, err, commands.ErrAlreadyAtBaseQuantum)
 }
 
-func TestShiftBack_NoReverseEdge_ReturnsError(t *testing.T) {
+func TestShiftBack_NoReverseEdge_BackfillsPath(t *testing.T) {
 	u, _ := newShiftFixture()
 
-	// Q1 session but no reverse quantum edge in the graph
+	// Q1 session but no reverse quantum edge — EnsureLowerContext reconstructs it.
 	q1Coord := universe.DefaultCoordinateVO()
 	q1Coord.Quantum = "Q1"
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-q1", Name: "Home (Q1)", Coordinate: q1Coord}))
 	sess := exploration.NewEntity("home-q1", q1Coord)
 
 	cmd := &commands.ShiftCommand{Universe: u, Session: sess, Back: true}
-	_, err := cmd.Execute()
+	result, err := cmd.Execute()
 
-	require.ErrorIs(t, err, commands.ErrNoQuantumPathBack)
+	require.NoError(t, err)
+	require.Equal(t, "home", result.Location.ID)
+	require.Equal(t, "Q0", result.NextQuantum)
+	require.True(t, result.Reversed)
 }

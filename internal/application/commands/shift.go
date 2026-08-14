@@ -51,26 +51,19 @@ func (c *ShiftCommand) shiftForward() (*ShiftResult, error) {
 }
 
 func (c *ShiftCommand) shiftBack() (*ShiftResult, error) {
-	currentLevel := c.Session.QuantumLevel()
-	if currentLevel == 0 {
+	if c.Session.QuantumLevel() == 0 {
 		return nil, ErrAlreadyAtBaseQuantum
 	}
 
-	// Find the quantum edge that leads to a lower quantum level.
-	for _, e := range c.Universe.EdgesFrom(c.Session.Location()) {
-		if e.Mode != universe.QuantumShift {
-			continue
-		}
-		dest, ok := c.Universe.GetLocation(e.To)
-		if !ok {
-			continue
-		}
-		if dest.Coordinate.QuantumLevel() < currentLevel {
-			return c.completeShift(dest.ID, dest.Coordinate.Quantum, true)
-		}
+	destID, err := universe.EnsureLowerContext(c.Universe, c.Session.Location(), universe.QuantumShift)
+	if err != nil {
+		return nil, ErrNoQuantumPathBack
 	}
-
-	return nil, ErrNoQuantumPathBack
+	dest, ok := c.Universe.GetLocation(destID)
+	if !ok {
+		return nil, ErrNoQuantumPathBack
+	}
+	return c.completeShift(dest.ID, dest.Coordinate.Quantum, true)
 }
 
 func (c *ShiftCommand) completeShift(destID, quantum string, reversed bool) (*ShiftResult, error) {

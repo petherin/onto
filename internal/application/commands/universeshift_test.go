@@ -138,17 +138,20 @@ func TestUniverseBack_AtBaseLevel_ReturnsError(t *testing.T) {
 	require.ErrorIs(t, err, commands.ErrAlreadyAtBaseUniverse)
 }
 
-func TestUniverseBack_NoReverseEdge_ReturnsError(t *testing.T) {
+func TestUniverseBack_NoReverseEdge_BackfillsPath(t *testing.T) {
 	u, _ := newUniverseFixture()
 
-	// U1 session but no reverse universe edge in the graph
+	// U1 session but no reverse universe edge — EnsureLowerContext reconstructs it.
 	u1Coord := universe.DefaultCoordinateVO()
 	u1Coord.Universe = "U1"
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-u1", Name: "Home (U1)", Coordinate: u1Coord}))
 	sess := exploration.NewEntity("home-u1", u1Coord)
 
 	cmd := &commands.UniverseCommand{Universe: u, Session: sess, Back: true}
-	_, err := cmd.Execute()
+	result, err := cmd.Execute()
 
-	require.ErrorIs(t, err, commands.ErrNoUniversePathBack)
+	require.NoError(t, err)
+	require.Equal(t, "home", result.Location.ID)
+	require.Equal(t, "Origin", result.NextUniverse)
+	require.True(t, result.Reversed)
 }

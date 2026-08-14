@@ -134,7 +134,7 @@ func TestStructureBack_AtBaseLevel_ReturnsError(t *testing.T) {
 	require.ErrorIs(t, err, commands.ErrAlreadyAtBaseMathematics)
 }
 
-func TestStructureBack_NoReverseEdge_ReturnsError(t *testing.T) {
+func TestStructureBack_NoReverseEdge_BackfillsPath(t *testing.T) {
 	u, _ := newStructureFixture()
 
 	m1Coord := universe.DefaultCoordinateVO()
@@ -143,7 +143,10 @@ func TestStructureBack_NoReverseEdge_ReturnsError(t *testing.T) {
 	sess := exploration.NewEntity("home-m1", m1Coord)
 
 	cmd := &commands.StructureCommand{Universe: u, Session: sess, Back: true}
-	_, err := cmd.Execute()
+	result, err := cmd.Execute()
 
-	require.ErrorIs(t, err, commands.ErrNoMathematicsPathBack)
+	require.NoError(t, err)
+	require.Equal(t, "home", result.Location.ID)
+	require.Equal(t, "Classical", result.NextMathematics)
+	require.True(t, result.Reversed)
 }

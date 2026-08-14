@@ -107,7 +107,7 @@ func TestSimulateBack_AtBaseLevel_ReturnsError(t *testing.T) {
 	require.ErrorIs(t, err, commands.ErrAlreadyAtBaseReality)
 }
 
-func TestSimulateBack_NoReverseEdge_ReturnsError(t *testing.T) {
+func TestSimulateBack_NoReverseEdge_BackfillsPath(t *testing.T) {
 	u, _ := newSimulateFixture()
 
 	s1Coord := universe.DefaultCoordinateVO()
@@ -115,6 +115,9 @@ func TestSimulateBack_NoReverseEdge_ReturnsError(t *testing.T) {
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-s1", Name: "Home (sim:1)", Coordinate: s1Coord}))
 	sess := exploration.NewEntity("home-s1", s1Coord)
 
-	_, err := (&commands.SimulateCommand{Universe: u, Session: sess, Back: true}).Execute()
-	require.ErrorIs(t, err, commands.ErrNoSimulationPathBack)
+	result, err := (&commands.SimulateCommand{Universe: u, Session: sess, Back: true}).Execute()
+	require.NoError(t, err)
+	require.Equal(t, "home", result.Location.ID)
+	require.Equal(t, 0, result.Simulation)
+	require.True(t, result.Reversed)
 }

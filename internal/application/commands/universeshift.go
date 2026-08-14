@@ -51,26 +51,19 @@ func (c *UniverseCommand) universeForward() (*UniverseResult, error) {
 }
 
 func (c *UniverseCommand) universeBack() (*UniverseResult, error) {
-	currentLevel := c.Session.UniverseLevel()
-	if currentLevel == 0 {
+	if c.Session.UniverseLevel() == 0 {
 		return nil, ErrAlreadyAtBaseUniverse
 	}
 
-	// Find the universe edge that leads to a lower universe level.
-	for _, e := range c.Universe.EdgesFrom(c.Session.Location()) {
-		if e.Mode != universe.UniverseShift {
-			continue
-		}
-		dest, ok := c.Universe.GetLocation(e.To)
-		if !ok {
-			continue
-		}
-		if dest.Coordinate.UniverseLevel() < currentLevel {
-			return c.completeUniverse(dest.ID, dest.Coordinate.Universe, true)
-		}
+	destID, err := universe.EnsureLowerContext(c.Universe, c.Session.Location(), universe.UniverseShift)
+	if err != nil {
+		return nil, ErrNoUniversePathBack
 	}
-
-	return nil, ErrNoUniversePathBack
+	dest, ok := c.Universe.GetLocation(destID)
+	if !ok {
+		return nil, ErrNoUniversePathBack
+	}
+	return c.completeUniverse(dest.ID, dest.Coordinate.Universe, true)
 }
 
 func (c *UniverseCommand) completeUniverse(destID, nextUniverse string, reversed bool) (*UniverseResult, error) {

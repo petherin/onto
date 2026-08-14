@@ -51,26 +51,19 @@ func (c *StructureCommand) structureForward() (*StructureResult, error) {
 }
 
 func (c *StructureCommand) structureBack() (*StructureResult, error) {
-	currentLevel := c.Session.MathematicsLevel()
-	if currentLevel == 0 {
+	if c.Session.MathematicsLevel() == 0 {
 		return nil, ErrAlreadyAtBaseMathematics
 	}
 
-	// Find the mathematical edge that leads to a lower mathematics level.
-	for _, e := range c.Universe.EdgesFrom(c.Session.Location()) {
-		if e.Mode != universe.MathematicalShift {
-			continue
-		}
-		dest, ok := c.Universe.GetLocation(e.To)
-		if !ok {
-			continue
-		}
-		if dest.Coordinate.MathematicsLevel() < currentLevel {
-			return c.completeStructure(dest.ID, dest.Coordinate.Mathematics, true)
-		}
+	destID, err := universe.EnsureLowerContext(c.Universe, c.Session.Location(), universe.MathematicalShift)
+	if err != nil {
+		return nil, ErrNoMathematicsPathBack
 	}
-
-	return nil, ErrNoMathematicsPathBack
+	dest, ok := c.Universe.GetLocation(destID)
+	if !ok {
+		return nil, ErrNoMathematicsPathBack
+	}
+	return c.completeStructure(dest.ID, dest.Coordinate.Mathematics, true)
 }
 
 func (c *StructureCommand) completeStructure(destID, nextMathematics string, reversed bool) (*StructureResult, error) {

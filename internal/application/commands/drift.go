@@ -45,22 +45,19 @@ func (c *DriftCommand) Execute() (*DriftResult, error) {
 }
 
 func (c *DriftCommand) align() (*DriftResult, error) {
-	currentLevel := c.Session.ConsensusLevel()
-	if currentLevel == 0 {
+	if c.Session.ConsensusLevel() == 0 {
 		return nil, ErrAlreadyAtConsensus
 	}
 
-	for _, e := range c.Universe.EdgesFrom(c.Session.Location()) {
-		if e.Mode != universe.ConsensusShift {
-			continue
-		}
-		dest, ok := c.Universe.GetLocation(e.To)
-		if ok && dest.Coordinate.Consensus < currentLevel {
-			return c.completeDrift(dest.ID, dest.Coordinate.Consensus, true)
-		}
+	destID, err := universe.EnsureLowerContext(c.Universe, c.Session.Location(), universe.ConsensusShift)
+	if err != nil {
+		return nil, ErrNoConsensusPathBack
 	}
-
-	return nil, ErrNoConsensusPathBack
+	dest, ok := c.Universe.GetLocation(destID)
+	if !ok {
+		return nil, ErrNoConsensusPathBack
+	}
+	return c.completeDrift(dest.ID, dest.Coordinate.Consensus, true)
 }
 
 func (c *DriftCommand) completeDrift(destID string, consensus int, reversed bool) (*DriftResult, error) {
