@@ -12,7 +12,6 @@ bin/
 *.test
 
 # Editor directories and files
-.vscode/
 .idea/
 *.swp
 *~

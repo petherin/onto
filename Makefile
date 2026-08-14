@@ -1,5 +1,7 @@
 PKGSITE_BIN := $(shell go env GOPATH)/bin/pkgsite
 GOLANGCI_LINT_BIN := $(shell go env GOPATH)/bin/golangci-lint
+DLV_BIN := $(shell go env GOPATH)/bin/dlv
+DEBUG_PORT := 2345
 
 ## ── Run ──────────────────────────────────────────────────────────────────────
 
@@ -10,6 +12,24 @@ run:                   ## Run the app natively (requires Go installed)
 .PHONY: dashboard
 dashboard:             ## Run the multi-pane TUI dashboard natively (requires Go installed)
 	go run ./cmd/dashboard
+
+.PHONY: debug
+debug:                 ## Start a headless Delve debug server on :2345 for VS Code (or any IDE) to attach to
+	@if [ ! -f "$(DLV_BIN)" ]; then \
+		echo "Installing delve..."; \
+		go install github.com/go-delve/delve/cmd/dlv@latest; \
+	fi
+	@echo "Delve listening on :$(DEBUG_PORT) — attach your IDE debugger now (VS Code: 'Attach to Onto (Delve)')"
+	$(DLV_BIN) debug ./cmd/cli --headless --listen=:$(DEBUG_PORT) --api-version=2 --accept-multiclient
+
+.PHONY: debug-dashboard
+debug-dashboard:       ## Start a headless Delve debug server on :2345 for the dashboard binary
+	@if [ ! -f "$(DLV_BIN)" ]; then \
+		echo "Installing delve..."; \
+		go install github.com/go-delve/delve/cmd/dlv@latest; \
+	fi
+	@echo "Delve listening on :$(DEBUG_PORT) — attach your IDE debugger now (VS Code: 'Attach to Onto (Delve)')"
+	$(DLV_BIN) debug ./cmd/dashboard --headless --listen=:$(DEBUG_PORT) --api-version=2 --accept-multiclient
 
 .PHONY: docker-run
 docker-run: docker-build  ## Build (if needed) and run the app in Docker
