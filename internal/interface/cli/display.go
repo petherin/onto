@@ -16,9 +16,9 @@ func (a *App) Where() string {
 	r := q.Where()
 	coord := r.Coordinate
 	return fmt.Sprintf(
-		"Reality Coordinate\n%s\n\nUniverse : %s\nTimeline : %s\nQuantum  : %s\nConsensus: %d\nPlanet   : %s\nCountry  : %s\nRegion   : %s\nCity     : %s\nLocation : %s\nObserver : %s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
+		"Reality Coordinate\n%s\n\nMathematics: %s\nUniverse : %s\nTimeline : %s\nQuantum  : %s\nConsensus: %d\nPlanet   : %s\nCountry  : %s\nRegion   : %s\nCity     : %s\nLocation : %s\nObserver : %s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
 		coord.OntoAddress(),
-		coord.Universe, coord.Timeline, coord.Quantum, coord.Consensus,
+		coord.Mathematics, coord.Universe, coord.Timeline, coord.Quantum, coord.Consensus,
 		coord.Planet, coord.Country, coord.Region, coord.City, coord.Location, coord.Observer,
 		a.session.CumulativeCost(),
 		a.formatEdges(r.Edges),
@@ -126,6 +126,19 @@ func (a *App) formatUniverseResult(r *commands.UniverseResult) string {
 	return base
 }
 
+func (a *App) formatStructureResult(r *commands.StructureResult) string {
+	verb := "Mathematical structure entered"
+	if r.Reversed {
+		verb = "Mathematical structure exited"
+	}
+	base := fmt.Sprintf("Crossing formal systems...\n\n%s: %s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
+		verb, r.NextMathematics, r.Location.Description,
+		a.session.CumulativeCost(),
+		a.formatEdges(r.Edges),
+	)
+	return base
+}
+
 func (a *App) formatRouteResult(r *queries.RouteResult) string {
 	var steps []string
 	for _, edge := range r.Steps {
@@ -158,6 +171,8 @@ const (
 	journeyJumpBack
 	journeyUniverse
 	journeyUniverseBack
+	journeyStructure
+	journeyStructureBack
 	journeyDrift
 	journeyAlign
 	journeyObserveBack
@@ -175,6 +190,7 @@ func (a *App) journeyOptions(edges []universe.EdgeVO) ([]journeyOption, bool) {
 	hasReverseQuantum := false
 	hasReverseTimeline := false
 	hasReverseUniverse := false
+	hasReverseMathematics := false
 	hasReverseConsensus := false
 	hasReverseObserver := false
 	hasReverseTime := false
@@ -210,6 +226,13 @@ func (a *App) journeyOptions(edges []universe.EdgeVO) ([]journeyOption, bool) {
 			if dest, ok := a.universe.GetLocation(edge.To); ok {
 				if dest.Coordinate.UniverseLevel() < a.session.UniverseLevel() {
 					hasReverseUniverse = true
+				}
+			}
+		case universe.MathematicalShift:
+			// Don't list math edges as regular journeys — they need 'structure' or 'structure back'.
+			if dest, ok := a.universe.GetLocation(edge.To); ok {
+				if dest.Coordinate.MathematicsLevel() < a.session.MathematicsLevel() {
+					hasReverseMathematics = true
 				}
 			}
 		case universe.ConsensusShift:
@@ -257,6 +280,16 @@ func (a *App) journeyOptions(edges []universe.EdgeVO) ([]journeyOption, bool) {
 		options = append(options, journeyOption{
 			kind:        journeyUniverseBack,
 			description: "Return to the previous bubble universe (universe back)",
+		})
+	}
+	options = append(options, journeyOption{
+		kind:        journeyStructure,
+		description: fmt.Sprintf("%s (mathematics, %.0f — structure)", a.session.NextMathematicsID(), universe.MathematicalShiftCost),
+	})
+	if hasReverseMathematics {
+		options = append(options, journeyOption{
+			kind:        journeyStructureBack,
+			description: "Return to the previous mathematical structure (structure back)",
 		})
 	}
 	options = append(options, journeyOption{

@@ -118,3 +118,26 @@ func TestTimelineLevelAndNextID(t *testing.T) {
 		})
 	}
 }
+
+func TestMathematicsLevelAndNextID(t *testing.T) {
+	tests := []struct {
+		name        string
+		locationID  string
+		mathematics string
+		wantLevel   int
+		wantNextID  string
+	}{
+		{"Classical", "home", "Classical", 0, "home-m1"},
+		{"M1", "home-m1", "M1", 1, "home-m2"},
+		{"M2", "home-m2", "M2", 2, "home-m3"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			coord := defaultCoord()
+			coord.Mathematics = tc.mathematics
+			e := exploration.NewEntity(tc.locationID, coord)
+			assert.Equal(t, tc.wantLevel, e.MathematicsLevel())
+			assert.Equal(t, tc.wantNextID, e.NextMathematicsID())
+		})
+	}
+}

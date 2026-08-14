@@ -56,6 +56,7 @@ func (c *ReturnHomeCommand) Plan() ([]ReturnHomeStep, float64) {
 		{universe.TimelineShift, "jump back", universe.TimelineShiftCost, c.Session.TimelineLevel()},
 		{universe.QuantumShift, "shift back", universe.QuantumShiftCost, c.Session.QuantumLevel()},
 		{universe.UniverseShift, "universe back", universe.UniverseShiftCost, c.Session.UniverseLevel()},
+		{universe.MathematicalShift, "structure back", universe.MathematicalShiftCost, c.Session.MathematicsLevel()},
 	} {
 		for range transition.count {
 			current, _ := c.Universe.GetLocation(planned)
@@ -69,6 +70,8 @@ func (c *ReturnHomeCommand) Plan() ([]ReturnHomeStep, float64) {
 				detail = fmt.Sprintf("quantum %s → Q%d", current.Coordinate.Quantum, current.Coordinate.QuantumLevel()-1)
 			case universe.UniverseShift:
 				detail = fmt.Sprintf("universe %s → U%d", current.Coordinate.Universe, current.Coordinate.UniverseLevel()-1)
+			case universe.MathematicalShift:
+				detail = fmt.Sprintf("mathematics %s → M%d", current.Coordinate.Mathematics, current.Coordinate.MathematicsLevel()-1)
 			}
 			steps = append(steps, ReturnHomeStep{Action: transition.action, Detail: detail, Cost: transition.cost})
 			if next, ok := c.lowerContext(planned, transition.mode); ok {
@@ -148,6 +151,13 @@ func (c *ReturnHomeCommand) Execute() ([]ReturnHomeStep, error) {
 		}
 		steps = append(steps, ReturnHomeStep{Action: "universe back", Detail: result.NextUniverse, Cost: universe.UniverseShiftCost})
 	}
+	for c.Session.MathematicsLevel() > 0 {
+		result, err := (&StructureCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
+		if err != nil {
+			return steps, err
+		}
+		steps = append(steps, ReturnHomeStep{Action: "structure back", Detail: result.NextMathematics, Cost: universe.MathematicalShiftCost})
+	}
 	for !c.Session.Coordinate().Time.IsZero() {
 		result, err := (&TimeCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		if err != nil {
@@ -200,7 +210,7 @@ func (c *ReturnHomeCommand) returnDestination(from string, mode universe.TravelM
 		return c.observerReturn(from)
 	case universe.TimeShift:
 		return c.timeReturn(from)
-	case universe.ConsensusShift, universe.TimelineShift, universe.QuantumShift, universe.UniverseShift:
+	case universe.ConsensusShift, universe.TimelineShift, universe.QuantumShift, universe.UniverseShift, universe.MathematicalShift:
 		return c.lowerContext(from, mode)
 	}
 	return "", false
@@ -242,6 +252,8 @@ func returnDetail(mode universe.TravelModeVO, current, origin universe.LocationE
 		return origin.Coordinate.Quantum
 	case universe.UniverseShift:
 		return origin.Coordinate.Universe
+	case universe.MathematicalShift:
+		return origin.Coordinate.Mathematics
 	case universe.TimeShift:
 		return origin.Coordinate.Time.Format("2006-01-02T15:04:05Z07:00")
 	}
@@ -261,6 +273,8 @@ func planDetail(mode universe.TravelModeVO, current, origin universe.LocationEnt
 		return fmt.Sprintf("quantum %s → %s", current.Coordinate.Quantum, origin.Coordinate.Quantum)
 	case universe.UniverseShift:
 		return fmt.Sprintf("universe %s → %s", current.Coordinate.Universe, origin.Coordinate.Universe)
+	case universe.MathematicalShift:
+		return fmt.Sprintf("mathematics %s → %s", current.Coordinate.Mathematics, origin.Coordinate.Mathematics)
 	case universe.TimeShift:
 		return fmt.Sprintf("%s → %s", current.Coordinate.Time.Format("2006-01-02T15:04:05Z07:00"), origin.Coordinate.Time.Format("2006-01-02T15:04:05Z07:00"))
 	}
@@ -284,6 +298,9 @@ func (c *ReturnHomeCommand) unwind(mode universe.TravelModeVO) error {
 	case universe.UniverseShift:
 		_, err := (&UniverseCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		return err
+	case universe.MathematicalShift:
+		_, err := (&StructureCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
+		return err
 	case universe.TimeShift:
 		_, err := (&TimeCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		return err
@@ -303,6 +320,8 @@ func returnAction(mode universe.TravelModeVO) string {
 		return "shift back"
 	case universe.UniverseShift:
 		return "universe back"
+	case universe.MathematicalShift:
+		return "structure back"
 	case universe.TimeShift:
 		return "time back"
 	}
@@ -321,6 +340,8 @@ func returnCost(mode universe.TravelModeVO) float64 {
 		return universe.QuantumShiftCost
 	case universe.UniverseShift:
 		return universe.UniverseShiftCost
+	case universe.MathematicalShift:
+		return universe.MathematicalShiftCost
 	case universe.TimeShift:
 		return universe.TimeShiftCost
 	}
@@ -352,6 +373,10 @@ func (c *ReturnHomeCommand) lowerContext(from string, mode universe.TravelModeVO
 			}
 		case universe.UniverseShift:
 			if dest.Coordinate.UniverseLevel() < current.Coordinate.UniverseLevel() {
+				return dest.ID, true
+			}
+		case universe.MathematicalShift:
+			if dest.Coordinate.MathematicsLevel() < current.Coordinate.MathematicsLevel() {
 				return dest.ID, true
 			}
 		}

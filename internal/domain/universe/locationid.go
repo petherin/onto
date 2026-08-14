@@ -8,21 +8,23 @@ import (
 // axisSuffixes captures the reality-branch axes encoded in a location ID's
 // suffix. The zero value represents "no branch on this axis".
 type axisSuffixes struct {
-	universe  int    // 0 = no universe suffix
-	quantum   int    // 0 = no quantum suffix
-	timeline  int    // 0 = no timeline suffix
-	consensus int    // 0 = no consensus suffix
-	time      string // "" = no time suffix; otherwise the raw timestamp token
-	observer  string // "" = no observer suffix; otherwise the raw observer token
+	mathematics int    // 0 = no mathematics suffix
+	universe    int    // 0 = no universe suffix
+	quantum     int    // 0 = no quantum suffix
+	timeline    int    // 0 = no timeline suffix
+	consensus   int    // 0 = no consensus suffix
+	time        string // "" = no time suffix; otherwise the raw timestamp token
+	observer    string // "" = no observer suffix; otherwise the raw observer token
 }
 
 var (
-	universeSuffixRe  = regexp.MustCompile(`-u(\d+)$`)
-	quantumSuffixRe   = regexp.MustCompile(`-q(\d+)$`)
-	timelineSuffixRe  = regexp.MustCompile(`-t(\d+)$`)
-	consensusSuffixRe = regexp.MustCompile(`-c(\d+)$`)
-	timeSuffixRe      = regexp.MustCompile(`-at-([0-9tz]+)$`)
-	observerSuffixRe  = regexp.MustCompile(`-o-(.+)$`)
+	mathematicsSuffixRe = regexp.MustCompile(`-m(\d+)$`)
+	universeSuffixRe    = regexp.MustCompile(`-u(\d+)$`)
+	quantumSuffixRe     = regexp.MustCompile(`-q(\d+)$`)
+	timelineSuffixRe    = regexp.MustCompile(`-t(\d+)$`)
+	consensusSuffixRe   = regexp.MustCompile(`-c(\d+)$`)
+	timeSuffixRe        = regexp.MustCompile(`-at-([0-9tz]+)$`)
+	observerSuffixRe    = regexp.MustCompile(`-o-(.+)$`)
 )
 
 // parseLocationID splits a location ID into its stable base (the physical
@@ -68,18 +70,26 @@ func parseLocationID(id string) (base string, ax axisSuffixes) {
 			base = base[:len(base)-len(m[0])]
 			continue
 		}
+		if m := mathematicsSuffixRe.FindStringSubmatch(base); m != nil && ax.mathematics == 0 {
+			ax.mathematics = atoiSafe(m[1])
+			base = base[:len(base)-len(m[0])]
+			continue
+		}
 		break
 	}
 	return base, ax
 }
 
 // buildLocationID reassembles a base and its axes into a canonical location
-// ID. The axis order is always universe, quantum, timeline, consensus, time,
-// observer — regardless of the order the branches were actually taken in —
-// so that reaching the same logical coordinate via a different sequence of
-// shifts always produces the same ID.
+// ID. The axis order is always mathematics, universe, quantum, timeline,
+// consensus, time, observer — regardless of the order the branches were
+// actually taken in — so that reaching the same logical coordinate via a
+// different sequence of shifts always produces the same ID.
 func buildLocationID(base string, ax axisSuffixes) string {
 	id := base
+	if ax.mathematics > 0 {
+		id += "-m" + itoa(ax.mathematics)
+	}
 	if ax.universe > 0 {
 		id += "-u" + itoa(ax.universe)
 	}
@@ -104,9 +114,17 @@ func buildLocationID(base string, ax axisSuffixes) string {
 // ParseLocationID exposes parseLocationID for consumers outside this package
 // (e.g. scripts/validate_locations.go) that need to check ID/coordinate
 // consistency without duplicating the suffix grammar.
-func ParseLocationID(id string) (base string, universeLvl, quantum, timeline, consensus int, time, observer string) {
+func ParseLocationID(id string) (base string, mathematics, universeLvl, quantum, timeline, consensus int, time, observer string) {
 	b, ax := parseLocationID(id)
-	return b, ax.universe, ax.quantum, ax.timeline, ax.consensus, ax.time, ax.observer
+	return b, ax.mathematics, ax.universe, ax.quantum, ax.timeline, ax.consensus, ax.time, ax.observer
+}
+
+// CanonicalIDWithMathematics parses currentID, overrides its mathematics axis,
+// and reassembles the ID in canonical order (see CanonicalIDWithQuantum).
+func CanonicalIDWithMathematics(currentID string, level int) string {
+	base, ax := parseLocationID(currentID)
+	ax.mathematics = level
+	return buildLocationID(base, ax)
 }
 
 // CanonicalIDWithUniverse parses currentID, overrides its universe axis, and

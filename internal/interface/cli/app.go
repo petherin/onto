@@ -139,6 +139,11 @@ func (a *App) Execute(input string) string {
 			return a.UniverseBack()
 		}
 		return a.Universe()
+	case cmdStructure:
+		if args == argBack {
+			return a.StructureBack()
+		}
+		return a.Structure()
 	case cmdDrift:
 		return a.Drift()
 	case cmdAlign:
@@ -196,6 +201,8 @@ func (a *App) Help() string {
 		"jump back              Return to the previous timeline branch",
 		"universe               Shift forward to the next bubble universe",
 		"universe back          Return to the previous bubble universe",
+		"structure              Shift forward to the next mathematical structure",
+		"structure back         Return to the previous mathematical structure",
 		"drift                  Enter the next consensus divergence",
 		"align                  Return one level toward shared consensus",
 		"observe <observer>     Change observer perspective",
@@ -241,6 +248,9 @@ func (a *App) Travel(target string) string {
 			}
 			if norm == a.session.NextUniverseID() {
 				return fmt.Sprintf("%s is a bubble universe — use 'universe' to enter it", target)
+			}
+			if norm == a.session.NextMathematicsID() {
+				return fmt.Sprintf("%s is a mathematical structure — use 'structure' to enter it", target)
 			}
 			// Destination not found — try a fuzzy suggestion.
 			if suggestion := a.suggestDestination(target); suggestion != "" {
@@ -334,6 +344,28 @@ func (a *App) UniverseBack() string {
 	return a.formatUniverseResult(result)
 }
 
+// Structure shifts the session forward to the next mathematical structure.
+func (a *App) Structure() string {
+	cmd := &commands.StructureCommand{Universe: a.universe, Session: a.session}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Mathematical structure shift failed: %v", err)
+	}
+	a.markDirty()
+	return a.formatStructureResult(result)
+}
+
+// StructureBack returns the session to the previous mathematical structure.
+func (a *App) StructureBack() string {
+	cmd := &commands.StructureCommand{Universe: a.universe, Session: a.session, Back: true}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot return to previous mathematical structure: %v", err)
+	}
+	a.markDirty()
+	return a.formatStructureResult(result)
+}
+
 // Drift enters the next consensus divergence.
 func (a *App) Drift() string {
 	cmd := &commands.DriftCommand{Universe: a.universe, Session: a.session}
@@ -421,6 +453,10 @@ func (a *App) ExecuteJourney(number int) string {
 		return a.Universe()
 	case journeyUniverseBack:
 		return a.UniverseBack()
+	case journeyStructure:
+		return a.Structure()
+	case journeyStructureBack:
+		return a.StructureBack()
 	case journeyDrift:
 		return a.Drift()
 	case journeyAlign:

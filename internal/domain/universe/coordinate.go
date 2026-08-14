@@ -90,6 +90,20 @@ func (c CoordinateVO) UniverseLevel() int {
 	return 0
 }
 
+// MathematicsLevel returns the numeric mathematical-structure level encoded in
+// the Mathematics field ("Classical" → 0, "M1" → 1, "M2" → 2, …).
+func (c CoordinateVO) MathematicsLevel() int {
+	if c.Mathematics == "Classical" || c.Mathematics == "" {
+		return 0
+	}
+	if len(c.Mathematics) > 1 && c.Mathematics[0] == 'M' {
+		if n, err := strconv.Atoi(c.Mathematics[1:]); err == nil {
+			return n
+		}
+	}
+	return 0
+}
+
 // SamePhysicalReality reports whether two coordinates differ only in their
 // spatial position. Physical travel must not cross any reality boundary.
 func (c CoordinateVO) SamePhysicalReality(other CoordinateVO) bool {

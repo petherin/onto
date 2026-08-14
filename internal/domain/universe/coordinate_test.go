@@ -64,6 +64,24 @@ func TestUniverseLevel(t *testing.T) {
 	}
 }
 
+func TestMathematicsLevel(t *testing.T) {
+	tests := []struct {
+		name        string
+		mathematics string
+		want        int
+	}{
+		{"default Classical", "Classical", 0},
+		{"M3", "M3", 3},
+		{"unrecognised", "unknown", 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := CoordinateVO{Mathematics: tc.mathematics}
+			assert.Equal(t, tc.want, c.MathematicsLevel())
+		})
+	}
+}
+
 // --- OntoAddress() ---
 
 func TestOntoAddress_FullCoordinate(t *testing.T) {

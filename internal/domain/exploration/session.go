@@ -78,8 +78,11 @@ func (s *Entity) TransitionTo(loc universe.LocationEntity, cost float64, mode un
 	s.currentCoordinate = loc.Coordinate
 	s.cumulativeCost += cost
 	label := string(mode) + " shift"
-	if mode == universe.ConsensusShift {
+	switch mode {
+	case universe.ConsensusShift:
 		label = "consensus drift"
+	case universe.MathematicalShift:
+		label = "mathematical structure shift"
 	}
 	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (%s)", prev, loc.ID, label))
 	if reversed {
@@ -107,6 +110,18 @@ func (s *Entity) UniverseLevel() int {
 // the current position, canonicalized (see NextQuantumID).
 func (s *Entity) NextUniverseID() string {
 	return universe.CanonicalIDWithUniverse(s.currentLocation, s.UniverseLevel()+1)
+}
+
+// MathematicsLevel returns the numeric mathematical-structure level of the
+// current position (Classical → 0, M1 → 1, M2 → 2, …).
+func (s *Entity) MathematicsLevel() int {
+	return s.currentCoordinate.MathematicsLevel()
+}
+
+// NextMathematicsID returns the location ID that 'structure' would move to
+// from the current position, canonicalized (see NextQuantumID).
+func (s *Entity) NextMathematicsID() string {
+	return universe.CanonicalIDWithMathematics(s.currentLocation, s.MathematicsLevel()+1)
 }
 
 // NextQuantumID returns the location ID that 'shift' would move to from the

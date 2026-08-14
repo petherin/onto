@@ -36,9 +36,15 @@ const TimelineShiftCost = 800.0
 
 // UniverseShiftCost is the cost of a single bubble-universe jump (Tegmark
 // Level II). It is deliberately higher than TimelineShiftCost — crossing into
-// a parallel universe with different physical constants is the most
-// fundamental (and expensive) transition below the mathematical layer.
+// a parallel universe with different physical constants is more fundamental
+// than a timeline fork, but still below the mathematical layer.
 const UniverseShiftCost = 5000.0
+
+// MathematicalShiftCost is the cost of a single mathematical-structure jump
+// (Tegmark Level IV). It is the most expensive implemented transition —
+// leaving one formal system for another is more extreme than changing
+// physical constants within the same mathematics.
+const MathematicalShiftCost = 50000.0
 
 // ConsensusShiftCost is the cost of entering or exiting a consensus divergence.
 const ConsensusShiftCost = 5.0
