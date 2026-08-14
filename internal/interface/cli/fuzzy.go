@@ -47,7 +47,7 @@ func (a *App) suggestCommand(input string) string {
 		return ""
 	}
 
-	candidates := []string{cmdHelp, cmdWhere, cmdLook, cmdList, cmdRoute, cmdTravel, cmdHome, cmdCost, cmdShift, cmdJump, cmdDrift, cmdAlign, cmdObserve, cmdTime, cmdExit}
+	candidates := []string{cmdHelp, cmdWhere, cmdLook, cmdList, cmdRoute, cmdTravel, cmdHome, cmdCost, cmdShift, cmdJump, cmdUniverse, cmdDrift, cmdAlign, cmdObserve, cmdTime, cmdExit}
 	best := ""
 	bestDistance := math.MaxInt
 	for _, candidate := range candidates {

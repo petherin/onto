@@ -109,9 +109,14 @@ func checkIDMatchesCoordinate(location universe.LocationEntity) []string {
 		return nil
 	}
 
-	_, idQuantum, idTimeline, idConsensus, idTime, idObserver := universe.ParseLocationID(location.ID)
+	_, idUniverse, idQuantum, idTimeline, idConsensus, idTime, idObserver := universe.ParseLocationID(location.ID)
 
 	var problems []string
+	if idUniverse != location.Coordinate.UniverseLevel() {
+		problems = append(problems, fmt.Sprintf(
+			"location %q: ID suggests universe level %d but Coordinate.Universe is %q (level %d)",
+			location.ID, idUniverse, location.Coordinate.Universe, location.Coordinate.UniverseLevel()))
+	}
 	if idQuantum != location.Coordinate.QuantumLevel() {
 		problems = append(problems, fmt.Sprintf(
 			"location %q: ID suggests quantum level %d but Coordinate.Quantum is %q (level %d)",

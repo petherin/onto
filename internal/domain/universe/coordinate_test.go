@@ -46,6 +46,24 @@ func TestTimelineLevel(t *testing.T) {
 	}
 }
 
+func TestUniverseLevel(t *testing.T) {
+	tests := []struct {
+		name     string
+		universe string
+		want     int
+	}{
+		{"default Origin", "Origin", 0},
+		{"U4", "U4", 4},
+		{"unrecognised", "unknown", 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := CoordinateVO{Universe: tc.universe}
+			assert.Equal(t, tc.want, c.UniverseLevel())
+		})
+	}
+}
+
 // --- OntoAddress() ---
 
 func TestOntoAddress_FullCoordinate(t *testing.T) {

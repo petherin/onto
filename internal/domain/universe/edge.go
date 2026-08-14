@@ -34,6 +34,12 @@ const QuantumShiftCost = 20.0
 // TimelineShiftCost is the cost of a single timeline jump.
 const TimelineShiftCost = 800.0
 
+// UniverseShiftCost is the cost of a single bubble-universe jump (Tegmark
+// Level II). It is deliberately higher than TimelineShiftCost — crossing into
+// a parallel universe with different physical constants is the most
+// fundamental (and expensive) transition below the mathematical layer.
+const UniverseShiftCost = 5000.0
+
 // ConsensusShiftCost is the cost of entering or exiting a consensus divergence.
 const ConsensusShiftCost = 5.0
 

@@ -138,6 +138,33 @@ func TestAppShift_UpdatesLocation(t *testing.T) {
 	assert.Contains(t, output, "home-q1")
 }
 
+func TestAppUniverse_CreatesUniverseBranch(t *testing.T) {
+	app := NewApp()
+	output := app.Execute("universe")
+
+	assert.Contains(t, output, "U1")
+	assert.Contains(t, output, "universe")
+}
+
+func TestAppUniverse_UpdatesLocation(t *testing.T) {
+	app := NewApp()
+	app.Execute("universe")
+	output := app.Execute("where")
+
+	assert.Contains(t, output, "home-u1")
+}
+
+func TestAppUniverseAndBack(t *testing.T) {
+	app := NewApp()
+
+	universeOutput := app.Execute("universe")
+	assert.Contains(t, universeOutput, "Bubble universe entered: U1")
+
+	backOutput := app.Execute("universe back")
+	assert.Contains(t, backOutput, "Bubble universe exited: Origin")
+	assert.Equal(t, "home", app.session.Location())
+}
+
 func TestAppDriftAndAlign(t *testing.T) {
 	app := NewApp()
 
@@ -191,6 +218,7 @@ func TestAppContextualLocation_OffersTransitionsAndReturns(t *testing.T) {
 	list := app.Execute("ls")
 	assert.Contains(t, list, "— shift)")
 	assert.Contains(t, list, "— jump)")
+	assert.Contains(t, list, "— universe)")
 	assert.Contains(t, list, "— drift)")
 	assert.Contains(t, list, "(align)")
 
@@ -198,6 +226,8 @@ func TestAppContextualLocation_OffersTransitionsAndReturns(t *testing.T) {
 	assert.Contains(t, app.Execute("shift back"), "Quantum branch exited")
 	assert.Contains(t, app.Execute("jump"), "Timeline branch entered")
 	assert.Contains(t, app.Execute("jump back"), "Timeline branch exited")
+	assert.Contains(t, app.Execute("universe"), "Bubble universe entered")
+	assert.Contains(t, app.Execute("universe back"), "Bubble universe exited")
 	assert.Contains(t, app.Execute("align"), "Shared consensus approached")
 }
 
@@ -211,6 +241,19 @@ func TestGoHome_UnwindsConsensusDivergence(t *testing.T) {
 	result := app.GoHomeConfirm()
 	assert.Contains(t, result, "Consensus alignment → level 0")
 	assert.Equal(t, 0, app.session.ConsensusLevel())
+}
+
+func TestGoHome_UnwindsUniverseTransition(t *testing.T) {
+	app := NewApp()
+	app.Execute("universe")
+
+	plan := app.GoHome()
+	assert.Contains(t, plan, "universe back")
+
+	result := app.GoHomeConfirm()
+	assert.Contains(t, result, "universe back")
+	assert.Equal(t, "home", app.session.Location())
+	assert.Equal(t, 0, app.session.UniverseLevel())
 }
 
 func TestGoHome_UnwindsObserverPerspective(t *testing.T) {
@@ -243,6 +286,7 @@ func TestGoHome_UnwindsNestedContextsBeforeTime(t *testing.T) {
 	app.Execute("time 2027-01-01T00:00:00Z")
 	app.Execute("shift")
 	app.Execute("jump")
+	app.Execute("universe")
 	app.Execute("drift")
 	app.Execute("observe dog")
 
@@ -250,6 +294,7 @@ func TestGoHome_UnwindsNestedContextsBeforeTime(t *testing.T) {
 
 	assert.NotContains(t, plan, "return path unavailable")
 	assert.Contains(t, plan, "time back")
+	assert.Contains(t, plan, "universe back")
 }
 
 func TestGoHome_UnwindsRecordedTransitionOrder(t *testing.T) {
@@ -258,22 +303,24 @@ func TestGoHome_UnwindsRecordedTransitionOrder(t *testing.T) {
 	app.Execute("shift")
 	app.Execute("time 2027-01-01T00:00:00Z")
 	app.Execute("jump")
+	app.Execute("universe")
 	app.Execute("observe dog")
 
 	plan := app.GoHome()
 
 	observer := strings.Index(plan, "observe back")
+	universeBack := strings.Index(plan, "universe back")
 	jump := strings.Index(plan, "jump back")
 	time := strings.Index(plan, "time back")
 	shift := strings.Index(plan, "shift back")
-	assert.True(t, observer < jump && jump < time && time < shift, plan)
+	assert.True(t, observer < universeBack && universeBack < jump && jump < time && time < shift, plan)
 }
 
 func TestAppHelp_ListsAllCommands(t *testing.T) {
 	app := NewApp()
 	output := app.Execute("help")
 
-	for _, cmd := range []string{"where", "look", "ls", "route", "travel", "shift", "drift", "align", "observe", "save", "exit"} {
+	for _, cmd := range []string{"where", "look", "ls", "route", "travel", "shift", "universe", "drift", "align", "observe", "save", "exit"} {
 		assert.Contains(t, output, cmd, "help should list command %q", cmd)
 	}
 }
@@ -385,6 +432,15 @@ func TestTravel_ToTimelineBranchID_SuggestsJump(t *testing.T) {
 	assert.Contains(t, output, "jump")
 }
 
+func TestTravel_ToUniverseBranchID_SuggestsUniverse(t *testing.T) {
+	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
+	app := NewApp()
+	// home-u1 doesn't exist yet; it's the next bubble universe.
+	output := app.Execute("travel home-u1")
+
+	assert.Contains(t, output, "universe")
+}
+
 func TestShift_BranchHasContextualPhysicalDestinations(t *testing.T) {
 	app := NewApp()
 	app.Execute("shift")
@@ -411,4 +467,13 @@ func TestJump_BranchHasContextualPhysicalDestinations(t *testing.T) {
 
 	assert.Contains(t, output, "walk")
 	assert.Contains(t, output, "Station (T1)")
+}
+
+func TestUniverse_BranchHasContextualPhysicalDestinations(t *testing.T) {
+	app := NewApp()
+	app.Execute("universe")
+	output := app.Execute("ls")
+
+	assert.Contains(t, output, "walk")
+	assert.Contains(t, output, "Station (U1)")
 }

@@ -145,6 +145,18 @@ func (s *Entity) QuantumLevel() int {
 	return s.currentCoordinate.QuantumLevel()
 }
 
+// UniverseLevel returns the numeric bubble-universe level of the current
+// position (Origin → 0, U1 → 1, U2 → 2, …).
+func (s *Entity) UniverseLevel() int {
+	return s.currentCoordinate.UniverseLevel()
+}
+
+// NextUniverseID returns the location ID that 'universe' would move to from
+// the current position, canonicalized (see NextQuantumID).
+func (s *Entity) NextUniverseID() string {
+	return universe.CanonicalIDWithUniverse(s.currentLocation, s.UniverseLevel()+1)
+}
+
 // NextQuantumID returns the location ID that 'shift' would move to from the
 // current position. IDs are canonicalized so reaching the same coordinate via
 // a different order of shifts (e.g. shift-then-drift vs. drift-then-shift)

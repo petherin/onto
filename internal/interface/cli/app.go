@@ -134,6 +134,11 @@ func (a *App) Execute(input string) string {
 			return a.JumpBack()
 		}
 		return a.Jump()
+	case cmdUniverse:
+		if args == argBack {
+			return a.UniverseBack()
+		}
+		return a.Universe()
 	case cmdDrift:
 		return a.Drift()
 	case cmdAlign:
@@ -189,6 +194,8 @@ func (a *App) Help() string {
 		"shift back             Return to the previous quantum branch",
 		"jump                   Jump forward to the next timeline branch",
 		"jump back              Return to the previous timeline branch",
+		"universe               Shift forward to the next bubble universe",
+		"universe back          Return to the previous bubble universe",
 		"drift                  Enter the next consensus divergence",
 		"align                  Return one level toward shared consensus",
 		"observe <observer>     Change observer perspective",
@@ -223,13 +230,17 @@ func (a *App) Travel(target string) string {
 		// Domain error — no movement occurred.
 		norm := strings.ToLower(strings.ReplaceAll(target, " ", "-"))
 		if _, known := a.universe.GetLocation(norm); !known {
-			// Check if the target is the next quantum or timeline branch (not yet
-			// created — it only exists after 'shift' or 'jump' runs).
+			// Check if the target is the next quantum, timeline, or universe
+			// branch (not yet created — it only exists after 'shift', 'jump',
+			// or 'universe' runs).
 			if norm == a.session.NextQuantumID() {
 				return fmt.Sprintf("%s is a quantum branch — use 'shift' to enter it", target)
 			}
 			if norm == a.session.NextTimelineID() {
 				return fmt.Sprintf("%s is a timeline branch — use 'jump' to enter it", target)
+			}
+			if norm == a.session.NextUniverseID() {
+				return fmt.Sprintf("%s is a bubble universe — use 'universe' to enter it", target)
 			}
 			// Destination not found — try a fuzzy suggestion.
 			if suggestion := a.suggestDestination(target); suggestion != "" {
@@ -299,6 +310,28 @@ func (a *App) JumpBack() string {
 	}
 	a.markDirty()
 	return a.formatJumpResult(result)
+}
+
+// Universe shifts the session forward to the next bubble universe of the current location.
+func (a *App) Universe() string {
+	cmd := &commands.UniverseCommand{Universe: a.universe, Session: a.session}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Universe shift failed: %v", err)
+	}
+	a.markDirty()
+	return a.formatUniverseResult(result)
+}
+
+// UniverseBack returns the session to the previous bubble universe.
+func (a *App) UniverseBack() string {
+	cmd := &commands.UniverseCommand{Universe: a.universe, Session: a.session, Back: true}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot return to previous universe: %v", err)
+	}
+	a.markDirty()
+	return a.formatUniverseResult(result)
 }
 
 // Drift enters the next consensus divergence.
@@ -384,6 +417,10 @@ func (a *App) ExecuteJourney(number int) string {
 		return a.Jump()
 	case journeyJumpBack:
 		return a.JumpBack()
+	case journeyUniverse:
+		return a.Universe()
+	case journeyUniverseBack:
+		return a.UniverseBack()
 	case journeyDrift:
 		return a.Drift()
 	case journeyAlign:

@@ -76,6 +76,20 @@ func (c CoordinateVO) TimelineLevel() int {
 	return 0
 }
 
+// UniverseLevel returns the numeric bubble-universe level encoded in the
+// Universe field ("Origin" → 0, "U1" → 1, "U2" → 2, …).
+func (c CoordinateVO) UniverseLevel() int {
+	if c.Universe == "Origin" || c.Universe == "" {
+		return 0
+	}
+	if len(c.Universe) > 1 && c.Universe[0] == 'U' {
+		if n, err := strconv.Atoi(c.Universe[1:]); err == nil {
+			return n
+		}
+	}
+	return 0
+}
+
 // SamePhysicalReality reports whether two coordinates differ only in their
 // spatial position. Physical travel must not cross any reality boundary.
 func (c CoordinateVO) SamePhysicalReality(other CoordinateVO) bool {

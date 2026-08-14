@@ -147,6 +147,8 @@ func neighborBranchID(neighborID string, mode TravelModeVO, destAxes axisSuffixe
 		ax.time = destAxes.time
 	case ObserverShift:
 		ax.observer = destAxes.observer
+	case UniverseShift:
+		ax.universe = destAxes.universe
 	}
 	return buildLocationID(base, ax)
 }

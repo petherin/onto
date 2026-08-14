@@ -8,6 +8,7 @@ import (
 // axisSuffixes captures the reality-branch axes encoded in a location ID's
 // suffix. The zero value represents "no branch on this axis".
 type axisSuffixes struct {
+	universe  int    // 0 = no universe suffix
 	quantum   int    // 0 = no quantum suffix
 	timeline  int    // 0 = no timeline suffix
 	consensus int    // 0 = no consensus suffix
@@ -16,6 +17,7 @@ type axisSuffixes struct {
 }
 
 var (
+	universeSuffixRe  = regexp.MustCompile(`-u(\d+)$`)
 	quantumSuffixRe   = regexp.MustCompile(`-q(\d+)$`)
 	timelineSuffixRe  = regexp.MustCompile(`-t(\d+)$`)
 	consensusSuffixRe = regexp.MustCompile(`-c(\d+)$`)
@@ -61,18 +63,26 @@ func parseLocationID(id string) (base string, ax axisSuffixes) {
 			base = base[:len(base)-len(m[0])]
 			continue
 		}
+		if m := universeSuffixRe.FindStringSubmatch(base); m != nil && ax.universe == 0 {
+			ax.universe = atoiSafe(m[1])
+			base = base[:len(base)-len(m[0])]
+			continue
+		}
 		break
 	}
 	return base, ax
 }
 
 // buildLocationID reassembles a base and its axes into a canonical location
-// ID. The axis order is always quantum, timeline, consensus, time, observer —
-// regardless of the order the branches were actually taken in — so that
-// reaching the same logical coordinate via a different sequence of shifts
-// always produces the same ID.
+// ID. The axis order is always universe, quantum, timeline, consensus, time,
+// observer — regardless of the order the branches were actually taken in —
+// so that reaching the same logical coordinate via a different sequence of
+// shifts always produces the same ID.
 func buildLocationID(base string, ax axisSuffixes) string {
 	id := base
+	if ax.universe > 0 {
+		id += "-u" + itoa(ax.universe)
+	}
 	if ax.quantum > 0 {
 		id += "-q" + itoa(ax.quantum)
 	}
@@ -94,9 +104,17 @@ func buildLocationID(base string, ax axisSuffixes) string {
 // ParseLocationID exposes parseLocationID for consumers outside this package
 // (e.g. scripts/validate_locations.go) that need to check ID/coordinate
 // consistency without duplicating the suffix grammar.
-func ParseLocationID(id string) (base string, quantum, timeline, consensus int, time, observer string) {
+func ParseLocationID(id string) (base string, universeLvl, quantum, timeline, consensus int, time, observer string) {
 	b, ax := parseLocationID(id)
-	return b, ax.quantum, ax.timeline, ax.consensus, ax.time, ax.observer
+	return b, ax.universe, ax.quantum, ax.timeline, ax.consensus, ax.time, ax.observer
+}
+
+// CanonicalIDWithUniverse parses currentID, overrides its universe axis, and
+// reassembles the ID in canonical order (see CanonicalIDWithQuantum).
+func CanonicalIDWithUniverse(currentID string, level int) string {
+	base, ax := parseLocationID(currentID)
+	ax.universe = level
+	return buildLocationID(base, ax)
 }
 
 // CanonicalIDWithQuantum parses currentID, overrides its quantum axis, and

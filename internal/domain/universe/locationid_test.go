@@ -26,6 +26,16 @@ func TestCanonicalIDs_OrderIndependent(t *testing.T) {
 			a:    CanonicalIDWithTimeline(CanonicalIDWithConsensus("home", 1), 1),
 			b:    CanonicalIDWithConsensus(CanonicalIDWithTimeline("home", 1), 1),
 		},
+		{
+			name: "universe then shift vs shift then universe",
+			a:    CanonicalIDWithQuantum(CanonicalIDWithUniverse("home", 1), 1),
+			b:    CanonicalIDWithUniverse(CanonicalIDWithQuantum("home", 1), 1),
+		},
+		{
+			name: "universe then jump vs jump then universe",
+			a:    CanonicalIDWithTimeline(CanonicalIDWithUniverse("home", 1), 1),
+			b:    CanonicalIDWithUniverse(CanonicalIDWithTimeline("home", 1), 1),
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -44,13 +54,21 @@ func TestCanonicalID_RepeatedAxisDoesNotDuplicateSuffix(t *testing.T) {
 	}
 }
 
+func TestCanonicalIDWithUniverse_RepeatedAxisDoesNotDuplicateSuffix(t *testing.T) {
+	id := CanonicalIDWithUniverse("home", 1)
+	id = CanonicalIDWithUniverse(id, 2)
+	if id != "home-u2" {
+		t.Fatalf("expected home-u2, got %q", id)
+	}
+}
+
 func TestParseLocationID_RoundTrip(t *testing.T) {
-	id := "home-q1-t2-c3-at-20250101t000000z-o-mirror"
+	id := "home-u5-q1-t2-c3-at-20250101t000000z-o-mirror"
 	base, ax := parseLocationID(id)
 	if base != "home" {
 		t.Fatalf("expected base 'home', got %q", base)
 	}
-	if ax.quantum != 1 || ax.timeline != 2 || ax.consensus != 3 || ax.time != "20250101t000000z" || ax.observer != "mirror" {
+	if ax.universe != 5 || ax.quantum != 1 || ax.timeline != 2 || ax.consensus != 3 || ax.time != "20250101t000000z" || ax.observer != "mirror" {
 		t.Fatalf("unexpected axes: %+v", ax)
 	}
 	if got := buildLocationID(base, ax); got != id {

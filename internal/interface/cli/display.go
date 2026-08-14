@@ -113,6 +113,19 @@ func (a *App) formatJumpResult(r *commands.JumpResult) string {
 	return base
 }
 
+func (a *App) formatUniverseResult(r *commands.UniverseResult) string {
+	verb := "Bubble universe entered"
+	if r.Reversed {
+		verb = "Bubble universe exited"
+	}
+	base := fmt.Sprintf("Shifting universes...\n\n%s: %s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
+		verb, r.NextUniverse, r.Location.Description,
+		a.session.CumulativeCost(),
+		a.formatEdges(r.Edges),
+	)
+	return base
+}
+
 func (a *App) formatRouteResult(r *queries.RouteResult) string {
 	var steps []string
 	for _, edge := range r.Steps {
@@ -143,6 +156,8 @@ const (
 	journeyShiftBack
 	journeyJump
 	journeyJumpBack
+	journeyUniverse
+	journeyUniverseBack
 	journeyDrift
 	journeyAlign
 	journeyObserveBack
@@ -159,6 +174,7 @@ func (a *App) journeyOptions(edges []universe.EdgeVO) ([]journeyOption, bool) {
 	var options []journeyOption
 	hasReverseQuantum := false
 	hasReverseTimeline := false
+	hasReverseUniverse := false
 	hasReverseConsensus := false
 	hasReverseObserver := false
 	hasReverseTime := false
@@ -187,6 +203,13 @@ func (a *App) journeyOptions(edges []universe.EdgeVO) ([]journeyOption, bool) {
 			if dest, ok := a.universe.GetLocation(edge.To); ok {
 				if dest.Coordinate.TimelineLevel() < a.session.TimelineLevel() {
 					hasReverseTimeline = true
+				}
+			}
+		case universe.UniverseShift:
+			// Don't list universe edges as regular journeys — they need 'universe' or 'universe back'.
+			if dest, ok := a.universe.GetLocation(edge.To); ok {
+				if dest.Coordinate.UniverseLevel() < a.session.UniverseLevel() {
+					hasReverseUniverse = true
 				}
 			}
 		case universe.ConsensusShift:
@@ -224,6 +247,16 @@ func (a *App) journeyOptions(edges []universe.EdgeVO) ([]journeyOption, bool) {
 		options = append(options, journeyOption{
 			kind:        journeyJumpBack,
 			description: "Return to the previous timeline branch (jump back)",
+		})
+	}
+	options = append(options, journeyOption{
+		kind:        journeyUniverse,
+		description: fmt.Sprintf("%s (universe, %.0f — universe)", a.session.NextUniverseID(), universe.UniverseShiftCost),
+	})
+	if hasReverseUniverse {
+		options = append(options, journeyOption{
+			kind:        journeyUniverseBack,
+			description: "Return to the previous bubble universe (universe back)",
 		})
 	}
 	options = append(options, journeyOption{
