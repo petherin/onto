@@ -1,5 +1,7 @@
 # Onto
 
+![alt text](/docs/watermarked_img_55746261856063020.jpg "Title")
+
 Onto is an experimental CLI for navigating reality as a coordinate system.
 
 ## Table of contents
