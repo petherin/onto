@@ -1,14 +1,12 @@
 package cli
 
-import "os"
+import "github.com/petherin/onto/internal/application/facade"
+
+// AppVersion re-exports the application version for callers that already
+// import the cli package (e.g. existing tests).
+const AppVersion = facade.AppVersion
 
 const (
-	// AppVersion is the current version string shown at startup.
-	AppVersion = "Onto Explorer v0.1"
-
-	defaultDataFile      = "data/locations.json"
-	defaultStartLocation = "home"
-
 	msgGoodbye            = "Goodbye."
 	msgAlreadyHome        = "You are already home."
 	msgSaved              = "Saved."
@@ -37,20 +35,3 @@ const (
 	argBack      = "back"
 )
 
-// dataFile returns the path to the locations JSON file.
-// Override with the ONTO_DATA_FILE environment variable.
-func dataFile() string {
-	if v := os.Getenv("ONTO_DATA_FILE"); v != "" {
-		return v
-	}
-	return defaultDataFile
-}
-
-// startLocation returns the ID of the location the app starts at.
-// Override with the ONTO_START_LOCATION environment variable.
-func startLocation() string {
-	if v := os.Getenv("ONTO_START_LOCATION"); v != "" {
-		return v
-	}
-	return defaultStartLocation
-}

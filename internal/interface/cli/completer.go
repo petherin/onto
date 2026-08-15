@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/chzyer/readline"
+	"github.com/petherin/onto/internal/application/facade"
 )
 
 // ontoCompleter implements readline.AutoCompleter with context-aware
@@ -63,28 +64,11 @@ func (c *ontoCompleter) completeArg(cmd, argPrefix string) ([][]rune, int) {
 // travelDestinationIDs returns physical destinations that are immediately
 // reachable from the current location and therefore shown by the CLI.
 func (c *ontoCompleter) travelDestinationIDs() []string {
-	current := c.app.session.Coordinate()
-	var ids []string
-	for _, edge := range c.app.universe.EdgesFrom(c.app.session.Location()) {
-		if !edge.Mode.IsPhysical() {
-			continue
-		}
-		dest, ok := c.app.universe.GetLocation(edge.To)
-		if ok && current.SamePhysicalReality(dest.Coordinate) {
-			ids = append(ids, dest.ID)
-		}
-	}
-	return ids
+	return c.app.app.PhysicalDestinationIDs()
 }
 
 // allCommandNames returns every top-level command name.
-func allCommandNames() []string {
-	return []string{
-		cmdHelp, cmdWhere, cmdLook, cmdList,
-		cmdRoute, cmdTravel, cmdHome, cmdCost,
-		cmdShift, cmdJump, cmdUniverse, cmdStructure, cmdSimulate, cmdDrift, cmdAlign, cmdObserve, cmdTime, cmdSave, cmdExit,
-	}
-}
+func allCommandNames() []string { return facade.AllCommandNames() }
 
 // completionsFor returns readline-style completions: each entry is the
 // untyped suffix to append, and length is the number of already typed runes.

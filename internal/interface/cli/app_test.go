@@ -7,7 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/petherin/onto/internal/domain/exploration"
+	"github.com/petherin/onto/internal/bootstrap"
+	"github.com/petherin/onto/internal/application/facade"
 	"github.com/petherin/onto/internal/domain/navigation"
 	"github.com/petherin/onto/internal/domain/universe"
 	"github.com/petherin/onto/internal/mocks"
@@ -32,8 +33,26 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// newTestApp bootstraps a *App using the current environment config (which
+// TestMain or individual t.Setenv calls pre-configure). It is the test
+// replacement for the old NewApp() factory that lived in the cli package.
+func newTestApp(t *testing.T) *App {
+	t.Helper()
+	state, err := bootstrap.Bootstrap(bootstrap.DefaultConfig())
+	require.NoError(t, err)
+	f, err := facade.New(
+		state.Universe,
+		state.Repo,
+		state.StartID,
+		navigation.NewBFSPathfinder(),
+		universe.NewSequentialLocationGenerator(),
+	)
+	require.NoError(t, err)
+	return New(f)
+}
+
 func TestAppWhere(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("where")
 
 	assert.Contains(t, output, "Reality Coordinate")
@@ -43,19 +62,14 @@ func TestAppWhere(t *testing.T) {
 func newMockedApp(t *testing.T) (*App, *mocks.MockRepository) {
 	t.Helper()
 	u := mocks.NewTestUniverse()
-	loc, _ := u.GetLocation("home")
 	repo := mocks.NewMockRepository(t)
-	return &App{
-		universe:          u,
-		session:           exploration.NewEntity("home", loc.Coordinate),
-		repo:              repo,
-		pathfinder:        navigation.NewBFSPathfinder(),
-		locationGenerator: universe.NewSequentialLocationGenerator(),
-	}, repo
+	f, err := facade.New(u, repo, "home", navigation.NewBFSPathfinder(), universe.NewSequentialLocationGenerator())
+	require.NoError(t, err)
+	return New(f), repo
 }
 
 func TestAppRouteToStation(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("route station")
 
 	assert.Contains(t, output, "Route")
@@ -63,38 +77,38 @@ func TestAppRouteToStation(t *testing.T) {
 }
 
 func TestAppTravelToStation(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("travel station")
 
 	assert.Contains(t, output, "Arrived")
 }
 
 func TestAppTravelShowsPossibleJourneys(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("travel station")
 
 	assert.Contains(t, output, "Possible journeys")
 }
 
 func TestAppNumberedJourneyTravelsToDisplayedDestination(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 
 	list := app.Execute("ls")
 	assert.Contains(t, list, "1. Station")
 
 	output := app.Execute("1")
 	assert.Contains(t, output, "Arrived.")
-	assert.Equal(t, "station", app.session.Location())
+	assert.Equal(t, "station", app.app.SessionEntity().Location())
 }
 
 func TestAppNumberedJourneyExecutesContextualReturn(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("shift")
 
 	number := 0
-	options, _ := app.journeyOptions(app.universe.EdgesFrom(app.session.Location()))
+	options, _ := app.app.JourneyOptions(app.app.Aggregate().EdgesFrom(app.app.SessionEntity().Location()))
 	for i, option := range options {
-		if option.kind == journeyShiftBack {
+		if option.Kind == facade.JourneyShiftBack {
 			number = i + 1
 			break
 		}
@@ -103,11 +117,11 @@ func TestAppNumberedJourneyExecutesContextualReturn(t *testing.T) {
 	output := app.Execute(fmt.Sprintf("%d", number))
 
 	assert.Contains(t, output, "Quantum branch exited")
-	assert.Equal(t, "home", app.session.Location())
+	assert.Equal(t, "home", app.app.SessionEntity().Location())
 }
 
 func TestAppNumberedJourneyRejectsUnknownNumber(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 
 	output := app.Execute("99")
 
@@ -115,7 +129,7 @@ func TestAppNumberedJourneyRejectsUnknownNumber(t *testing.T) {
 }
 
 func TestAppSuggestsSimilarDestination(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("route parl")
 
 	assert.Contains(t, output, "Did you mean")
@@ -123,7 +137,7 @@ func TestAppSuggestsSimilarDestination(t *testing.T) {
 }
 
 func TestAppShift_CreatesQuantumBranch(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("shift")
 
 	assert.Contains(t, output, "Q1")
@@ -131,7 +145,7 @@ func TestAppShift_CreatesQuantumBranch(t *testing.T) {
 }
 
 func TestAppShift_UpdatesLocation(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("shift")
 	output := app.Execute("where")
 
@@ -139,7 +153,7 @@ func TestAppShift_UpdatesLocation(t *testing.T) {
 }
 
 func TestAppUniverse_CreatesUniverseBranch(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("universe")
 
 	assert.Contains(t, output, "U1")
@@ -147,7 +161,7 @@ func TestAppUniverse_CreatesUniverseBranch(t *testing.T) {
 }
 
 func TestAppUniverse_UpdatesLocation(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("universe")
 	output := app.Execute("where")
 
@@ -155,18 +169,18 @@ func TestAppUniverse_UpdatesLocation(t *testing.T) {
 }
 
 func TestAppUniverseAndBack(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 
 	universeOutput := app.Execute("universe")
 	assert.Contains(t, universeOutput, "Bubble universe entered: U1")
 
 	backOutput := app.Execute("universe back")
 	assert.Contains(t, backOutput, "Bubble universe exited: Origin")
-	assert.Equal(t, "home", app.session.Location())
+	assert.Equal(t, "home", app.app.SessionEntity().Location())
 }
 
 func TestAppStructure_CreatesMathematicsBranch(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("structure")
 
 	assert.Contains(t, output, "M1")
@@ -174,7 +188,7 @@ func TestAppStructure_CreatesMathematicsBranch(t *testing.T) {
 }
 
 func TestAppStructure_UpdatesLocation(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("structure")
 	output := app.Execute("where")
 
@@ -183,18 +197,18 @@ func TestAppStructure_UpdatesLocation(t *testing.T) {
 }
 
 func TestAppStructureAndBack(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 
 	structureOutput := app.Execute("structure")
 	assert.Contains(t, structureOutput, "Mathematical structure entered: M1")
 
 	backOutput := app.Execute("structure back")
 	assert.Contains(t, backOutput, "Mathematical structure exited: Classical")
-	assert.Equal(t, "home", app.session.Location())
+	assert.Equal(t, "home", app.app.SessionEntity().Location())
 }
 
 func TestAppSimulate_CreatesSimulationBranch(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("simulate")
 
 	assert.Contains(t, output, "Simulation layer entered: depth 1")
@@ -202,28 +216,28 @@ func TestAppSimulate_CreatesSimulationBranch(t *testing.T) {
 }
 
 func TestAppSimulate_UpdatesLocation(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("simulate")
 	output := app.Execute("where")
 
-	assert.Equal(t, "home-s1", app.session.Location())
+	assert.Equal(t, "home-s1", app.app.SessionEntity().Location())
 	assert.Contains(t, output, "Simulation: 1")
 	assert.Contains(t, output, "/sim:1@")
 }
 
 func TestAppSimulateAndBack(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 
 	enter := app.Execute("simulate")
 	assert.Contains(t, enter, "Simulation layer entered: depth 1")
 
 	exit := app.Execute("simulate back")
 	assert.Contains(t, exit, "Simulation layer exited: depth 0")
-	assert.Equal(t, "home", app.session.Location())
+	assert.Equal(t, "home", app.app.SessionEntity().Location())
 }
 
 func TestAppDriftAndAlign(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 
 	driftOutput := app.Execute("drift")
 	assert.Contains(t, driftOutput, "Consensus divergence entered: level 1")
@@ -234,7 +248,7 @@ func TestAppDriftAndAlign(t *testing.T) {
 }
 
 func TestAppObserveAndReturn(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 
 	observeOutput := app.Execute("observe Machine")
 	assert.Contains(t, observeOutput, "Observer perspective entered: Machine")
@@ -246,7 +260,7 @@ func TestAppObserveAndReturn(t *testing.T) {
 }
 
 func TestAppTimeAndReturn(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 
 	output := app.Execute("time 2042-01-02T03:04:05Z")
 	assert.Contains(t, output, "Temporal branch entered")
@@ -254,11 +268,11 @@ func TestAppTimeAndReturn(t *testing.T) {
 
 	output = app.Execute("time back")
 	assert.Contains(t, output, "Temporal branch exited")
-	assert.Equal(t, "home", app.session.Location())
+	assert.Equal(t, "home", app.app.SessionEntity().Location())
 }
 
 func TestAppDrift_CanTravelWithinConsensusDivergence(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("drift")
 
 	output := app.Execute("travel station-c1")
@@ -268,7 +282,7 @@ func TestAppDrift_CanTravelWithinConsensusDivergence(t *testing.T) {
 }
 
 func TestAppContextualLocation_OffersTransitionsAndReturns(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("drift")
 	app.Execute("travel station-c1")
 
@@ -289,7 +303,7 @@ func TestAppContextualLocation_OffersTransitionsAndReturns(t *testing.T) {
 }
 
 func TestGoHome_UnwindsConsensusDivergence(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("drift")
 
 	plan := app.GoHome()
@@ -297,11 +311,11 @@ func TestGoHome_UnwindsConsensusDivergence(t *testing.T) {
 
 	result := app.GoHomeConfirm()
 	assert.Contains(t, result, "Consensus alignment → level 0")
-	assert.Equal(t, 0, app.session.ConsensusLevel())
+	assert.Equal(t, 0, app.app.SessionEntity().ConsensusLevel())
 }
 
 func TestGoHome_UnwindsUniverseTransition(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("universe")
 
 	plan := app.GoHome()
@@ -309,12 +323,12 @@ func TestGoHome_UnwindsUniverseTransition(t *testing.T) {
 
 	result := app.GoHomeConfirm()
 	assert.Contains(t, result, "universe back")
-	assert.Equal(t, "home", app.session.Location())
-	assert.Equal(t, 0, app.session.UniverseLevel())
+	assert.Equal(t, "home", app.app.SessionEntity().Location())
+	assert.Equal(t, 0, app.app.SessionEntity().UniverseLevel())
 }
 
 func TestGoHome_UnwindsMathematicsTransition(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("structure")
 
 	plan := app.GoHome()
@@ -322,12 +336,12 @@ func TestGoHome_UnwindsMathematicsTransition(t *testing.T) {
 
 	result := app.GoHomeConfirm()
 	assert.Contains(t, result, "structure back")
-	assert.Equal(t, "home", app.session.Location())
-	assert.Equal(t, 0, app.session.MathematicsLevel())
+	assert.Equal(t, "home", app.app.SessionEntity().Location())
+	assert.Equal(t, 0, app.app.SessionEntity().MathematicsLevel())
 }
 
 func TestGoHome_UnwindsSimulationTransition(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("simulate")
 
 	plan := app.GoHome()
@@ -335,12 +349,12 @@ func TestGoHome_UnwindsSimulationTransition(t *testing.T) {
 
 	result := app.GoHomeConfirm()
 	assert.Contains(t, result, "simulate back")
-	assert.Equal(t, "home", app.session.Location())
-	assert.Equal(t, 0, app.session.SimulationLevel())
+	assert.Equal(t, "home", app.app.SessionEntity().Location())
+	assert.Equal(t, 0, app.app.SessionEntity().SimulationLevel())
 }
 
 func TestGoHome_UnwindsObserverPerspective(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("observe Cat")
 
 	plan := app.GoHome()
@@ -348,11 +362,11 @@ func TestGoHome_UnwindsObserverPerspective(t *testing.T) {
 
 	result := app.GoHomeConfirm()
 	assert.Contains(t, result, "Observer return → Human")
-	assert.Equal(t, "Human", app.session.Coordinate().Observer)
+	assert.Equal(t, "Human", app.app.SessionEntity().Coordinate().Observer)
 }
 
 func TestGoHome_SeparatesConsensusAndPhysicalCosts(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("drift")
 	app.Execute("travel station-c1")
 
@@ -365,7 +379,7 @@ func TestGoHome_SeparatesConsensusAndPhysicalCosts(t *testing.T) {
 
 func TestGoHome_UnwindsNestedContextsBeforeTime(t *testing.T) {
 	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("time 2027-01-01T00:00:00Z")
 	app.Execute("shift")
 	app.Execute("jump")
@@ -382,7 +396,7 @@ func TestGoHome_UnwindsNestedContextsBeforeTime(t *testing.T) {
 
 func TestGoHome_UnwindsRecordedTransitionOrder(t *testing.T) {
 	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("shift")
 	app.Execute("time 2027-01-01T00:00:00Z")
 	app.Execute("jump")
@@ -400,7 +414,7 @@ func TestGoHome_UnwindsRecordedTransitionOrder(t *testing.T) {
 }
 
 func TestAppHelp_ListsAllCommands(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("help")
 
 	for _, cmd := range []string{"where", "look", "ls", "route", "travel", "shift", "universe", "drift", "align", "observe", "save", "exit"} {
@@ -415,30 +429,30 @@ func TestAppShift_DoesNotSaveImmediately(t *testing.T) {
 
 	assert.Contains(t, output, "Quantum branch entered")
 	repo.AssertNotCalled(t, "Save", testifymock.Anything)
-	assert.True(t, app.dirty)
+	assert.True(t, app.app.IsDirty())
 }
 
 func TestAppSaveCommand_SavesAndReportsSuccess(t *testing.T) {
 	app, repo := newMockedApp(t)
 	app.Execute("shift")
-	repo.EXPECT().Save(app.universe).Return(nil).Once()
+	repo.EXPECT().Save(app.app.Aggregate()).Return(nil).Once()
 
 	output := app.Execute("save")
 
 	assert.Equal(t, msgSaved, output)
-	assert.False(t, app.dirty)
+	assert.False(t, app.app.IsDirty())
 }
 
 func TestAppSaveIfDirty_OnlySavesWhenDirty(t *testing.T) {
 	t.Run("dirty", func(t *testing.T) {
 		app, repo := newMockedApp(t)
-		app.dirty = true
-		repo.EXPECT().Save(app.universe).Return(nil).Once()
+		app.Execute("shift") // marks dirty without saving
+		repo.EXPECT().Save(app.app.Aggregate()).Return(nil).Once()
 
 		err := app.SaveIfDirty()
 
 		require.NoError(t, err)
-		assert.False(t, app.dirty)
+		assert.False(t, app.app.IsDirty())
 	})
 
 	t.Run("clean", func(t *testing.T) {
@@ -452,7 +466,7 @@ func TestAppSaveIfDirty_OnlySavesWhenDirty(t *testing.T) {
 }
 
 func TestAppUnknownCommand_SuggestsAlternative(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("wher") // typo of "where"
 
 	assert.Contains(t, output, "Did you mean")
@@ -460,21 +474,21 @@ func TestAppUnknownCommand_SuggestsAlternative(t *testing.T) {
 }
 
 func TestAppEmptyInput_ReturnsEmpty(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("")
 
 	require.Empty(t, output)
 }
 
 func TestAppLook_ReturnsDescription(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("look")
 
 	assert.Contains(t, output, "Home")
 }
 
 func TestAppList_ShowsQuantumOption(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("ls")
 
 	assert.Contains(t, output, "shift")
@@ -482,14 +496,14 @@ func TestAppList_ShowsQuantumOption(t *testing.T) {
 }
 
 func TestGoHome_WhenAlreadyHome_ReportsIt(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	output := app.Execute("home")
 
 	assert.Contains(t, output, "already home")
 }
 
 func TestGoHome_FromStation_ReturnsPlan(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("travel station")
 	output := app.Execute("home")
 
@@ -499,7 +513,7 @@ func TestGoHome_FromStation_ReturnsPlan(t *testing.T) {
 
 func TestTravel_ToQuantumBranchID_SuggestsShift(t *testing.T) {
 	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
-	app := NewApp()
+	app := newTestApp(t)
 	// home-q1 doesn't exist yet; it's the next quantum branch.
 	output := app.Execute("travel home-q1")
 
@@ -508,7 +522,7 @@ func TestTravel_ToQuantumBranchID_SuggestsShift(t *testing.T) {
 
 func TestTravel_ToTimelineBranchID_SuggestsJump(t *testing.T) {
 	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
-	app := NewApp()
+	app := newTestApp(t)
 	// home-t1 doesn't exist yet; it's the next timeline branch.
 	output := app.Execute("travel home-t1")
 
@@ -517,7 +531,7 @@ func TestTravel_ToTimelineBranchID_SuggestsJump(t *testing.T) {
 
 func TestTravel_ToUniverseBranchID_SuggestsUniverse(t *testing.T) {
 	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
-	app := NewApp()
+	app := newTestApp(t)
 	// home-u1 doesn't exist yet; it's the next bubble universe.
 	output := app.Execute("travel home-u1")
 
@@ -526,7 +540,7 @@ func TestTravel_ToUniverseBranchID_SuggestsUniverse(t *testing.T) {
 
 func TestTravel_ToMathematicsBranchID_SuggestsStructure(t *testing.T) {
 	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
-	app := NewApp()
+	app := newTestApp(t)
 	// home-m1 doesn't exist yet; it's the next mathematical structure.
 	output := app.Execute("travel home-m1")
 
@@ -535,7 +549,7 @@ func TestTravel_ToMathematicsBranchID_SuggestsStructure(t *testing.T) {
 
 func TestTravel_ToSimulationBranchID_SuggestsSimulate(t *testing.T) {
 	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
-	app := NewApp()
+	app := newTestApp(t)
 	// home-s1 doesn't exist yet; it's the next simulation layer.
 	output := app.Execute("travel home-s1")
 
@@ -543,7 +557,7 @@ func TestTravel_ToSimulationBranchID_SuggestsSimulate(t *testing.T) {
 }
 
 func TestShift_BranchHasContextualPhysicalDestinations(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("shift")
 	output := app.Execute("ls")
 
@@ -552,7 +566,7 @@ func TestShift_BranchHasContextualPhysicalDestinations(t *testing.T) {
 }
 
 func TestList_ShowsTravelablePhysicalLocationIDs(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("travel station")
 	app.Execute("shift")
 
@@ -562,7 +576,7 @@ func TestList_ShowsTravelablePhysicalLocationIDs(t *testing.T) {
 }
 
 func TestJump_BranchHasContextualPhysicalDestinations(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("jump")
 	output := app.Execute("ls")
 
@@ -571,7 +585,7 @@ func TestJump_BranchHasContextualPhysicalDestinations(t *testing.T) {
 }
 
 func TestUniverse_BranchHasContextualPhysicalDestinations(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("universe")
 	output := app.Execute("ls")
 
@@ -580,7 +594,7 @@ func TestUniverse_BranchHasContextualPhysicalDestinations(t *testing.T) {
 }
 
 func TestStructure_BranchHasContextualPhysicalDestinations(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("structure")
 	output := app.Execute("ls")
 
@@ -590,7 +604,7 @@ func TestStructure_BranchHasContextualPhysicalDestinations(t *testing.T) {
 }
 
 func TestSimulate_BranchHasContextualPhysicalDestinations(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("simulate")
 	output := app.Execute("ls")
 

@@ -7,20 +7,20 @@ import (
 )
 
 func TestPrompt_AtHome(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	// Default start: all standard defaults — ShortAddress omits Planet/Country/Region.
 	assert.Equal(t, "[Leeds/Home] > ", app.Prompt())
 }
 
 func TestPrompt_AfterTravelToStation(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("travel station")
 
 	assert.Equal(t, "[Leeds/Station] > ", app.Prompt())
 }
 
 func TestPrompt_AfterQuantumShift(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("shift")
 
 	// Q1 is non-default; appears before spatial segments.
@@ -28,7 +28,7 @@ func TestPrompt_AfterQuantumShift(t *testing.T) {
 }
 
 func TestPrompt_AfterTimelineJump(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("jump")
 
 	// T1 is non-default; appears before spatial segments.
@@ -36,7 +36,7 @@ func TestPrompt_AfterTimelineJump(t *testing.T) {
 }
 
 func TestPrompt_AfterQuantumShiftAndTimelineJump(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("shift")
 	app.Execute("jump")
 
@@ -45,7 +45,7 @@ func TestPrompt_AfterQuantumShiftAndTimelineJump(t *testing.T) {
 }
 
 func TestPrompt_AfterTravelThenShiftThenJump(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("travel station")
 	app.Execute("shift")
 	app.Execute("jump")
@@ -55,7 +55,7 @@ func TestPrompt_AfterTravelThenShiftThenJump(t *testing.T) {
 }
 
 func TestPrompt_ShiftBackResetsQuantum(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("shift")
 	app.Execute("shift back")
 
@@ -64,7 +64,7 @@ func TestPrompt_ShiftBackResetsQuantum(t *testing.T) {
 }
 
 func TestPrompt_JumpBackResetsTimeline(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("jump")
 	app.Execute("jump back")
 
@@ -73,7 +73,7 @@ func TestPrompt_JumpBackResetsTimeline(t *testing.T) {
 }
 
 func TestPrompt_WhereShowsFullCoordinateAfterShiftBack(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("travel station")
 	app.Execute("shift")
 	app.Execute("shift back")
@@ -87,7 +87,7 @@ func TestPrompt_WhereShowsFullCoordinateAfterShiftBack(t *testing.T) {
 }
 
 func TestPrompt_WhereShowsFullCoordinateAfterJumpBack(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("travel station")
 	app.Execute("jump")
 	app.Execute("jump back")

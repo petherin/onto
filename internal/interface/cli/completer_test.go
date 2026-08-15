@@ -16,7 +16,7 @@ func runeStr(candidates [][]rune) []string {
 }
 
 func TestCompleter_EmptyLine_OffersAllCommands(t *testing.T) {
-	c := NewCompleter(NewApp())
+	c := NewCompleter(newTestApp(t))
 	candidates, length := c.Do([]rune{}, 0)
 
 	assert.Equal(t, 0, length)
@@ -27,7 +27,7 @@ func TestCompleter_EmptyLine_OffersAllCommands(t *testing.T) {
 }
 
 func TestCompleter_PartialCommand_FiltersToMatchingCommands(t *testing.T) {
-	c := NewCompleter(NewApp())
+	c := NewCompleter(newTestApp(t))
 	// "tr" should match "travel" only among standard commands.
 	candidates, length := c.Do([]rune("tr"), 2)
 
@@ -38,7 +38,7 @@ func TestCompleter_PartialCommand_FiltersToMatchingCommands(t *testing.T) {
 }
 
 func TestCompleter_FullCommandWithSpace_AfterTravel_OffersLocations(t *testing.T) {
-	c := NewCompleter(NewApp())
+	c := NewCompleter(newTestApp(t))
 	candidates, length := c.Do([]rune("travel "), 7)
 
 	assert.Equal(t, 0, length, "no prefix typed yet — length should be 0")
@@ -48,7 +48,7 @@ func TestCompleter_FullCommandWithSpace_AfterTravel_OffersLocations(t *testing.T
 }
 
 func TestCompleter_OnlyOffersCurrentPhysicalJourneys(t *testing.T) {
-	app := NewApp()
+	app := newTestApp(t)
 	app.Execute("travel station")
 	c := NewCompleter(app)
 
@@ -61,7 +61,7 @@ func TestCompleter_OnlyOffersCurrentPhysicalJourneys(t *testing.T) {
 }
 
 func TestCompleter_PartialArg_AfterTravel_FiltersLocations(t *testing.T) {
-	c := NewCompleter(NewApp())
+	c := NewCompleter(newTestApp(t))
 	candidates, length := c.Do([]rune("travel sta"), 10)
 
 	assert.Equal(t, 3, length, "length should be len('sta')")
@@ -71,7 +71,7 @@ func TestCompleter_PartialArg_AfterTravel_FiltersLocations(t *testing.T) {
 }
 
 func TestCompleter_PartialTravelArgumentReturnsSuffixWithoutRepeatingPrefix(t *testing.T) {
-	c := NewCompleter(NewApp())
+	c := NewCompleter(newTestApp(t))
 
 	candidates, length := c.Do([]rune("travel p"), 8)
 
@@ -80,7 +80,7 @@ func TestCompleter_PartialTravelArgumentReturnsSuffixWithoutRepeatingPrefix(t *t
 }
 
 func TestCompleter_FullCommandWithSpace_AfterRoute_OffersLocations(t *testing.T) {
-	c := NewCompleter(NewApp())
+	c := NewCompleter(newTestApp(t))
 	candidates, _ := c.Do([]rune("route "), 6)
 
 	names := runeStr(candidates)
@@ -89,7 +89,7 @@ func TestCompleter_FullCommandWithSpace_AfterRoute_OffersLocations(t *testing.T)
 }
 
 func TestCompleter_AfterShift_OffersBack(t *testing.T) {
-	c := NewCompleter(NewApp())
+	c := NewCompleter(newTestApp(t))
 	candidates, _ := c.Do([]rune("shift "), 6)
 
 	names := runeStr(candidates)
@@ -97,7 +97,7 @@ func TestCompleter_AfterShift_OffersBack(t *testing.T) {
 }
 
 func TestCompleter_AfterJump_OffersBack(t *testing.T) {
-	c := NewCompleter(NewApp())
+	c := NewCompleter(newTestApp(t))
 	candidates, _ := c.Do([]rune("jump "), 5)
 
 	names := runeStr(candidates)
@@ -105,13 +105,13 @@ func TestCompleter_AfterJump_OffersBack(t *testing.T) {
 }
 
 func TestCompleter_UnknownCommand_ReturnsNoCompletions(t *testing.T) {
-	c := NewCompleter(NewApp())
+	c := NewCompleter(newTestApp(t))
 	candidates, _ := c.Do([]rune("unknown "), 8)
 	assert.Empty(t, candidates)
 }
 
 func TestCompleter_TwoFullArgs_ReturnsNothing(t *testing.T) {
-	c := NewCompleter(NewApp())
+	c := NewCompleter(newTestApp(t))
 	// "travel home " — already has two complete words with trailing space
 	candidates, _ := c.Do([]rune("travel home "), 12)
 	assert.Empty(t, candidates)

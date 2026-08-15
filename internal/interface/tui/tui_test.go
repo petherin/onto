@@ -13,20 +13,32 @@ import (
 	"github.com/charmbracelet/x/exp/teatest"
 	"github.com/stretchr/testify/require"
 
-	"github.com/petherin/onto/internal/interface/cli"
+	"github.com/petherin/onto/internal/bootstrap"
+	"github.com/petherin/onto/internal/application/facade"
+	"github.com/petherin/onto/internal/domain/navigation"
+	"github.com/petherin/onto/internal/domain/universe"
 )
 
-// newTestApp builds a *cli.App backed by an isolated, per-test data file so
+// newTestApp builds a *facade.App backed by an isolated, per-test data file so
 // dashboard smoke tests never touch the repo's real data/locations.json or
 // collide with other tests running in parallel.
-func newTestApp(t *testing.T) *cli.App {
+func newTestApp(t *testing.T) *facade.App {
 	t.Helper()
 	dataPath := filepath.Join(t.TempDir(), "locations.json")
 	t.Setenv("ONTO_DATA_FILE", dataPath)
 
-	app, err := cli.NewAppWithError()
+	state, err := bootstrap.Bootstrap(bootstrap.DefaultConfig())
 	require.NoError(t, err)
-	return app
+
+	a, err := facade.New(
+		state.Universe,
+		state.Repo,
+		state.StartID,
+		navigation.NewBFSPathfinder(),
+		universe.NewSequentialLocationGenerator(),
+	)
+	require.NoError(t, err)
+	return a
 }
 
 // TestDashboardStartsAndRendersPanes verifies the Bubble Tea program boots,

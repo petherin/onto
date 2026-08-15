@@ -1,8 +1,8 @@
 // Package tui implements an optional multi-pane terminal dashboard for the
-// Onto CLI, built with Bubble Tea. It presents location, navigation options,
-// and cost information in separate panes alongside a scrollable log and a
-// command input line, while delegating all command execution to the same
-// *cli.App used by the plain REPL.
+// Onto application, built with Bubble Tea. It presents location, navigation
+// options, and cost information in separate panes alongside a scrollable log
+// and a command input line, while delegating all command execution to the
+// application facade.
 package tui
 
 import (
@@ -14,7 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/petherin/onto/internal/interface/cli"
+	"github.com/petherin/onto/internal/application/facade"
 )
 
 const (
@@ -69,11 +69,11 @@ var (
 			Foreground(lipgloss.Color("214"))
 )
 
-// Model is the Bubble Tea model driving the dashboard. It wraps a *cli.App
+// Model is the Bubble Tea model driving the dashboard. It wraps a *facade.App
 // and re-renders the location, navigation, and cost panes after every
 // executed command.
 type Model struct {
-	app   *cli.App
+	app   *facade.App
 	input textinput.Model
 	log   viewport.Model
 	nav   viewport.Model
@@ -105,7 +105,7 @@ type Model struct {
 }
 
 // New builds a Model ready to be run with tea.NewProgram.
-func New(app *cli.App) Model {
+func New(app *facade.App) Model {
 	ti := textinput.New()
 	ti.Placeholder = "type a command, e.g. help, look, travel <destination>"
 	ti.Focus()
@@ -115,17 +115,13 @@ func New(app *cli.App) Model {
 		app:   app,
 		input: ti,
 	}
-	m.appendLog(fmt.Sprintf("%s\n\nType 'help' to see the available commands.", cliAppVersion()))
+	m.appendLog(fmt.Sprintf("%s\n\nType 'help' to see the available commands.", facade.AppVersion))
 	return m
-}
-
-func cliAppVersion() string {
-	return cli.AppVersion
 }
 
 // Run starts the dashboard program on the given app and blocks until the
 // user exits.
-func Run(app *cli.App) error {
+func Run(app *facade.App) error {
 	p := tea.NewProgram(New(app), tea.WithAltScreen())
 	_, err := p.Run()
 	return err

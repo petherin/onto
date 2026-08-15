@@ -1,4 +1,4 @@
-package cli
+package facade
 
 // SessionSnapshot is a read-only view of the current session state,
 // used by delivery mechanisms (web, TUI) that need structured data.
@@ -54,7 +54,7 @@ type GraphSnapshot struct {
 
 // GraphSnapshot returns a read-only view of all locations and edges.
 func (a *App) GraphSnapshot() GraphSnapshot {
-	locs := a.universe.AllLocations()
+	locs := a.univ.AllLocations()
 	nodes := make([]NodeSnapshot, 0, len(locs))
 	for _, loc := range locs {
 		nodes = append(nodes, NodeSnapshot{
@@ -69,7 +69,7 @@ func (a *App) GraphSnapshot() GraphSnapshot {
 			OntoAddress: loc.Coordinate.OntoAddress(),
 		})
 	}
-	flat := a.universe.AllEdgesFlat()
+	flat := a.univ.AllEdgesFlat()
 	edges := make([]EdgeSnapshot, 0, len(flat))
 	for _, e := range flat {
 		edges = append(edges, EdgeSnapshot{

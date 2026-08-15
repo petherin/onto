@@ -1,18 +1,34 @@
-// Package main is the entry point for the Onto CLI. It wires together the
-// infrastructure, application, and interface layers and hands control to the
-// run loop in the cli package.
+// Package main is the Composition Root for the Onto CLI. It reads config,
+// calls the bootstrap layer to assemble infrastructure and domain, then hands
+// the fully-wired state to the CLI delivery mechanism.
 package main
 
 import (
 	"log"
 
+	"github.com/petherin/onto/internal/application/facade"
+	"github.com/petherin/onto/internal/bootstrap"
+	"github.com/petherin/onto/internal/domain/navigation"
+	"github.com/petherin/onto/internal/domain/universe"
 	"github.com/petherin/onto/internal/interface/cli"
 )
 
 func main() {
-	app, err := cli.NewAppWithError()
+	state, err := bootstrap.Bootstrap(bootstrap.DefaultConfig())
 	if err != nil {
 		log.Fatal(err)
 	}
-	app.Run()
+
+	f, err := facade.New(
+		state.Universe,
+		state.Repo,
+		state.StartID,
+		navigation.NewBFSPathfinder(),
+		universe.NewSequentialLocationGenerator(),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	cli.New(f).Run()
 }

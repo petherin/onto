@@ -372,16 +372,18 @@ The app is functional. It includes:
 
 ## Architecture
 
-Four layers, each importing only inward:
+Five layers, each importing only inward:
 
 | Layer | Package path | Role |
 |---|---|---|
-| Domain | `internal/domain/` | Business rules, no I/O |
-| Application | `internal/application/` | Use-case orchestration |
-| Infrastructure | `internal/infrastructure/` | File I/O, graph algorithms |
-| Interface | `internal/interface/cli/`, `internal/interface/tui/` | Terminal delivery (plain REPL and multi-pane dashboard) |
+| Domain | `internal/domain/` | Business rules, aggregates, entities, value objects, repository interfaces — no I/O |
+| Application | `internal/application/commands/`, `internal/application/queries/` | Use-case orchestration; mutates state or reads it, never touches I/O |
+| Application facade | `internal/application/facade/` | Delivery-agnostic entry point; dispatches input strings to commands/queries and formats results as strings |
+| Infrastructure | `internal/infrastructure/` | JSON persistence — implements the domain repository interface |
+| Bootstrap | `internal/bootstrap/` | Wires infrastructure to domain at startup; only `cmd/` entry points import this |
+| Interface | `internal/interface/cli/`, `internal/interface/tui/` | Thin delivery wrappers — readline REPL and Bubble Tea dashboard; both delegate all logic to the facade |
 
-The domain defines the types and interfaces; every other layer depends on it, never the reverse. See [docs/DDD.md](docs/DDD.md) for how DDD patterns are applied here.
+The domain defines the types and interfaces; every other layer depends on it, never the reverse. The interface packages depend only on the application facade, not on each other. See [docs/DDD.md](docs/DDD.md) for how DDD patterns are applied here.
 
 ## Getting started
 

@@ -1,0 +1,334 @@
+package facade
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/petherin/onto/internal/application/commands"
+	"github.com/petherin/onto/internal/application/queries"
+	"github.com/petherin/onto/internal/domain/universe"
+)
+
+// Travel attempts physical movement to target.
+func (a *App) Travel(target string) string {
+	cmd := &commands.TravelCommand{
+		Universe:   a.univ,
+		Session:    a.session,
+		Pathfinder: a.pathfinder,
+	}
+	result, err := cmd.Execute(target)
+	if result == nil {
+		norm := normalise(target)
+		if _, known := a.univ.GetLocation(norm); !known {
+			if norm == a.session.NextQuantumID() {
+				return fmt.Sprintf("%s is a quantum branch — use 'shift' to enter it", target)
+			}
+			if norm == a.session.NextTimelineID() {
+				return fmt.Sprintf("%s is a timeline branch — use 'jump' to enter it", target)
+			}
+			if norm == a.session.NextUniverseID() {
+				return fmt.Sprintf("%s is a bubble universe — use 'universe' to enter it", target)
+			}
+			if norm == a.session.NextMathematicsID() {
+				return fmt.Sprintf("%s is a mathematical structure — use 'structure' to enter it", target)
+			}
+			if norm == a.session.NextSimulationID() {
+				return fmt.Sprintf("%s is a nested simulation — use 'simulate' to enter it", target)
+			}
+			if suggestion := a.suggestDestination(target); suggestion != "" {
+				return fmt.Sprintf("Unknown destination: %s\n\nDid you mean '%s'?", target, suggestion)
+			}
+			return a.routeUnavailableDiagnostics(target)
+		}
+		return err.Error()
+	}
+	output := a.formatTravelResult(result)
+	if !result.DeadEndHandled {
+		return output
+	}
+	location, err := (&commands.GenerateNearbyLocationCommand{
+		Universe:  a.univ,
+		Generator: a.locationGenerator,
+		OriginID:  result.Location.ID,
+	}).Execute()
+	if err != nil {
+		return fmt.Sprintf("%s\n\nUnable to generate a nearby location: %v", output, err)
+	}
+	a.markDirty()
+	return fmt.Sprintf("%s\n\nAuto-generated: %s (%s)", output, location.Name, location.ID)
+}
+
+// Shift advances the session to the next quantum branch of the current location.
+func (a *App) Shift() string {
+	cmd := &commands.ShiftCommand{Universe: a.univ, Session: a.session}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Shift failed: %v", err)
+	}
+	a.markDirty()
+	return a.formatShiftResult(result)
+}
+
+// ShiftBack returns the session to the previous quantum branch.
+func (a *App) ShiftBack() string {
+	cmd := &commands.ShiftCommand{Universe: a.univ, Session: a.session, Back: true}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot shift back: %v", err)
+	}
+	a.markDirty()
+	return a.formatShiftResult(result)
+}
+
+// Jump advances the session to the next timeline branch of the current location.
+func (a *App) Jump() string {
+	cmd := &commands.JumpCommand{Universe: a.univ, Session: a.session}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Jump failed: %v", err)
+	}
+	a.markDirty()
+	return a.formatJumpResult(result)
+}
+
+// JumpBack returns the session to the previous timeline branch.
+func (a *App) JumpBack() string {
+	cmd := &commands.JumpCommand{Universe: a.univ, Session: a.session, Back: true}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot jump back: %v", err)
+	}
+	a.markDirty()
+	return a.formatJumpResult(result)
+}
+
+// Universe shifts the session to the next bubble universe of the current location.
+func (a *App) Universe() string {
+	cmd := &commands.UniverseCommand{Universe: a.univ, Session: a.session}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Universe shift failed: %v", err)
+	}
+	a.markDirty()
+	return a.formatUniverseResult(result)
+}
+
+// UniverseBack returns the session to the previous bubble universe.
+func (a *App) UniverseBack() string {
+	cmd := &commands.UniverseCommand{Universe: a.univ, Session: a.session, Back: true}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot return to previous universe: %v", err)
+	}
+	a.markDirty()
+	return a.formatUniverseResult(result)
+}
+
+// Structure shifts the session to the next mathematical structure of the current location.
+func (a *App) Structure() string {
+	cmd := &commands.StructureCommand{Universe: a.univ, Session: a.session}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Mathematical structure shift failed: %v", err)
+	}
+	a.markDirty()
+	return a.formatStructureResult(result)
+}
+
+// StructureBack returns the session to the previous mathematical structure.
+func (a *App) StructureBack() string {
+	cmd := &commands.StructureCommand{Universe: a.univ, Session: a.session, Back: true}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot return to previous mathematical structure: %v", err)
+	}
+	a.markDirty()
+	return a.formatStructureResult(result)
+}
+
+// Simulate enters the next nested simulation layer of the current location.
+func (a *App) Simulate() string {
+	cmd := &commands.SimulateCommand{Universe: a.univ, Session: a.session}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Simulation entry failed: %v", err)
+	}
+	a.markDirty()
+	return a.formatSimulateResult(result)
+}
+
+// SimulateBack exits one simulation layer toward base reality.
+func (a *App) SimulateBack() string {
+	cmd := &commands.SimulateCommand{Universe: a.univ, Session: a.session, Back: true}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot exit simulation: %v", err)
+	}
+	a.markDirty()
+	return a.formatSimulateResult(result)
+}
+
+// Drift enters the next consensus divergence from the current location.
+func (a *App) Drift() string {
+	cmd := &commands.DriftCommand{Universe: a.univ, Session: a.session}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Drift failed: %v", err)
+	}
+	a.markDirty()
+	return a.formatDriftResult(result)
+}
+
+// Align returns the session one level toward shared consensus.
+func (a *App) Align() string {
+	cmd := &commands.DriftCommand{Universe: a.univ, Session: a.session, Back: true}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot align: %v", err)
+	}
+	a.markDirty()
+	return a.formatDriftResult(result)
+}
+
+// Observe shifts the session to the given observer perspective.
+func (a *App) Observe(observer string) string {
+	cmd := &commands.ObserveCommand{Universe: a.univ, Session: a.session, Observer: observer}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Observer shift failed: %v", err)
+	}
+	a.markDirty()
+	return a.formatObserveResult(result)
+}
+
+// ObserveBack restores the previous observer perspective.
+func (a *App) ObserveBack() string {
+	cmd := &commands.ObserveCommand{Universe: a.univ, Session: a.session, Back: true}
+	result, err := cmd.Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot return observer perspective: %v", err)
+	}
+	a.markDirty()
+	return a.formatObserveResult(result)
+}
+
+// Time enters a temporal branch at the given RFC3339 timestamp.
+func (a *App) Time(target string) string {
+	result, err := (&commands.TimeCommand{Universe: a.univ, Session: a.session, Target: target}).Execute()
+	if result == nil {
+		return fmt.Sprintf("Time shift failed: %v", err)
+	}
+	a.markDirty()
+	return a.formatTimeResult(result)
+}
+
+// TimeBack returns the session through the temporal branch.
+func (a *App) TimeBack() string {
+	result, err := (&commands.TimeCommand{Universe: a.univ, Session: a.session, Back: true}).Execute()
+	if result == nil {
+		return fmt.Sprintf("Cannot return through time: %v", err)
+	}
+	a.markDirty()
+	return a.formatTimeResult(result)
+}
+
+func (a *App) markDirty() { a.dirty = true }
+
+// SaveIfDirty persists the universe if dirty, then clears the flag.
+func (a *App) SaveIfDirty() error {
+	if !a.dirty {
+		return nil
+	}
+	if err := a.repo.Save(a.univ); err != nil {
+		return err
+	}
+	a.dirty = false
+	return nil
+}
+
+// Save unconditionally persists and returns a confirmation message.
+func (a *App) Save() (string, error) {
+	if err := a.repo.Save(a.univ); err != nil {
+		return "", err
+	}
+	a.dirty = false
+	return "Saved.", nil
+}
+
+func normalise(target string) string {
+	return strings.ToLower(strings.ReplaceAll(target, " ", "-"))
+}
+
+// Route plans a route without moving the session.
+func (a *App) Route(target string) string {
+	q := &queries.RouteQuery{Universe: a.univ, Session: a.session, Pathfinder: a.pathfinder}
+	result, err := q.Execute(target)
+	if err != nil {
+		if suggestion := a.suggestDestination(target); suggestion != "" {
+			return fmt.Sprintf("Unknown destination: %s\n\nDid you mean '%s'?", target, suggestion)
+		}
+		return fmt.Sprintf("Route unavailable to %s.", target)
+	}
+	return a.formatRouteResult(result)
+}
+
+// Cost returns the session's total running travel cost.
+func (a *App) Cost() string {
+	return fmt.Sprintf("Total journey cost: %.0f", a.session.CumulativeCost())
+}
+
+// GoHome builds the route plan for returning home (no movement occurs).
+func (a *App) GoHome() string {
+	cmd := &commands.ReturnHomeCommand{
+		Universe:        a.univ,
+		Session:         a.session,
+		Pathfinder:      a.pathfinder,
+		HomeID:          a.homeID,
+		DefaultObserver: universe.DefaultCoordinateVO().Observer,
+	}
+	steps, cost := cmd.Plan()
+	if len(steps) == 0 {
+		return "You are already home."
+	}
+	var lines []string
+	for _, step := range steps {
+		line := fmt.Sprintf("  %-10s", step.Action)
+		if step.Detail != "" {
+			line += " (" + step.Detail + ")"
+		}
+		if step.Cost != 0 {
+			line += fmt.Sprintf("  cost %.0f", step.Cost)
+		}
+		lines = append(lines, line)
+	}
+	return fmt.Sprintf("Route home\n%s\n\nEstimated cost: %.0f\n\nProceed? [y/N]:", strings.Join(lines, "\n"), cost)
+}
+
+// GoHomeConfirm executes the home journey produced by GoHome.
+func (a *App) GoHomeConfirm() string {
+	cmd := &commands.ReturnHomeCommand{
+		Universe:        a.univ,
+		Session:         a.session,
+		Pathfinder:      a.pathfinder,
+		HomeID:          a.homeID,
+		DefaultObserver: universe.DefaultCoordinateVO().Observer,
+	}
+	steps, err := cmd.Execute()
+	if err != nil {
+		return fmt.Sprintf("Failed while returning home: %v", err)
+	}
+	a.markDirty()
+	var lines []string
+	for _, step := range steps {
+		switch step.Action {
+		case "observe back":
+			lines = append(lines, fmt.Sprintf("Observer return → %s", step.Detail))
+		case "align":
+			lines = append(lines, fmt.Sprintf("Consensus alignment → level %s", step.Detail))
+		default:
+			lines = append(lines, fmt.Sprintf("%s %s", step.Action, step.Detail))
+		}
+	}
+	return fmt.Sprintf("Heading home...\n\nSteps taken\n%s\n\nYou are home.\n\nCumulative journey cost\n%.0f",
+		strings.Join(lines, "\n"), a.session.CumulativeCost())
+}

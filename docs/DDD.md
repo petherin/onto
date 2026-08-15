@@ -42,12 +42,16 @@ flowchart TB
     end
 
     subgraph Application["Application layer — orchestrates use cases"]
+        Facade["Facade: facade.App<br/>Delivery-agnostic entry point;<br/>dispatches input to commands/queries<br/>and formats results as strings"]
         Commands["Commands: Travel, Shift, Jump, Universe, Structure,<br/>Simulate, Drift, Observe, Time, CreateLocation, ReturnHome<br/>Coordinate domain work and persistence"]
         Queries["Queries: Lookup, Route<br/>Read domain state without mutation"]
+        Facade --> Commands
+        Facade --> Queries
     end
 
     subgraph Interface["Interface layer — delivers the application"]
-        CLI["CLI<br/>Parses input, asks for confirmation, formats output"]
+        CLI["CLI<br/>Readline REPL; thin wrapper around facade"]
+        TUI["TUI<br/>Bubble Tea dashboard; thin wrapper around facade"]
     end
 
     subgraph Infrastructure["Infrastructure layer — implements technical details"]
@@ -57,8 +61,9 @@ flowchart TB
     end
 
     User[User] --> CLI
-    CLI --> Commands
-    CLI --> Queries
+    User --> TUI
+    CLI --> Facade
+    TUI --> Facade
     Commands --> Aggregate
     Commands --> Services
     Commands --> Repository
@@ -69,11 +74,15 @@ flowchart TB
 
 The domain layer contains all business meaning: aggregate invariants, entity
 state, value-object definitions, domain processes, and repository abstraction.
-Application code coordinates those concepts into use cases; it
-does not define reality-navigation rules. The interface translates terminal
-input and output, while infrastructure supplies technical implementations such
-as JSON persistence. The dashed arrow is dependency inversion: the outer JSON
-repository implements the domain-defined repository abstraction.
+Application code coordinates those concepts into use cases; it does not define
+reality-navigation rules. The application facade is the single entry point for
+all delivery mechanisms — it receives a plain string, dispatches to the
+appropriate command or query, and returns a formatted string. The interface
+packages (CLI and TUI) are thin wrappers that handle I/O and delegate
+everything else to the facade; neither knows the other exists. Infrastructure
+supplies the JSON persistence implementation. The dashed arrow is dependency
+inversion: the outer JSON repository implements the domain-defined repository
+abstraction.
 
 ### The aggregate root — `universe.Aggregate`
 
@@ -121,9 +130,9 @@ The interface is defined in `internal/domain/universe/repository.go`. It has two
 
 `scripts/validate_locations.go`, invoked with `make validate-locations`, is an operational integrity check for the persisted JSON graph. It validates location identities, edge references, and the domain rule that physical edges cannot cross reality contexts; it does not mutate the aggregate or replace the repository.
 
-### Application layer — commands and queries (CQRS)
+### Application layer — facade, commands, and queries (CQRS)
 
-The application layer in `internal/application/` contains use cases, not business rules.
+The application layer in `internal/application/` contains use cases, not business rules. It has three sub-packages: `facade/` is the public entry point for all delivery mechanisms; `commands/` and `queries/` are the individual use cases that the facade dispatches to.
 
 **Commands** (in `commands/`) mutate state and persist the result:
 - `TravelCommand` — validates a physical route, moves the session, accumulates cost, handles dead ends, saves.
@@ -144,29 +153,33 @@ The application layer in `internal/application/` contains use cases, not busines
 sequence (repeated `ObserveCommand` returns, `DriftCommand` alignment,
 `SimulateCommand` exits, `TimeCommand` returns, `JumpCommand` back, `ShiftCommand`
 back, `UniverseCommand` back, `StructureCommand` back, then `TravelCommand` to the
-start location). The CLI asks for confirmation and formats the command's plan
-and result, but contains none of the return-home workflow.
+start location). The facade's `GoHome` and `GoHomeConfirm` methods format the
+plan and result; the interface layer only asks for confirmation and prints the
+returned strings.
 
-Commands and queries each return a result struct. The interface layer formats that struct for the terminal; the application layer never touches a string.
+Commands and queries each return a result struct. The facade formats that struct into a string; the application layer (commands and queries) never touches a string, and the interface layer never interprets the content of one.
 
-### Interface layer — `cli`
+### Interface layer — `cli` and `tui`
 
-`internal/interface/cli/` is the delivery mechanism. It knows about `bufio`, `fmt`, and the terminal. The domain has no knowledge that a CLI exists. Replacing the CLI with an HTTP API or a TUI would mean writing a new `interface/` package and leaving everything else untouched.
+`internal/interface/cli/` and `internal/interface/tui/` are the delivery mechanisms. Each is a thin wrapper that owns only I/O: the CLI manages a readline REPL and tab-completion; the TUI manages a Bubble Tea multi-pane dashboard. Both delegate all command dispatch and output formatting to `internal/application/facade/`. Neither knows the other exists. The domain has no knowledge that any delivery mechanism exists. Adding a new delivery mechanism (HTTP API, gRPC server, web UI) means writing a new `interface/` package and leaving everything else untouched.
 
 ### Example: tracing a `travel station` command through the layers
 
 Walking one request end-to-end shows how the layers hand off to each other
 without leaking responsibilities across boundaries.
 
-1. **Interface layer.** The user types `travel station`. `App.Execute` (in
-   `internal/interface/cli/app.go`) splits the input into command `travel` and
-   argument `station`, then dispatches to `App.Travel("station")`.
-2. **Interface → Application.** `App.Travel` constructs a `commands.TravelCommand`,
-   wiring in the current `*universe.Aggregate`, the user's `*exploration.Entity`
-   session, and the injected `navigation.PathfinderService`. It calls
-   `cmd.Execute("station")`. The CLI does not know *how* a route is found or
-   *what* makes a location reachable — it only knows how to invoke the command
-   and format whatever it returns.
+1. **Interface layer.** The user types `travel station`. The delivery mechanism
+   (CLI or TUI) passes the raw string to `facade.App.Execute` (in
+   `internal/application/facade/commands.go`). The interface layer's only job is
+   I/O — it does not parse commands, validate arguments, or format output.
+2. **Interface → Application facade.** `facade.App.Execute` splits the input
+   into command `travel` and argument `station`, then dispatches to the facade's
+   internal `Travel("station")` method. `Travel` constructs a
+   `commands.TravelCommand`, wiring in the current `*universe.Aggregate`, the
+   user's `*exploration.Entity` session, and the injected
+   `navigation.PathfinderService`. It calls `cmd.Execute("station")`. The facade
+   does not know *how* a route is found or *what* makes a location reachable —
+   it only knows how to invoke the command and format whatever it returns.
 3. **Application → Domain (read).** `TravelCommand.Execute` normalises the
    target to a location ID (`station`), confirms it exists via
    `Universe.GetLocation`, then asks the injected `Pathfinder.FindRoute` (the
@@ -185,13 +198,14 @@ without leaking responsibilities across boundaries.
    accumulates `CumulativeCost`. `TravelCommand` also calls the package-level
    `isDeadEnd` helper to check whether `station` has any outgoing physical
    edge other than the one just arrived from.
-6. **Result back to Interface.** `TravelCommand.Execute` returns a
-   `TravelResult` (destination `LocationEntity`, traversed `Path`, outgoing
-   `Edges`, updated `History`, and a `DeadEndHandled` flag) — plain data, no
-   strings. `App.Travel` passes it to `formatTravelResult` (in
-   `internal/interface/cli/display.go`), which renders the arrival message,
-   cumulative cost, and possible onward journeys as terminal text.
-7. **Dead-end branch (conditional).** If `DeadEndHandled` is true, `App.Travel`
+6. **Result back to facade.** `TravelCommand.Execute` returns a `TravelResult`
+   (destination `LocationEntity`, traversed `Path`, outgoing `Edges`, updated
+   `History`, and a `DeadEndHandled` flag) — plain data, no strings.
+   `facade.App.Travel` passes it to `formatTravelResult` (in
+   `internal/application/facade/display.go`), which renders the arrival message,
+   cumulative cost, and possible onward journeys as a plain string. That string
+   is returned all the way back to the interface layer, which prints it verbatim.
+7. **Dead-end branch (conditional).** If `DeadEndHandled` is true, `facade.App.Travel`
    runs a second use case, `commands.GenerateNearbyLocationCommand`, which
    uses the domain factory `NewNearbyLocation` to materialise a new location
    and bidirectional edges from `station`, then persists the updated universe
@@ -199,9 +213,11 @@ without leaking responsibilities across boundaries.
    inside `TravelCommand`) separate from "expand the graph" (a distinct
    mutating use case), even though both are triggered by the same user input.
 
-At no point does the CLI decide what counts as a valid route, and at no point
-does the domain know it is being driven by a terminal. That separation is the
-practical payoff of the layering described above.
+At no point does the CLI or TUI decide what counts as a valid route. At no
+point does the domain know it is being driven by a terminal. And at no point
+does the facade know whether the caller is a readline REPL, a Bubble Tea
+dashboard, or a test. That separation is the practical payoff of the layering
+described above.
 
 ### Type-name suffixes
 
