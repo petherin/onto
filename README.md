@@ -47,13 +47,13 @@ Level I + Level III: Spatial regions with quantum branching (same physics, diffe
 Distant regions of our own universe beyond the observable horizon. Same physical laws, same constants — just unreachably far away. Local travel (walking, driving, flying) operates entirely within this level. `travel` is the command.
 
 #### Bubble universes _(Tegmark Level II)_
-Other universes produced by the same inflationary process as ours, but with different physical constants — a different speed of light, different fundamental forces. Not quantum branches; entirely separate bubbles. Each bubble has its own Level I spatial structure, and quantum branches (Level III) thread through all of it. A `universe` shift moves between bubbles; `universe back` returns to the previous one. Cost: 5000.
+Other universes produced by the same inflationary process as ours, but with different physical constants — a different speed of light, different fundamental forces. Not quantum branches; entirely separate bubbles. Each bubble has its own Level I spatial structure, and quantum branches (Level III) thread through all of it. A `universe` shift moves between bubbles; `universe back` returns to the previous one. (Very expensive — see the [contextual transition reference](#contextual-transition-reference) for exact costs.)
 
 #### Quantum branches _(Tegmark Level III — orthogonal to Level I, not hierarchically above it)_
-Every quantum event that could have gone differently spawns a parallel branch — the many-worlds interpretation. **Level III branches exist within the same physical universe as Level I regions.** You can occupy the same spatial location (Level I) in different quantum branches (Level III), each with a different history of outcomes. Physics identical, branching trajectories from quantum decisions. `shift` steps into an adjacent branch; `shift back` returns. Cost: 20.
+Every quantum event that could have gone differently spawns a parallel branch — the many-worlds interpretation. **Level III branches exist within the same physical universe as Level I regions.** You can occupy the same spatial location (Level I) in different quantum branches (Level III), each with a different history of outcomes. Physics identical, branching trajectories from quantum decisions. `shift` steps into an adjacent branch; `shift back` returns.
 
 #### Mathematical structures _(Tegmark Level IV)_
-Every self-consistent mathematical structure exists as its own reality. Different numbers of spatial dimensions, different rules of logic, laws of nature unrecognisable from ours. Each structure contains all its bubbles and all their Level I regions and Level III branches. Crossing here is not a physical journey; it is a transition into a fundamentally different formal system. `structure` moves forward into the next mathematical frame; `structure back` returns. Cost: 50000 (the most expensive implemented transition).
+Every self-consistent mathematical structure exists as its own reality. Different numbers of spatial dimensions, different rules of logic, laws of nature unrecognisable from ours. Each structure contains all its bubbles and all their Level I regions and Level III branches. Crossing here is not a physical journey; it is a transition into a fundamentally different formal system. `structure` moves forward into the next mathematical structure; `structure back` returns. This is the most expensive implemented transition — see the [contextual transition reference](#contextual-transition-reference).
 
 ---
 
@@ -66,13 +66,13 @@ You have identified your bubble and mathematical structure (Tegmark II and IV). 
 On top of these, four more independent dimensions allow you to navigate *how* you exist:
 
 #### Timeline
-A coarser historical fork than quantum mechanics — a macroscopic divergence point. A timeline marks where a significant historical event went differently — a war, a technology, a civilisation. Multiple timelines can exist within a single quantum branch. `jump` moves forward into an alternate history; `jump back` returns. Cost: 800. _(Not a Tegmark level: it branches within a single Level I + III address.)_
+A coarser historical fork than quantum mechanics — a macroscopic divergence point. A timeline marks where a significant historical event went differently — a war, a technology, a civilisation. Multiple timelines can exist within a single quantum branch. `jump` moves forward into an alternate history; `jump back` returns. _(Not a Tegmark level: it branches within a single Level I + III address.)_
 
 #### Time
 Every universe has a temporal dimension. Navigating to a different point in time within the same location, branch, and timeline — past or future — is cheaper than most transitions, but increasingly expensive the further you travel.
 
 #### Simulation depth
-If a reality can be computed, it can be nested. Simulation depth tracks whether you are in base reality or inside a computed world running on top of it. A simulated reality contains its own complete universe: its own Level I spatial regions, Level III quantum branches, and all the branching/temporal axes within. `simulate` enters one layer deeper (cost 10); `simulate back` exits one layer toward base reality (cost 50 — harder to leave than to enter).
+If a reality can be computed, it can be nested. Simulation depth tracks whether you are in base reality or inside a computed world running on top of it. A simulated reality contains its own complete universe: its own Level I spatial regions, Level III quantum branches, and all the branching/temporal axes within. `simulate` enters one layer deeper; `simulate back` exits one layer toward base reality — and it is deliberately harder to leave than to enter (see the [contextual transition reference](#contextual-transition-reference)).
 
 #### Observer (umwelt)
 Reality is never perceived directly — it is filtered through the senses and cognition of an observer. Two observers in the same location, same quantum branch, same timeline, same time, same simulation depth can inhabit entirely different experienced worlds. A bat, a human, and an AI standing in the same room share the same full coordinate but different umwelts. An observer shift changes whose perceptual frame you occupy. Cost: low, but hard to reverse.
@@ -277,30 +277,53 @@ type CoordinateVO struct {
 }
 ```
 
-The current implementation navigates the physical layers (planet through location), quantum, timeline, consensus, observer, simulation, universe (Tegmark Level II), and mathematics (Tegmark Level IV) axes. A non-spatial transition materializes coordinate-matched copies of reachable physical locations, so local travel remains within that context.
+The current implementation navigates the physical layers (planet through location), quantum, timeline, consensus, observer, simulation, universe (Tegmark Level II), and mathematical-structure (Tegmark Level IV) axes.
 
-### Contextual transition rules
+### Two kinds of movement: physical travel vs. contextual transitions
 
-Contextual travel stacks by default: a transition changes only its own axis and
-preserves every other active context.
+Every move in Onto is an edge in the same graph, but those edges come in exactly two families — and **everything except physical travel is contextual**:
 
-| Transition | Preserves | Resets |
-|---|---|---|
-| `shift` | Timeline, consensus, simulation, observer, and physical location | Nothing |
-| `jump` | Quantum, consensus, simulation, observer, and physical location | Nothing |
-| `drift` | Quantum, timeline, simulation, observer, and physical location | Nothing |
-| Observer shift | Every other axis | Nothing |
-| Time travel | Every other axis | Nothing |
-| Simulation entry | Every other axis (nested map is rematerialized at the new depth) | Nothing (stacks) |
-| Universe transition | Mathematics and applicable observer/experience overlays | Nothing (stacks; physical map is rematerialized in the new bubble) |
-| Mathematical-structure transition | Applicable observer/experience overlays and lower axes | Nothing (stacks; physical map is rematerialized in the new formal system) |
+- **Physical travel** — the `travel` command (and the final leg of `home`). This is the *only* kind of movement that is **not** contextual. It moves you around the *local hierarchy* (galaxy → system → planet → country → region → city → location) **without changing any reality axis**. You stay in the same quantum branch, timeline, simulation depth, consensus level, universe, structure, and observer. These physical edges are the only ones `travel` is allowed to cross.
 
-`shift`, `jump`, `drift`, observer shifts, time shifts, `simulate` / `simulate back`,
-`universe` shifts, and `structure` (mathematical-structure) shifts are all
-implemented. `home` is the explicit unwind operation: it returns consensus,
-simulation, time, timeline, quantum, universe, and mathematics axes to their
-base levels and restores the default observer before travelling physically to
-the start location.
+- **Contextual transitions** — *everything else*. A contextual transition changes exactly one **non-spatial reality axis** while keeping your physical location fixed: it changes your *context*, not your whereabouts. This one label covers the whole range, from the cheap experience overlays right up to the exotic Tegmark levels: quantum branch (`shift`, Tegmark III), timeline (`jump`), consensus divergence (`drift` / `align`), simulation depth (`simulate`), observer / umwelt (`observe`), time (`time`), bubble universe (`universe`, Tegmark II), and mathematical structure (`structure`, Tegmark IV). Their exact costs are in the reference table below.
+
+So to answer the obvious question directly: **yes** — changing your Tegmark bubble universe or mathematical structure is contextual, and so are observer, timeline, simulation, and consensus shifts. They all share the same machinery. Physical `travel` is the one thing that is *not* contextual.
+
+"Contextual" is simply shorthand for "changes a reality-context axis, not a physical one." Whenever you make a contextual transition, Onto materializes coordinate-matched copies of every physical location reachable from where you stand, so ordinary local `travel` — and the route back — keeps working inside the new context.
+
+#### How the two kinds are the same
+
+- Both are ordinary graph edges with a cost; routing treats them identically — move from coordinate A to coordinate B.
+- Both leave every axis they *don't* touch untouched.
+- Both are reversible: physical travel by walking back, contextual transitions via a paired return edge (`shift back`, `universe back`, `align`, and so on).
+
+#### How they differ
+
+- Physical travel changes only the local hierarchy; a contextual transition changes only its single reality axis and never your local position.
+- The two families never mix within one move: `travel` refuses any route that would cross a contextual edge, and each contextual command only ever crosses its own axis.
+- Only contextual transitions rematerialize a coordinate-matched physical map in the destination context.
+
+#### Contextual transition reference
+
+Contextual transitions **stack**: each one changes only its own axis and preserves every other active context. That is what lets you be, for example, in an alternate timeline, inside a nested simulation, and viewed through a non-default observer all at once — nothing gets reset until you explicitly unwind it.
+
+| Transition | Command (forward / back) | Axis changed | Cost (forward / reverse) |
+|---|---|---|---|
+| Quantum shift | `shift` / `shift back` | Quantum branch (Tegmark III) | 20 / 20 |
+| Timeline jump | `jump` / `jump back` | Timeline (macro history) | 800 / 800 |
+| Consensus drift | `drift` / `align` | Consensus divergence | 5 / 5 |
+| Simulation entry | `simulate` / `simulate back` | Simulation depth | 10 / 50 |
+| Observer shift | `observe <observer>` / `observe back` | Observer (umwelt) | 2 / 2 |
+| Time travel | `time <RFC3339>` / `time back` | Time | 100 / 100 |
+| Universe shift | `universe` / `universe back` | Bubble universe (Tegmark II) | 5000 / 5000 |
+| Structure shift | `structure` / `structure back` | Mathematical structure (Tegmark IV) | 50000 / 50000 |
+
+Every transition above preserves all other axes and resets nothing on its own —
+simulation entry is the only one whose reverse costs more than its forward
+(harder to leave than to enter). `home` is the explicit unwind operation: it
+returns consensus, simulation, time, timeline, quantum, universe, and
+mathematical-structure axes to their base levels and restores the default
+observer before travelling physically back to the start location.
 
 ## Example CLI experience
 
@@ -333,12 +356,12 @@ structure back         Return to the previous mathematical structure
 simulate               Enter the next nested simulation layer (cost 10)
 simulate back          Exit one simulation layer toward base reality (cost 50)
 drift                  Enter the next consensus divergence (cost 5)
-align                  Return one level toward shared consensus
+align                  Return one level toward shared consensus (cost 5)
 observe <observer>     Change observer perspective (cost 2)
-observe back           Return to the previous observer perspective
+observe back           Return to the previous observer perspective (cost 2)
 time <RFC3339>         Enter a temporal branch (cost 100)
-time back               Return to the previous temporal branch
-save                    Persist the current universe graph to disk
+time back              Return to the previous temporal branch (cost 100)
+save                   Persist the current universe graph to disk
 <number>               Take the corresponding numbered possible journey
 cost                   Show travel cost information
 help                   List all commands
@@ -350,23 +373,17 @@ exit                   Leave the CLI
 The app is functional. It includes:
 
 - a command entrypoint in `cmd/cli` (plain REPL) and a multi-pane TUI entrypoint in `cmd/dashboard`
-- a working CLI with `where`, `look`, `ls`, `route`, `travel`, `home`, `cost`, `shift`, `shift back`, `jump`, `jump back`, `universe`, `universe back`, `structure`, `structure back`, `simulate`, `simulate back`, `drift`, `align`, `observe`, `observe back`, `time`, `time back`, `save`, and `exit` commands
+- the full command set listed under [Example CLI experience](#example-cli-experience)
 - BFS-based graph routing across locations with travel modes (walk, rail, etc.)
-- quantum branch navigation: `shift` jumps forward to the next branch (cost 20); `shift back` returns to the previous one
-- timeline branch navigation: `jump` jumps forward to the next alternate history (cost 800); `jump back` returns to the previous one
-- bubble-universe navigation: `universe` shifts forward to the next universe (cost 5000); `universe back` returns to the previous one
-- mathematical-structure navigation (Tegmark Level IV): `structure` shifts forward to the next formal system (cost 50000); `structure back` returns to the previous one
-- simulation-depth navigation: `simulate` enters one nested layer (cost 10); `simulate back` exits one layer (cost 50)
-- consensus divergence navigation: `drift` enters the next divergent state (cost 5); `align` returns one level toward shared consensus
-- observer navigation: `observe <observer>` changes perception (cost 2); `observe back` returns to the prior perspective
-- temporal navigation: `time <RFC3339>` enters a timestamped branch (cost 100); `time back` returns to the prior temporal branch
-- each non-spatial transition creates coordinate-matched physical locations and contextual return edges, so local travel and returning remain available throughout a branch
-- `travel` rejects routes that cross any reality boundary (quantum, timeline, consensus, simulation, observer, universe, or mathematics) — physical and non-physical travel are kept separate
-- `home` command: shows the full plan and estimated cost to restore the observer, align consensus, unwind simulation, temporal, timeline, quantum, universe, and mathematics shifts, then travel back to the start location before asking for confirmation
+- contextual navigation along all eight non-physical axes — quantum (`shift`), timeline (`jump`), bubble universe (`universe`), mathematical structure (`structure`), simulation depth (`simulate`), consensus divergence (`drift` / `align`), observer (`observe`), and time (`time`) — each with a paired reverse; see the [contextual transition reference](#contextual-transition-reference) for costs and behaviour
+- each contextual transition creates coordinate-matched physical locations and return edges, so local travel and returning remain available throughout a branch
+- `travel` rejects routes that cross any reality boundary — physical and contextual travel are kept separate
+- `home` command: shows the full plan and estimated cost to unwind every contextual axis (restore observer, align consensus, exit simulation, and reverse temporal, timeline, quantum, universe, and structure shifts), then travel back to the start location before asking for confirmation
 - cumulative journey cost tracked across the session and shown in `where` output and after every move
-- a full coordinate model covering mathematics, universe, timeline, quantum, simulation, consensus, physical location, observer, and time
+- a full coordinate model covering mathematical structure, universe, timeline, quantum, simulation, consensus, physical location, observer, and time
 - location and edge data loaded from `data/locations.json`, with a built-in fallback map
 - `make validate-locations` checks saved location IDs, edge references, and physical reality boundaries before committing graph data
+- `make toc` regenerates this README's table of contents
 - interactive prompting to create new locations when arriving at a dead-end node
 - universe graph mutations accumulate in memory during a session and are written to `data/locations.json` when you run `save` or exit cleanly from either the plain CLI or the TUI dashboard
 
