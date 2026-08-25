@@ -10,6 +10,34 @@ import (
 
 func defaultCoord() universe.CoordinateVO { return universe.DefaultCoordinateVO() }
 
+// Reversing transitions in a different order than they were entered must still
+// keep the context stack consistent with the coordinate. A reversed transition
+// removes the most recent entry for that mode wherever it sits in the stack,
+// not only when it happens to be on top — otherwise the stack desyncs and a
+// later 'home' tries to unwind an axis that is already at base.
+func TestTransitionTo_ReverseOutOfOrder_KeepsStackConsistent(t *testing.T) {
+	u1 := defaultCoord()
+	u1.Universe = "U1"
+	u1q1 := u1
+	u1q1.Quantum = "Q1"
+	q1 := defaultCoord()
+	q1.Quantum = "Q1"
+
+	e := exploration.NewEntity("home", defaultCoord())
+	e.TransitionTo(universe.LocationEntity{ID: "home-u1", Coordinate: u1}, 0, universe.UniverseShift, false)
+	e.TransitionTo(universe.LocationEntity{ID: "home-u1-q1", Coordinate: u1q1}, 0, universe.QuantumShift, false)
+
+	// Unwind the universe axis first, even though quantum is on top of the stack.
+	e.TransitionTo(universe.LocationEntity{ID: "home-q1", Coordinate: q1}, 0, universe.UniverseShift, true)
+	transitions := e.ContextTransitions()
+	assert.Len(t, transitions, 1, "universe entry should be removed even from under the quantum entry")
+	assert.Equal(t, universe.QuantumShift, transitions[0].Mode)
+
+	// Unwind the remaining quantum axis; the stack must be empty again.
+	e.TransitionTo(universe.LocationEntity{ID: "home", Coordinate: defaultCoord()}, 0, universe.QuantumShift, true)
+	assert.Empty(t, e.ContextTransitions())
+}
+
 func TestNewEntity_InitialisesCorrectly(t *testing.T) {
 	coord := defaultCoord()
 	e := exploration.NewEntity("home", coord)

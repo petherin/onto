@@ -23,7 +23,9 @@ type Entity struct {
 }
 
 // ContextTransition records one entered contextual branch so it can be
-// unwound in the exact reverse order.
+// unwound later. There is exactly one entry per outstanding forward
+// transition on a given axis, so the number of entries for a mode always
+// equals that axis's current level.
 type ContextTransition struct {
 	Mode     universe.TravelModeVO
 	OriginID string
@@ -71,7 +73,10 @@ func (s *Entity) MoveTo(loc universe.LocationEntity, cost float64) {
 }
 
 // TransitionTo applies a contextual movement and records or removes its
-// ancestry entry. Reversed transitions only pop the matching latest entry.
+// ancestry entry. A reversed transition removes the most recent entry for the
+// same mode, regardless of its position in the stack, so unwinding axes in a
+// different order than they were entered (e.g. 'universe back' before
+// 'shift back') keeps the stack consistent with the coordinate.
 func (s *Entity) TransitionTo(loc universe.LocationEntity, cost float64, mode universe.TravelModeVO, reversed bool) {
 	prev := s.currentLocation
 	s.currentLocation = loc.ID
@@ -92,9 +97,11 @@ func (s *Entity) TransitionTo(loc universe.LocationEntity, cost float64, mode un
 	}
 	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s (%s)", prev, loc.ID, label))
 	if reversed {
-		last := len(s.contextStack) - 1
-		if last >= 0 && s.contextStack[last].Mode == mode {
-			s.contextStack = s.contextStack[:last]
+		for i := len(s.contextStack) - 1; i >= 0; i-- {
+			if s.contextStack[i].Mode == mode {
+				s.contextStack = append(s.contextStack[:i], s.contextStack[i+1:]...)
+				break
+			}
 		}
 		return
 	}

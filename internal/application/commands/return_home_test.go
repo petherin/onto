@@ -106,6 +106,54 @@ func TestReturnHomePlan_RecordedStackShowsDecreasingLevels(t *testing.T) {
 	}
 }
 
+// Reproduces the reported "home" failure: a user enters several contextual
+// branches and then manually unwinds them with the *back commands in a
+// different order than they were entered. Each back command lowers its axis
+// whenever that level is > 0, independently of the recorded stack order, so an
+// order-sensitive pop would leave stale entries behind. A later ReturnHome
+// would then try to unwind an axis already at base and fail with
+// "already at base universe". After the fix the stack stays consistent, so the
+// session is genuinely back home with an empty stack and ReturnHome is a no-op.
+func TestReturnHomeExecute_AfterOutOfOrderBack_NoStaleTransitions(t *testing.T) {
+	u := mocks.NewTestUniverse()
+	loc, _ := u.GetLocation("home")
+	sess := exploration.NewEntity("home", loc.Coordinate)
+
+	// Enter universe then quantum branches: stack is [universe, quantum].
+	_, err := (&commands.UniverseCommand{Universe: u, Session: sess}).Execute()
+	require.NoError(t, err)
+	_, err = (&commands.ShiftCommand{Universe: u, Session: sess}).Execute()
+	require.NoError(t, err)
+	require.Len(t, sess.ContextTransitions(), 2)
+
+	// Unwind out of order: universe back first (quantum is on top of the stack).
+	_, err = (&commands.UniverseCommand{Universe: u, Session: sess, Back: true}).Execute()
+	require.NoError(t, err)
+	require.Equal(t, 0, sess.UniverseLevel())
+	require.Len(t, sess.ContextTransitions(), 1, "stale universe entry must not remain")
+
+	_, err = (&commands.ShiftCommand{Universe: u, Session: sess, Back: true}).Execute()
+	require.NoError(t, err)
+	require.Equal(t, 0, sess.QuantumLevel())
+
+	// Back at base reality with no outstanding transitions.
+	require.Equal(t, "home", sess.Location())
+	require.Empty(t, sess.ContextTransitions())
+
+	// ReturnHome must not attempt to unwind anything and must not error.
+	cmd := &commands.ReturnHomeCommand{
+		Universe:        u,
+		Session:         sess,
+		Pathfinder:      navigation.NewBFSPathfinder(),
+		HomeID:          "home",
+		DefaultObserver: universe.DefaultCoordinateVO().Observer,
+	}
+	steps, err := cmd.Execute()
+	require.NoError(t, err)
+	require.Empty(t, steps)
+	require.Equal(t, "home", sess.Location())
+}
+
 func TestReturnHomeExecute_CreatesMissingReversePath(t *testing.T) {
 	u := mocks.NewTestUniverse()
 	base := universe.DefaultCoordinateVO()
