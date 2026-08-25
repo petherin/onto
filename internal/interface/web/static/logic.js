@@ -110,3 +110,32 @@ export function project(n, view, width, height) {
     persp,
   };
 }
+
+// depthAlpha maps a node's projected depth to an opacity so nodes further from
+// the camera fade out, keeping a busy map readable. The fade is *relative* to
+// the depth range currently on screen (min/max of the drawn nodes) rather than
+// absolute: the raw perspective spread is tiny (the node cloud is shallow next
+// to the focal length), so an absolute falloff is imperceptible. The nearest
+// node is fully opaque and the farthest is floored at MIN_DEPTH_ALPHA — still
+// visible, never gone — with a linear ramp between. A flat set (no spread)
+// stays fully opaque.
+export const MIN_DEPTH_ALPHA = 0.3;
+export function depthAlpha(depth, minDepth, maxDepth) {
+  if (!(maxDepth > minDepth)) return 1;
+  let t = (depth - minDepth) / (maxDepth - minDepth); // 0 = nearest, 1 = farthest
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  return 1 - t * (1 - MIN_DEPTH_ALPHA);
+}
+
+// abbreviateLabel shortens a node name for the map so labels stay compact until
+// the node is hovered (app.js reveals the full name then). Names within the
+// limit are returned unchanged; longer ones are cut to LABEL_MAX characters with
+// a trailing ellipsis (which counts toward the limit) so the map doesn't clutter
+// as names grow.
+export const LABEL_MAX = 14;
+export function abbreviateLabel(name, max = LABEL_MAX) {
+  if (typeof name !== "string") return "";
+  if (name.length <= max) return name;
+  if (max <= 1) return name.slice(0, Math.max(max, 0));
+  return name.slice(0, max - 1) + "\u2026";
+}

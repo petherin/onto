@@ -17,6 +17,10 @@ import {
   NODE_UNREACHABLE,
   project,
   FOCAL,
+  depthAlpha,
+  MIN_DEPTH_ALPHA,
+  abbreviateLabel,
+  LABEL_MAX,
 } from "./static/logic.js";
 
 test("modeStyle returns solid blue for physical modes", () => {
@@ -113,4 +117,47 @@ test("project: pan offset and scale shift/scale about the canvas centre", () => 
   const off = project({ x: 10, y: 5, z: 0 }, view, 800, 600);
   approx(off.x, 400 + 30 + 10 * 2);
   approx(off.y, 300 - 20 + 5 * 2);
+});
+
+test("depthAlpha: the nearest node is fully opaque, the farthest is floored", () => {
+  approx(depthAlpha(-80, -80, 80), 1);
+  approx(depthAlpha(80, -80, 80), MIN_DEPTH_ALPHA);
+});
+
+test("depthAlpha: the midpoint fades halfway toward the floor", () => {
+  approx(depthAlpha(0, -80, 80), 1 - 0.5 * (1 - MIN_DEPTH_ALPHA));
+});
+
+test("depthAlpha: a flat set (no depth spread) stays fully opaque", () => {
+  approx(depthAlpha(42, 42, 42), 1);
+});
+
+test("depthAlpha: a distant node is dimmer than a near one across the same range", () => {
+  const near = project({ x: 0, y: 0, z: -80 }, identityView, 800, 600);
+  const far = project({ x: 0, y: 0, z: 80 }, identityView, 800, 600);
+  const lo = Math.min(near.depth, far.depth), hi = Math.max(near.depth, far.depth);
+  assert.ok(depthAlpha(far.depth, lo, hi) < depthAlpha(near.depth, lo, hi));
+});
+
+test("abbreviateLabel: names within the limit are returned unchanged", () => {
+  assert.equal(abbreviateLabel("Prime"), "Prime");
+  const exact = "x".repeat(LABEL_MAX);
+  assert.equal(abbreviateLabel(exact), exact);
+});
+
+test("abbreviateLabel: long names are cut to the limit with a trailing ellipsis", () => {
+  const long = "SupermassiveBlackHole";
+  const out = abbreviateLabel(long);
+  assert.equal(out.length, LABEL_MAX);
+  assert.ok(out.endsWith("\u2026"));
+  assert.equal(out, long.slice(0, LABEL_MAX - 1) + "\u2026");
+});
+
+test("abbreviateLabel: honours an explicit max", () => {
+  assert.equal(abbreviateLabel("HelloWorld", 5), "Hell\u2026");
+});
+
+test("abbreviateLabel: non-string input yields an empty string", () => {
+  assert.equal(abbreviateLabel(undefined), "");
+  assert.equal(abbreviateLabel(null), "");
 });

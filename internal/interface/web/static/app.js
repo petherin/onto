@@ -11,6 +11,8 @@ import {
   detectTransition,
   colorFor,
   project,
+  depthAlpha,
+  abbreviateLabel,
 } from "./logic.js";
 
 const canvas = document.getElementById("map");
@@ -221,9 +223,18 @@ function draw() {
   // ones — the depth cue that sells the 3D rotation.
   const drawn = [...nodes.values()].map((n) => ({ n, p: toScreen(n) }));
   drawn.sort((a, b) => b.p.depth - a.p.depth);
+  // Depth range of what's on screen drives the relative fade (see depthAlpha).
+  let minDepth = Infinity, maxDepth = -Infinity;
+  for (const { p } of drawn) {
+    if (p.depth < minDepth) minDepth = p.depth;
+    if (p.depth > maxDepth) maxDepth = p.depth;
+  }
   for (const { n, p } of drawn) {
     const isCur = n.id === cur;
     const r = (isCur ? 9 : 6) * view.scale * p.persp;
+    // Fade nodes by depth so a busy map stays readable; the current location
+    // always stays at full opacity so you never lose track of where you are.
+    ctx.globalAlpha = isCur ? 1 : depthAlpha(p.depth, minDepth, maxDepth);
     if (isCur) {
       ctx.fillStyle = "rgba(87,226,165,0.18)";
       ctx.beginPath();
@@ -236,8 +247,12 @@ function draw() {
     ctx.fill();
     ctx.fillStyle = isCur ? "#d7e0ff" : "#7a86b6";
     ctx.font = `${12 * Math.max(view.scale * p.persp, 0.7)}px ui-monospace, monospace`;
-    ctx.fillText(n.name, p.x + r + 4, p.y + 4);
+    // Labels grow long fast, so abbreviate them by default; reveal the full name
+    // for the current location and whichever node the pointer is hovering.
+    const showFull = isCur || n.id === hoveredId;
+    ctx.fillText(showFull ? n.name : abbreviateLabel(n.name), p.x + r + 4, p.y + 4);
   }
+  ctx.globalAlpha = 1;
 
   drawEffects(cur);
 }
@@ -281,6 +296,9 @@ function nodeAt(sx, sy) {
 }
 
 let dragging = null;
+// The node under the pointer, if any. draw() reveals its full (un-abbreviated)
+// label; cleared while dragging and when the pointer leaves the canvas.
+let hoveredId = null;
 canvas.addEventListener("mousedown", (e) => {
   const hit = nodeAt(e.offsetX, e.offsetY);
   if (hit && state && hit.id !== state.session.Location) {
@@ -294,10 +312,12 @@ canvas.addEventListener("mousedown", (e) => {
 // "travel here" ones), the default cursor otherwise. Skipped while dragging so
 // panning/rotating keeps its own cursor.
 canvas.addEventListener("mousemove", (e) => {
-  if (dragging) return;
+  if (dragging) { hoveredId = null; return; }
   const hit = nodeAt(e.offsetX, e.offsetY);
+  hoveredId = hit ? hit.id : null;
   canvas.style.cursor = hit && hit.reachable ? "pointer" : "default";
 });
+canvas.addEventListener("mouseleave", () => { hoveredId = null; });
 window.addEventListener("mousemove", (e) => {
   if (!dragging) return;
   if (dragging.rotate) {
