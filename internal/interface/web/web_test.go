@@ -40,7 +40,7 @@ func getJSON(t *testing.T, url string, out any) {
 	t.Helper()
 	resp, err := http.Get(url)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(out))
 }
@@ -49,7 +49,7 @@ func postJSON(t *testing.T, url, body string, out any) {
 	t.Helper()
 	resp, err := http.Post(url, "application/json", strings.NewReader(body))
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(out))
 }
@@ -133,7 +133,7 @@ func TestHandlers(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/api/execute")
 	require.NoError(t, err)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
 
 	var moved stateDTO
@@ -199,7 +199,7 @@ func TestState_JSONKeysMatchFrontend(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/api/state")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var payload struct {
