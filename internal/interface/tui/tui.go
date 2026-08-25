@@ -18,10 +18,9 @@ import (
 )
 
 const (
-	msgGoodbye     = "Goodbye."
-	msgAlreadyHome = "You are already home."
-	cmdHome        = "home"
-	cmdList        = "ls"
+	msgGoodbye = "Goodbye."
+	cmdHome    = "home"
+	cmdList    = "ls"
 
 	// Vertical split between Navigation Options and Log over the flexible
 	// region under the top panes. Nav is the primary working surface, so it
@@ -206,7 +205,7 @@ func (m Model) handleLine(line string) (tea.Model, tea.Cmd) {
 		// GoHome's returned plan string already ends with "Proceed? [y/N]:",
 		// so it must not be appended again here.
 		m.appendLog(plan)
-		if plan != msgAlreadyHome {
+		if facade.NeedsHomeConfirm(plan) {
 			m.awaitingHomeConfirm = true
 		}
 		m.refreshLog()

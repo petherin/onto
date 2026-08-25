@@ -372,7 +372,7 @@ exit                   Leave the CLI
 
 The app is functional. It includes:
 
-- a command entrypoint in `cmd/cli` (plain REPL) and a multi-pane TUI entrypoint in `cmd/dashboard`
+- a command entrypoint in `cmd/cli` (plain REPL), a multi-pane TUI entrypoint in `cmd/dashboard`, and a browser-based Reality Map in `cmd/web` (interactive 3D graph with reachability colouring and per-transition edge styles — see [Reality Map (browser)](#reality-map-browser))
 - the full command set listed under [Example CLI experience](#example-cli-experience)
 - BFS-based graph routing across locations with travel modes (walk, rail, etc.)
 - contextual navigation along all eight non-physical axes — quantum (`shift`), timeline (`jump`), bubble universe (`universe`), mathematical structure (`structure`), simulation depth (`simulate`), consensus divergence (`drift` / `align`), observer (`observe`), and time (`time`) — each with a paired reverse; see the [contextual transition reference](#contextual-transition-reference) for costs and behaviour
@@ -398,7 +398,7 @@ Five layers, each importing only inward:
 | Application facade | `internal/application/facade/` | Delivery-agnostic entry point; dispatches input strings to commands/queries and formats results as strings |
 | Infrastructure | `internal/infrastructure/` | JSON persistence — implements the domain repository interface |
 | Bootstrap | `internal/bootstrap/` | Wires infrastructure to domain at startup; only `cmd/` entry points import this |
-| Interface | `internal/interface/cli/`, `internal/interface/tui/` | Thin delivery wrappers — readline REPL and Bubble Tea dashboard; both delegate all logic to the facade |
+| Interface | `internal/interface/cli/`, `internal/interface/tui/`, `internal/interface/web/` | Thin delivery wrappers — readline REPL, Bubble Tea dashboard, and a browser Reality Map served over a JSON API; all delegate every command to the facade |
 
 The domain defines the types and interfaces; every other layer depends on it, never the reverse. The interface packages depend only on the application facade, not on each other. See [docs/DDD.md](docs/DDD.md) for how DDD patterns are applied here.
 
@@ -419,6 +419,43 @@ make dashboard
 # or directly:
 go run ./cmd/dashboard
 ```
+
+### Reality Map (browser)
+
+A browser-based delivery mechanism renders the universe as an interactive 3D
+force-directed graph, backed by the same facade as the CLI and TUI:
+
+```bash
+make web
+# or directly:
+go run ./cmd/web
+```
+
+Then open the printed address (default `http://localhost:8090`; override with
+`ONTO_WEB_ADDR`). The map is a thin client over a small JSON API (`/api/state`
+and `/api/execute`) — all navigation logic stays in the facade and domain.
+
+**Reading the map** — nodes and edges are colour-coded so it answers "where can
+I go?" at a glance:
+
+| Node colour | Meaning |
+|---|---|
+| 🟢 green | you are here |
+| 🔵 blue | reachable now by ordinary `travel` — click to go |
+| 🩷 pink | a different quantum branch — needs `shift`, not travel |
+| ⚫ grey | exists, but no physical route from here |
+
+Reachability is computed on the backend (`navigation.ReachableFrom`) and exposed
+per node, so the colouring reflects real routing rather than a client-side guess.
+Edges are **solid blue** for ordinary physical travel; every contextual
+transition (quantum, timeline, universe, simulation, consensus, observer, time,
+structure) gets its own hue and dash pattern, keyed in the top-right legend. When
+a transition lands, a colour-matched ripple radiates from your current location.
+
+**Controls** — click a reachable (blue) node to travel there (the cursor turns to
+a pointer over reachable nodes); scroll to zoom; drag to pan; **Shift**+drag to
+rotate the graph in 3D. The right-hand panel mirrors every command as a button,
+plus free-text entry, an observer picker, and a time picker.
 
 **In Docker** (requires Docker):
 
@@ -446,6 +483,7 @@ Environment variables can be set in `.env` (copy `.env.example` to get started) 
 |---|---|---|
 | `ONTO_DATA_FILE` | `data/locations.json` | Path to the universe JSON file |
 | `ONTO_START_LOCATION` | `home` | Location ID the app starts at |
+| `ONTO_WEB_ADDR` | `:8090` | Listen address for the browser Reality Map (`make web`) |
 
 ```bash
 ONTO_START_LOCATION=station make docker-run

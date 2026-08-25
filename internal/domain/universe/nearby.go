@@ -1,6 +1,15 @@
 package universe
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
+
+// nearbyNamePrefix is the display-name prefix shared by every auto-generated
+// nearby location. It is also the signal the location validator uses to skip
+// these nodes, so it must not change casually.
+const nearbyNamePrefix = "Nearby "
 
 // LocationGeneratorService is a domain service interface for the policy that
 // expands a dead end into a new nearby location and its bidirectional
@@ -39,7 +48,12 @@ func NewNearbyLocation(u *Aggregate, originID string, coordinate CoordinateVO) (
 		if _, exists := u.GetLocation(id); exists {
 			continue
 		}
-		coordinate.Location = fmt.Sprintf("Nearby %d", i)
+		// The display name is numbered from a universe-wide count of existing
+		// nearby locations, not the per-origin index i. A dead end spawns its
+		// first nearby node with i == 1, so numbering by i would name every
+		// dead end's child "Nearby 1" — producing many distinct nodes with
+		// identical names as the user chains through them.
+		coordinate.Location = fmt.Sprintf("%s%d", nearbyNamePrefix, nextNearbyNumber(u))
 		location := LocationEntity{
 			ID:          id,
 			Name:        coordinate.Location,
@@ -51,4 +65,21 @@ func NewNearbyLocation(u *Aggregate, originID string, coordinate CoordinateVO) (
 		return location, outbound, returning, nil
 	}
 	return LocationEntity{}, EdgeVO{}, EdgeVO{}, fmt.Errorf("%w: no nearby location ID available", ErrInvalidLocation)
+}
+
+// nextNearbyNumber returns one past the highest "Nearby N" sequence number
+// currently present in the universe, so each auto-generated nearby location
+// gets a name unique across all dead ends rather than one reset per origin.
+func nextNearbyNumber(u *Aggregate) int {
+	highest := 0
+	for _, loc := range u.AllLocations() {
+		if !strings.HasPrefix(loc.Coordinate.Location, nearbyNamePrefix) {
+			continue
+		}
+		suffix := strings.TrimSpace(strings.TrimPrefix(loc.Coordinate.Location, nearbyNamePrefix))
+		if n, err := strconv.Atoi(suffix); err == nil && n > highest {
+			highest = n
+		}
+	}
+	return highest + 1
 }

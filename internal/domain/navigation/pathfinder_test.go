@@ -76,6 +76,32 @@ func TestFindRoute_UsesContextualTransitionAcrossRealityBoundary(t *testing.T) {
 	assert.Equal(t, universe.Walk, path[1].Mode)
 }
 
+func TestReachableFrom(t *testing.T) {
+	u := universe.NewAggregate()
+	base := universe.DefaultCoordinateVO()
+	branchCoord := base
+	branchCoord.Quantum = "Q1"
+
+	for _, id := range []string{"home", "station", "cafe", "island"} {
+		require.NoError(t, u.AddLocation(universe.LocationEntity{ID: id, Coordinate: base}))
+	}
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "branch", Coordinate: branchCoord}))
+
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "station", To: "cafe", Mode: universe.Rail}))
+	// branch is reachable only across a non-physical (quantum) hop.
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "branch", Mode: universe.QuantumShift}))
+	// island has no incoming edge at all.
+
+	reachable := navigation.ReachableFrom(u, "home")
+
+	assert.True(t, reachable["station"], "one physical hop away")
+	assert.True(t, reachable["cafe"], "two physical hops away")
+	assert.False(t, reachable["branch"], "nodes reached only via a shift are not physically reachable")
+	assert.False(t, reachable["island"], "unconnected nodes are unreachable")
+	assert.False(t, reachable["home"], "origin itself is excluded")
+}
+
 func TestPathDistance(t *testing.T) {
 	tests := []struct {
 		name string

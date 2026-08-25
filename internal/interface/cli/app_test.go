@@ -511,6 +511,20 @@ func TestGoHome_FromStation_ReturnsPlan(t *testing.T) {
 	assert.Contains(t, output, "home")
 }
 
+// A dead-end node (park has no outgoing edge in the default map) has no route
+// back home. GoHome must report that explicitly rather than falsely claiming
+// the traveller is already home, and it must not ask for confirmation.
+func TestGoHome_FromDeadEnd_ReportsNoRoute(t *testing.T) {
+	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
+	app := newTestApp(t)
+	app.Execute("travel park")
+	output := app.Execute("home")
+
+	assert.Contains(t, output, "No route home")
+	assert.NotContains(t, output, "already home")
+	assert.False(t, facade.NeedsHomeConfirm(output))
+}
+
 func TestTravel_ToQuantumBranchID_SuggestsShift(t *testing.T) {
 	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
 	app := newTestApp(t)

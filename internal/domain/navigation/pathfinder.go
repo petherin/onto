@@ -78,6 +78,37 @@ func isTraversable(u *universe.Aggregate, edge universe.EdgeVO) bool {
 	return fromOK && toOK && from.Coordinate.SamePhysicalReality(to.Coordinate)
 }
 
+// ReachableFrom returns the set of location IDs reachable from `from` using only
+// physical travel — exactly the moves the travel command permits: physical-mode
+// edges whose endpoints share the same physical reality. Non-physical hops
+// (quantum, timeline, observer, etc.) are never followed, so a node reachable
+// only via a shift is reported as unreachable. The origin itself is excluded.
+func ReachableFrom(u *universe.Aggregate, from string) map[string]bool {
+	reachable := map[string]bool{}
+	visited := map[string]bool{from: true}
+	queue := []string{from}
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		for _, edge := range u.EdgesFrom(current) {
+			if visited[edge.To] || !edge.Mode.IsPhysical() {
+				continue
+			}
+			src, srcOK := u.GetLocation(edge.From)
+			dst, dstOK := u.GetLocation(edge.To)
+			if !srcOK || !dstOK || !src.Coordinate.SamePhysicalReality(dst.Coordinate) {
+				continue
+			}
+			visited[edge.To] = true
+			reachable[edge.To] = true
+			queue = append(queue, edge.To)
+		}
+	}
+	return reachable
+}
+
 // PathDistance sums the distance of each EdgeVO in a path.
 func PathDistance(path []universe.EdgeVO) float64 {
 	total := 0.0

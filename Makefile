@@ -13,6 +13,10 @@ run:                   ## Run the app natively (requires Go installed)
 dashboard:             ## Run the multi-pane TUI dashboard natively (requires Go installed)
 	go run ./cmd/dashboard
 
+.PHONY: web
+web:                   ## Run the browser-based Reality Map at http://localhost:8090 (override with ONTO_WEB_ADDR)
+	go run ./cmd/web
+
 .PHONY: debug
 debug:                 ## Start a headless Delve debug server on :2345 for VS Code (or any IDE) to attach to
 	@if [ ! -f "$(DLV_BIN)" ]; then \
@@ -55,6 +59,10 @@ build:                 ## Build the native binary to ./onto
 build-dashboard:       ## Build the native dashboard binary to ./onto-dashboard
 	go build -o onto-dashboard ./cmd/dashboard
 
+.PHONY: build-web
+build-web:             ## Build the native web binary to ./onto-web (embeds static assets)
+	go build -o onto-web ./cmd/web
+
 .PHONY: docker-build
 docker-build:          ## Build the Docker image
 	docker compose build
@@ -66,8 +74,12 @@ docker-clean:          ## Stop and remove any leftover containers, anonymous vol
 ## ── Test ─────────────────────────────────────────────────────────────────────
 
 .PHONY: test
-test:                  ## Run all tests
+test: test-js          ## Run all tests (Go + front-end JS)
 	go test ./...
+
+.PHONY: test-js
+test-js:               ## Run the front-end JS unit tests (requires Node.js)
+	cd internal/interface/web && node --test
 
 .PHONY: validate-locations
 validate-locations:    ## Validate data/locations.json graph invariants

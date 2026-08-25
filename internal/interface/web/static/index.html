@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Onto — Reality Map</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header id="hud">
+    <div class="brand">onto<span>://</span></div>
+    <div id="axes" class="axes"></div>
+    <div id="cost" class="cost" title="Cumulative journey cost">
+      <span class="cost-label">cost</span>
+      <span id="cost-value" class="cost-value">0</span>
+    </div>
+  </header>
+
+  <main>
+    <section id="stage">
+      <canvas id="map"></canvas>
+      <div id="look" class="look"></div>
+      <div id="legend" class="legend">
+        <span class="legend-item"><i class="dot" style="background:#57e2a5"></i>you are here</span>
+        <span class="legend-item"><i class="dot" style="background:#6ea8ff"></i>travel here</span>
+        <span class="legend-item"><i class="dot" style="background:#ff5fb0"></i>quantum branch (shift)</span>
+        <span class="legend-item"><i class="dot" style="background:#535d82"></i>no route from here</span>
+      </div>
+      <div id="legend-transitions" class="legend legend-transitions"></div>
+      <div id="hint" class="hint">Click a node to travel · scroll to zoom · drag to pan · Shift+drag to rotate in 3D</div>
+    </section>
+
+    <div id="resizer" class="resizer" title="Drag to resize the panel"></div>
+
+    <aside id="side">
+      <div class="controls">
+        <div class="control-group" data-label="quantum">
+          <button data-cmd="shift">shift ⟳</button>
+          <button data-cmd="shift back">back</button>
+        </div>
+        <div class="control-group" data-label="timeline">
+          <button data-cmd="jump">jump ⤴</button>
+          <button data-cmd="jump back">back</button>
+        </div>
+        <div class="control-group" data-label="consensus">
+          <button data-cmd="drift">drift 🌀</button>
+          <button data-cmd="align">align</button>
+        </div>
+        <div class="control-group" data-label="simulation">
+          <button data-cmd="simulate">simulate ⤵</button>
+          <button data-cmd="simulate back">back</button>
+        </div>
+        <div class="control-group" data-label="universe">
+          <button data-cmd="universe">universe</button>
+          <button data-cmd="universe back">back</button>
+        </div>
+        <div class="control-group" data-label="structure">
+          <button data-cmd="structure">structure</button>
+          <button data-cmd="structure back">back</button>
+        </div>
+        <div class="control-group journey-group" data-label="journey">
+          <button data-cmd="home">home</button>
+          <button data-cmd="save" class="save">save</button>
+        </div>
+        <div class="control-group observer-group" data-label="observer">
+          <input id="observer-input" class="observer-input" list="observer-list" placeholder="observer, e.g. Bat" title="Type any observer perspective, then press observe" />
+          <datalist id="observer-list">
+            <option value="Bat"></option>
+            <option value="Dog"></option>
+            <option value="Machine"></option>
+            <option value="Alien"></option>
+          </datalist>
+          <button id="observe-go">observe 👁</button>
+          <button data-cmd="observe back">back</button>
+        </div>
+        <div class="control-group time-group" data-label="time">
+          <input id="time-input" class="time-input" type="datetime-local" step="1" title="Pick any date and time to branch to" />
+          <button id="time-go">time ⏱</button>
+          <button data-cmd="time back">back</button>
+        </div>
+      </div>
+
+      <div id="log" class="log"></div>
+
+      <div id="confirm" class="confirm hidden">
+        <span class="confirm-msg">Return home?</span>
+        <button id="confirm-yes" class="confirm-yes">Confirm (y)</button>
+        <button id="confirm-no" class="confirm-no">Cancel (n)</button>
+      </div>
+
+      <form id="cmdform" class="cmdform" autocomplete="off">
+        <span id="prompt" class="prompt">[ ] &gt;</span>
+        <input id="cmd" name="cmd" placeholder="type a command, e.g. look, travel park, help" />
+      </form>
+    </aside>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

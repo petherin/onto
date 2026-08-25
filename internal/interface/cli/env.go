@@ -8,7 +8,6 @@ const AppVersion = facade.AppVersion
 
 const (
 	msgGoodbye            = "Goodbye."
-	msgAlreadyHome        = "You are already home."
 	msgSaved              = "Saved."
 	fmtUnknownDestSuggest = "Unknown destination: %s\n\nDid you mean '%s'?"
 	fmtExitSaveWarning    = "Warning: failed to save before exit: %v"

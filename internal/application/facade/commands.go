@@ -277,6 +277,24 @@ func (a *App) Cost() string {
 	return fmt.Sprintf("Total journey cost: %.0f", a.session.CumulativeCost())
 }
 
+const (
+	// MsgAlreadyHome is returned by GoHome when the session is already at the
+	// start location with no context to unwind.
+	MsgAlreadyHome = "You are already home."
+	// HomeConfirmPrompt terminates every GoHome plan that requires the user to
+	// confirm before GoHomeConfirm executes it. Delivery mechanisms detect it
+	// via NeedsHomeConfirm rather than string-comparing against MsgAlreadyHome.
+	HomeConfirmPrompt = "Proceed? [y/N]:"
+)
+
+// NeedsHomeConfirm reports whether a GoHome result is an actionable plan that
+// requires a y/N confirmation, as opposed to a terminal message such as
+// "already home" or "no route home". Delivery mechanisms use this to decide
+// whether to enter their confirm/execute flow.
+func NeedsHomeConfirm(plan string) bool {
+	return strings.HasSuffix(plan, HomeConfirmPrompt)
+}
+
 // GoHome builds the route plan for returning home (no movement occurs).
 func (a *App) GoHome() string {
 	cmd := &commands.ReturnHomeCommand{
@@ -288,7 +306,15 @@ func (a *App) GoHome() string {
 	}
 	steps, cost := cmd.Plan()
 	if len(steps) == 0 {
-		return "You are already home."
+		// An empty plan is ambiguous: either there is genuinely nothing to do
+		// (already home), or the current location has no route back home (a
+		// dead-end node). Distinguish the two so a stranded traveller isn't
+		// falsely told they are already home.
+		if a.session.Location() == a.homeID {
+			return MsgAlreadyHome
+		}
+		return fmt.Sprintf("No route home from %s. There is no path back to %s from here.",
+			a.locationName(a.session.Location()), a.locationName(a.homeID))
 	}
 	var lines []string
 	for _, step := range steps {
@@ -301,7 +327,7 @@ func (a *App) GoHome() string {
 		}
 		lines = append(lines, line)
 	}
-	return fmt.Sprintf("Route home\n%s\n\nEstimated cost: %.0f\n\nProceed? [y/N]:", strings.Join(lines, "\n"), cost)
+	return fmt.Sprintf("Route home\n%s\n\nEstimated cost: %.0f\n\n%s", strings.Join(lines, "\n"), cost, HomeConfirmPrompt)
 }
 
 // GoHomeConfirm executes the home journey produced by GoHome.

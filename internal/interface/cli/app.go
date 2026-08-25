@@ -75,7 +75,7 @@ func (a *App) Run() {
 		if fields := strings.Fields(trimmed); len(fields) > 0 && fields[0] == "home" {
 			plan := a.app.GoHome()
 			fmt.Println(plan)
-			if plan != msgAlreadyHome {
+			if facade.NeedsHomeConfirm(plan) {
 				rl.SetPrompt("")
 				confirm, _ := rl.Readline()
 				if strings.ToLower(strings.TrimSpace(confirm)) == "y" {
@@ -115,7 +115,7 @@ func (a *App) runPlain() {
 		if fields := strings.Fields(trimmed); len(fields) > 0 && fields[0] == "home" {
 			plan := a.app.GoHome()
 			fmt.Println(plan)
-			if plan != msgAlreadyHome {
+			if facade.NeedsHomeConfirm(plan) {
 				confirm, _ := reader.ReadString('\n')
 				if strings.ToLower(strings.TrimSpace(confirm)) == "y" {
 					fmt.Println(a.app.GoHomeConfirm())

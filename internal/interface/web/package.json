@@ -1,0 +1,9 @@
+{
+  "name": "onto-web",
+  "private": true,
+  "type": "module",
+  "description": "Marks the front-end JS as ES modules and defines the zero-dependency test task. Placed outside static/ so it is never embedded into the Go binary (go:embed static/*).",
+  "scripts": {
+    "test": "node --test"
+  }
+}
