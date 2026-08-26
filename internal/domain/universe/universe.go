@@ -119,6 +119,31 @@ func (u *Aggregate) AllLocationIDs() []string {
 	return ids
 }
 
+// FindInReality resolves a location by name or ID within a specific reality,
+// i.e. among the copies of the world that share coord's non-physical axes. A
+// plain place name ("park") therefore resolves to the copy that sits in the
+// caller's current reality (e.g. "park-m1-u1-t1-c1"), not the base-reality
+// original. An exact same-reality ID match wins first; otherwise the physical
+// Location field is matched. Returns false when no same-reality match exists.
+func (u *Aggregate) FindInReality(coord CoordinateVO, name string) (LocationEntity, bool) {
+	norm := normaliseName(name)
+	if loc, ok := u.locations[norm]; ok && loc.Coordinate.SamePhysicalReality(coord) {
+		return loc, true
+	}
+	for _, loc := range u.locations {
+		if loc.Coordinate.SamePhysicalReality(coord) && normaliseName(loc.Coordinate.Location) == norm {
+			return loc, true
+		}
+	}
+	return LocationEntity{}, false
+}
+
+// normaliseName lower-cases and hyphenates a place name so a human-typed
+// destination ("City Centre") matches a canonical location ID/field ("city-centre").
+func normaliseName(s string) string {
+	return strings.ToLower(strings.ReplaceAll(strings.TrimSpace(s), " ", "-"))
+}
+
 // AllEdgesFlat returns every EdgeVO in the aggregate as a flat slice.
 func (u *Aggregate) AllEdgesFlat() []EdgeVO {
 	var result []EdgeVO

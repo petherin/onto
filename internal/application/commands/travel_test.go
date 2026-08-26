@@ -57,6 +57,33 @@ func TestTravelCommand_NoRoute(t *testing.T) {
 	require.ErrorIs(t, err, navigation.ErrNoRoute)
 }
 
+func TestTravelCommand_ResolvesPlainNameWithinCurrentReality(t *testing.T) {
+	u, _, pf := newTravelFixture(t)
+
+	// Build a Q1 copy of the world and start the session there.
+	q1 := universe.DefaultCoordinateVO()
+	q1.Quantum = "Q1"
+	homeQ1 := q1
+	homeQ1.Location = "Home"
+	stationQ1 := q1
+	stationQ1.Location = "Station"
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-q1", Name: "Home (Q1)", Coordinate: homeQ1}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "station-q1", Name: "Station (Q1)", Coordinate: stationQ1}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home-q1", To: "station-q1", Mode: universe.Walk, Cost: 1}))
+	sess := exploration.NewEntity("home-q1", homeQ1)
+
+	// Typing the plain name "station" must resolve to the in-reality copy
+	// (station-q1), not the base-reality "station".
+	route := []universe.EdgeVO{{From: "home-q1", To: "station-q1", Mode: universe.Walk, Cost: 1}}
+	pf.EXPECT().FindRoute(u, "home-q1", "station-q1").Return(route, true)
+
+	cmd := &commands.TravelCommand{Universe: u, Session: sess, Pathfinder: pf}
+	result, err := cmd.Execute("station")
+
+	require.NoError(t, err)
+	assert.Equal(t, "station-q1", result.Location.ID)
+}
+
 func TestTravelCommand_QuantumEdge_Rejected(t *testing.T) {
 	u, sess, pf := newTravelFixture(t)
 

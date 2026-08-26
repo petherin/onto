@@ -11,6 +11,15 @@ import {
   detectTransition,
   effectSpec,
   colorFor,
+  layerZ,
+  layoutTarget,
+  clampScale,
+  zoomOffset,
+  unproject,
+  panToScreen,
+  ROTATE_SPEED,
+  edgeRestLength,
+  spawnHalo,
   project,
   depthAlpha,
   abbreviateLabel,
@@ -19,6 +28,7 @@ import {
 
 const canvas = document.getElementById("map");
 const ctx = canvas.getContext("2d");
+const brandEl = document.getElementById("brand");
 const axesEl = document.getElementById("axes");
 const costEl = document.getElementById("cost-value");
 const lookEl = document.getElementById("look");
@@ -30,7 +40,26 @@ const confirmEl = document.getElementById("confirm");
 let state = null;
 let edges = [];
 const nodes = new Map(); // id -> {id, name, x, y, z, vx, vy, vz}
+// view holds the camera. It's snapped to the vertical orientation at startup
+// (see setVerticalView and the boot call at the end of the file) so the
+// depth-layer stack reads as a ladder from the first frame; dragging, the wheel,
+// and the view buttons mutate it from there.
 const view = { scale: 1, ox: 0, oy: 0, rotX: 0, rotY: 0 };
+
+// setVerticalView / setDefaultView back the view buttons and the initial framing.
+// Vertical is a near-top-down angle with no yaw, so z (nesting depth) drives
+// screen-y: base reality sits near the top and the deepest layer at the bottom,
+// with an upward pan nudging the base layer to the top of the canvas rather than
+// its centre. Default is the free three-quarter view.
+function setVerticalView() {
+  view.rotX = -1.42; view.rotY = 0;
+  view.ox = 0; view.oy = -canvas.clientHeight * 0.32;
+  view.scale = 1;
+}
+function setDefaultView() {
+  view.rotX = 0.5; view.rotY = 0.35;
+  view.ox = 0; view.oy = 0; view.scale = 1;
+}
 let logCount = 0;
 
 async function api(path, body) {
@@ -57,14 +86,31 @@ async function run(command) {
 function apply(s) {
   const prev = state && state.session;
   state = s;
-  syncNodes(s.graph);
+  const added = syncNodes(s.graph);
   renderHUD(s.session);
   renderLook(s);
   renderLog(s);
-  promptEl.textContent = s.prompt;
+  // Bottom-right prompt shows the current node's name (a short, shell-like
+  // cue); the full onto:// address lives in the loc badge in the header.
+  // Hovering the prompt still reveals the address.
+  const cur = currentNodeSnapshot(s);
+  const name = cur ? cur.Name : (s.session ? s.session.Location : "");
+  promptEl.textContent = `[${name}] > `;
+  promptEl.title = (s.session && s.session.ShortOntoAddress) || name;
   renderConfirm(s);
   const mode = detectTransition(prev, s.session);
-  if (mode) triggerEffect(mode);
+  if (mode) {
+    triggerEffect(mode);
+    // Halo whatever locations this transition just revealed, in the transition's
+    // own colour, so the eye is drawn to what changed. Physical moves can add
+    // nodes too, but only a reality transition arms the halo.
+    const rgb = modeStyle(mode).rgb;
+    const now = performance.now();
+    for (const id of added) {
+      const n = nodes.get(id);
+      if (n) { n.spawn = now; n.spawnRgb = rgb; }
+    }
+  }
 }
 
 // renderConfirm shows the Confirm/Cancel bar and locks the free-text input
@@ -84,39 +130,58 @@ function renderConfirm(s) {
 // live edge list. Positions persist across refreshes so the map stays stable.
 function syncNodes(graph) {
   edges = graph.Edges || [];
-  const seed = nodes.get(state && state.session ? state.session.Location : null);
+  const added = [];
   for (const n of graph.Nodes || []) {
+    // Every node has a deterministic x/y home (layoutTarget): its reality's
+    // centre plus a fixed physical offset, so the map is ordered and repeatable.
+    // The tick() target-spring holds nodes there while repulsion nudges them
+    // apart just enough to avoid overlap. z is owned by the depth layer.
+    const target = layoutTarget(n);
     if (!nodes.has(n.ID)) {
-      const a = Math.random() * Math.PI * 2;
-      const r = 40 + Math.random() * 120;
+      // Seed at the target (with a tiny jitter so overlapping seeds separate)
+      // instead of a random ring, so a node animates in near its final home
+      // rather than flying across the map.
       nodes.set(n.ID, {
         id: n.ID,
         name: n.Name || n.ID,
         quantum: n.Quantum,
+        depth: n.Depth || 0,
         reachable: n.Reachable,
-        x: (seed ? seed.x : 0) + Math.cos(a) * r,
-        y: (seed ? seed.y : 0) + Math.sin(a) * r,
-        z: (seed ? seed.z : 0) + (Math.random() - 0.5) * 160,
+        tx: target.x,
+        ty: target.y,
+        x: target.x + (Math.random() - 0.5) * 8,
+        y: target.y + (Math.random() - 0.5) * 8,
+        z: layerZ(n.Depth) + (Math.random() - 0.5) * 20,
         vx: 0, vy: 0, vz: 0,
       });
+      added.push(n.ID);
     } else {
       const node = nodes.get(n.ID);
       node.name = n.Name || n.ID;
       node.quantum = n.Quantum;
+      node.depth = n.Depth || 0;
       node.reachable = n.Reachable;
+      node.tx = target.x;
+      node.ty = target.y;
     }
   }
+  return added;
 }
 
-function badge(label, value, active) {
-  const cls = active ? "badge active" : "badge";
+function badge(label, value, active, extraClass = "") {
+  const cls = "badge" + (active ? " active" : "") + (extraClass ? " " + extraClass : "");
   return `<span class="${cls}">${escapeHtml(label)} <b>${escapeHtml(value)}</b></span>`;
 }
 
 function renderHUD(sess) {
   if (!sess) return;
+  // The brand label carries the proper onto:// address of the current location
+  // (URL form): "onto" and "://" keep their styling, the rest is the address.
+  // The node's plain name is shown in the command prompt instead.
+  const rest = (sess.ShortOntoAddress || "").replace(/^onto:\/\//, "");
+  brandEl.innerHTML = `onto<span>://</span><b class="brand-addr">${escapeHtml(rest)}</b>`;
+  brandEl.title = sess.OntoAddress || sess.ShortOntoAddress || "";
   const parts = [
-    badge("loc", sess.Location, false),
     badge("math", sess.Mathematics, sess.Mathematics !== DEFAULTS.Mathematics),
     badge("universe", sess.Universe, sess.Universe !== DEFAULTS.Universe),
     badge("timeline", sess.Timeline, sess.Timeline !== DEFAULTS.Timeline),
@@ -127,6 +192,13 @@ function renderHUD(sess) {
   ];
   axesEl.innerHTML = parts.join("");
   costEl.textContent = Math.round(sess.CumulativeCost || 0);
+}
+
+// currentNodeSnapshot finds the graph node the session is currently at, so
+// callers can read its display Name and Description.
+function currentNodeSnapshot(s) {
+  const id = s && s.session && s.session.Location;
+  return ((s.graph && s.graph.Nodes) || []).find((n) => n.ID === id) || null;
 }
 
 function renderLook(s) { lookEl.textContent = s.look || ""; }
@@ -151,33 +223,46 @@ function renderLog(s) {
 
 function tick() {
   const arr = [...nodes.values()];
-  // Repulsion between every pair of nodes, now in three dimensions.
+  // Repulsion between every pair of nodes, now in three dimensions. It is only
+  // there to keep nodes that share a layout home from overlapping, so it is
+  // gentle — the deterministic target spring below owns the overall shape.
   for (let i = 0; i < arr.length; i++) {
     for (let j = i + 1; j < arr.length; j++) {
       const a = arr[i], b = arr[j];
       let dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
       let d2 = dx * dx + dy * dy + dz * dz || 0.01;
-      const f = 2600 / d2;
+      const f = 1400 / d2;
       const d = Math.sqrt(d2);
       const ux = dx / d, uy = dy / d, uz = dz / d;
       a.vx += ux * f; a.vy += uy * f; a.vz += uz * f;
       b.vx -= ux * f; b.vy -= uy * f; b.vz -= uz * f;
     }
   }
-  // Springs along edges pull connected nodes toward a rest length.
+  // Springs along edges pull connected nodes toward a rest length. They act in
+  // the x/y plane only: z is owned by the depth-layer spring below, so an edge
+  // never drags a node off its own nesting layer. The rest length varies by mode
+  // (edgeRestLength): physical edges stay short so a reality's locations cluster,
+  // while reality-transition edges rest much longer, pushing each child
+  // sub-graph away from its parent. This is now a soft trim on top of the
+  // deterministic target spring, so it eases connected nodes together without
+  // overriding the imposed reality layout.
   for (const e of edges) {
     const a = nodes.get(e.From), b = nodes.get(e.To);
     if (!a || !b) continue;
-    const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
-    const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.01;
-    const f = (d - 110) * 0.02;
-    const ux = dx / d, uy = dy / d, uz = dz / d;
-    a.vx += ux * f; a.vy += uy * f; a.vz += uz * f;
-    b.vx -= ux * f; b.vy -= uy * f; b.vz -= uz * f;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+    const f = (d - edgeRestLength(e.Mode)) * 0.008;
+    const ux = dx / d, uy = dy / d;
+    a.vx += ux * f; a.vy += uy * f;
+    b.vx -= ux * f; b.vy -= uy * f;
   }
-  // Gentle pull to origin plus damping and integration.
+  // x/y: a firm spring toward the node's deterministic layout home (tx/ty), so
+  // realities settle into ordered, predictable clusters instead of a random
+  // organic scatter. z: a stiffer spring toward the node's depth layer, so
+  // nested realities stack into shells. Then damping and integration.
   for (const n of arr) {
-    n.vx += -n.x * 0.002; n.vy += -n.y * 0.002; n.vz += -n.z * 0.002;
+    n.vx += (n.tx - n.x) * 0.03; n.vy += (n.ty - n.y) * 0.03;
+    n.vz += (layerZ(n.depth) - n.z) * 0.05;
     n.vx *= 0.86; n.vy *= 0.86; n.vz *= 0.86;
     n.x += n.vx; n.y += n.vy; n.z += n.vz;
   }
@@ -247,10 +332,29 @@ function draw() {
   }
   for (const { n, p } of drawn) {
     const isCur = n.id === cur;
-    const r = (isCur ? 9 : 6) * view.scale * p.persp;
+    // Keep a small floor on the radius so nodes stay visible (as dots) even when
+    // zoomed right out, instead of shrinking to sub-pixel and vanishing.
+    const r = Math.max((isCur ? 9 : 6) * view.scale * p.persp, isCur ? 2.5 : 1.5);
     // Fade nodes by depth so a busy map stays readable; the current location
     // always stays at full opacity so you never lose track of where you are.
-    ctx.globalAlpha = isCur ? 1 : depthAlpha(p.depth, minDepth, maxDepth);
+    const nodeAlpha = isCur ? 1 : depthAlpha(p.depth, minDepth, maxDepth);
+    ctx.globalAlpha = nodeAlpha;
+    // Spawn halo: a faint sphere around a node a reality transition just
+    // revealed, fading and swelling over a couple of seconds (spawnHalo) before
+    // it clears itself. Drawn behind the node, tinted with the transition colour.
+    if (n.spawn) {
+      const halo = spawnHalo(performance.now() - n.spawn);
+      if (halo) {
+        ctx.globalAlpha = halo.alpha * nodeAlpha;
+        ctx.fillStyle = `rgba(${n.spawnRgb || "255,255,255"},1)`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r + halo.grow, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = nodeAlpha;
+      } else {
+        n.spawn = 0;
+      }
+    }
     if (isCur) {
       ctx.fillStyle = "rgba(87,226,165,0.18)";
       ctx.beginPath();
@@ -267,6 +371,14 @@ function draw() {
     // for the current location and whichever node the pointer is hovering.
     const showFull = isCur || n.id === hoveredId;
     ctx.fillText(showFull ? n.name : abbreviateLabel(n.name), p.x + r + 4, p.y + 4);
+    // Depth badge: the nesting-depth number to the left of each nested node, so
+    // depth is legible without rotating. Base (depth 0) nodes are left unbadged.
+    if (n.depth > 0) {
+      ctx.fillStyle = isCur ? "#d7e0ff" : "#5a6699";
+      ctx.textAlign = "right";
+      ctx.fillText(String(n.depth), p.x - r - 4, p.y + 4);
+      ctx.textAlign = "left";
+    }
   }
   ctx.globalAlpha = 1;
 
@@ -458,8 +570,13 @@ canvas.addEventListener("mousedown", (e) => {
     run("travel " + hit.id);
     return;
   }
-  // Shift+drag rotates the map; a plain drag pans it.
+  // A plain drag pans the map; Shift+drag orbits it in 3D. When starting an
+  // orbit we capture the pivot — the world point under the cursor — so the drag
+  // spins the view about that point rather than the canvas centre.
   dragging = { x: e.offsetX, y: e.offsetY, rotate: e.shiftKey };
+  if (dragging.rotate) {
+    dragging.pivot = unproject(e.offsetX, e.offsetY, view, canvas.clientWidth, canvas.clientHeight);
+  }
 });
 // Hint clickability: show a pointer cursor over reachable nodes (the blue
 // "travel here" ones), the default cursor otherwise. Skipped while dragging so
@@ -474,8 +591,15 @@ canvas.addEventListener("mouseleave", () => { hoveredId = null; });
 window.addEventListener("mousemove", (e) => {
   if (!dragging) return;
   if (dragging.rotate) {
-    view.rotY += e.movementX * 0.01;
-    view.rotX += e.movementY * 0.01;
+    // Orbit about the grabbed pivot: apply the free rotation deltas (horizontal
+    // motion turns yaw, vertical turns pitch), then re-pan so the pivot stays
+    // anchored under the point where the drag began — the map spins about the
+    // cursor, not the canvas centre.
+    view.rotY += e.movementX * ROTATE_SPEED;
+    view.rotX += e.movementY * ROTATE_SPEED;
+    const pan = panToScreen(dragging.pivot, view, canvas.clientWidth, canvas.clientHeight, dragging.x, dragging.y);
+    view.ox = pan.ox;
+    view.oy = pan.oy;
   } else {
     view.ox += e.movementX;
     view.oy += e.movementY;
@@ -484,12 +608,41 @@ window.addEventListener("mousemove", (e) => {
 window.addEventListener("mouseup", () => { dragging = null; });
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
-  const factor = e.deltaY < 0 ? 1.1 : 0.9;
-  view.scale = Math.min(3, Math.max(0.3, view.scale * factor));
+  const step = e.deltaY < 0 ? 1.1 : 0.9;
+  // clampScale keeps zoom sane; its floor is low so a big, sprawling map can be
+  // pulled right out to fit on screen. Then re-centre the pan on the pointer so
+  // the zoom homes in on whatever is under the cursor, not the canvas centre.
+  // `applied` is the real scale ratio after clamping, so panning doesn't drift
+  // once zoom is pinned at its min/max.
+  const newScale = clampScale(view.scale * step);
+  const applied = newScale / view.scale;
+  view.ox = zoomOffset(view.ox, e.offsetX, canvas.clientWidth / 2, applied);
+  view.oy = zoomOffset(view.oy, e.offsetY, canvas.clientHeight / 2, applied);
+  view.scale = newScale;
 }, { passive: false });
 
 document.querySelectorAll("button[data-cmd]").forEach((b) => {
   b.addEventListener("click", () => run(b.dataset.cmd));
+});
+
+// View-orientation buttons (client-side only, no server round-trip). "vertical"
+// snaps to the depth-ladder view; "reset" restores the free three-quarter view.
+// The running tick() redraws automatically.
+document.getElementById("view-vertical").addEventListener("click", setVerticalView);
+document.getElementById("view-reset").addEventListener("click", setDefaultView);
+
+// Reset map: full server-side reset back to the starting realities. Distinct
+// from view-reset (which only moves the camera) — this discards every branch
+// reality transitions created. Clear the local node cache first so removed
+// nodes vanish, and null out state so re-applying base reality isn't read as a
+// reality transition (which would fire a stray effect/halo).
+document.getElementById("reset-map").addEventListener("click", async () => {
+  try {
+    const s = await api("/api/reset", {});
+    nodes.clear();
+    state = null;
+    apply(s);
+  } catch (err) { console.error("reset failed", err); }
 });
 
 document.getElementById("cmdform").addEventListener("submit", (e) => {
@@ -573,5 +726,6 @@ window.addEventListener("keydown", (e) => {
     }).join("");
 })();
 
+setVerticalView(); // open in the depth-ladder orientation
 refresh();
 requestAnimationFrame(tick);

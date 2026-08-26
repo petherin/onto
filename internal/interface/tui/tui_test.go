@@ -13,8 +13,8 @@ import (
 	"github.com/charmbracelet/x/exp/teatest"
 	"github.com/stretchr/testify/require"
 
-	"github.com/petherin/onto/internal/bootstrap"
 	"github.com/petherin/onto/internal/application/facade"
+	"github.com/petherin/onto/internal/bootstrap"
 	"github.com/petherin/onto/internal/domain/navigation"
 	"github.com/petherin/onto/internal/domain/universe"
 )

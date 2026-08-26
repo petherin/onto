@@ -12,21 +12,21 @@ type JourneyKind int
 
 // Journey kind constants classify each numbered option shown to the player.
 const (
-	JourneyTravel       JourneyKind = iota // physical travel to an adjacent location
-	JourneyShift                           // advance to the next quantum branch
-	JourneyShiftBack                       // return to the previous quantum branch
-	JourneyJump                            // advance to the next timeline branch
-	JourneyJumpBack                        // return to the previous timeline branch
-	JourneyUniverse                        // shift to the next bubble universe
-	JourneyUniverseBack                    // return to the previous bubble universe
-	JourneyStructure                       // shift to the next mathematical structure
-	JourneyStructureBack                   // return to the previous mathematical structure
-	JourneySimulate                        // enter the next nested simulation layer
-	JourneySimulateBack                    // exit one simulation layer toward base reality
-	JourneyDrift                           // enter the next consensus divergence
-	JourneyAlign                           // return one level toward shared consensus
-	JourneyObserveBack                     // restore the previous observer perspective
-	JourneyTimeBack                        // return through the temporal branch
+	JourneyTravel        JourneyKind = iota // physical travel to an adjacent location
+	JourneyShift                            // advance to the next quantum branch
+	JourneyShiftBack                        // return to the previous quantum branch
+	JourneyJump                             // advance to the next timeline branch
+	JourneyJumpBack                         // return to the previous timeline branch
+	JourneyUniverse                         // shift to the next bubble universe
+	JourneyUniverseBack                     // return to the previous bubble universe
+	JourneyStructure                        // shift to the next mathematical structure
+	JourneyStructureBack                    // return to the previous mathematical structure
+	JourneySimulate                         // enter the next nested simulation layer
+	JourneySimulateBack                     // exit one simulation layer toward base reality
+	JourneyDrift                            // enter the next consensus divergence
+	JourneyAlign                            // return one level toward shared consensus
+	JourneyObserveBack                      // restore the previous observer perspective
+	JourneyTimeBack                         // return through the temporal branch
 )
 
 // JourneyOption is a single numbered journey the player can take from the

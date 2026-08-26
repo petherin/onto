@@ -141,6 +141,39 @@ func TestHandlers(t *testing.T) {
 	assert.Equal(t, "station", moved.Session.Location)
 }
 
+// TestReset_RestoresStartingMap covers the full server-side reset: after a
+// reality transition has grown the graph and moved the session off base
+// reality, POST /api/reset rebuilds the starting map (only the four starter
+// nodes) and returns the session home in base reality.
+func TestReset_RestoresStartingMap(t *testing.T) {
+	s := newTestServer(t)
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	starterIDs := s.app.GraphSnapshot().Nodes
+	require.Len(t, starterIDs, 4, "the starter map has four nodes")
+
+	// Grow the graph with a reality transition; the branch adds new locations.
+	postJSON(t, srv.URL+"/api/execute", `{"command":"shift"}`, &stateDTO{})
+	grown := s.app.GraphSnapshot()
+	require.Greater(t, len(grown.Nodes), 4, "shift must branch new locations onto the map")
+
+	var reset stateDTO
+	postJSON(t, srv.URL+"/api/reset", `{}`, &reset)
+
+	assert.Len(t, reset.Graph.Nodes, 4, "reset restores only the starter nodes")
+	assert.Equal(t, "home", reset.Session.Location, "reset returns the session home")
+	assert.Equal(t, "Q0", reset.Session.Quantum, "reset returns to base reality")
+	assert.Equal(t, 0.0, reset.Session.CumulativeCost, "reset clears the journey cost")
+	assert.True(t, reset.Dirty, "reset diverges from the saved map, so it is dirty")
+
+	// A non-POST request is rejected, mirroring the other mutating endpoints.
+	resp, err := http.Get(srv.URL + "/api/reset")
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
+}
+
 // nodesByID indexes a graph snapshot's nodes for direct lookup in assertions.
 func nodesByID(g facade.GraphSnapshot) map[string]facade.NodeSnapshot {
 	m := make(map[string]facade.NodeSnapshot, len(g.Nodes))
@@ -211,12 +244,12 @@ func TestState_JSONKeysMatchFrontend(t *testing.T) {
 	}
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&payload))
 
-	for _, key := range []string{"Location", "Quantum"} {
+	for _, key := range []string{"Location", "Quantum", "ShortOntoAddress"} {
 		assert.Containsf(t, payload.Session, key, "session JSON must expose %q for the HUD", key)
 	}
 	require.NotEmpty(t, payload.Graph.Nodes, "graph must expose nodes")
-	for _, key := range []string{"ID", "Name", "Quantum", "Reachable"} {
-		assert.Containsf(t, payload.Graph.Nodes[0], key, "node JSON must expose %q for colouring", key)
+	for _, key := range []string{"ID", "Name", "Mathematics", "Universe", "Timeline", "Quantum", "Simulation", "Consensus", "Observer", "Location", "Depth", "Reachable"} {
+		assert.Containsf(t, payload.Graph.Nodes[0], key, "node JSON must expose %q for colouring and deterministic layout", key)
 	}
 	require.NotEmpty(t, payload.Graph.Edges, "graph must expose edges")
 	for _, key := range []string{"From", "To", "Mode"} {

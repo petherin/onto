@@ -34,8 +34,12 @@ html, body {
   background: var(--bg2);
 }
 
-.brand { font-weight: 700; letter-spacing: 1px; color: var(--accent); }
+/* The brand holds the full onto:// address; truncate with an ellipsis so a long
+   address never wraps the header (which would break the map height calc). The
+   full address is available on hover via the title attribute. */
+.brand { font-weight: 700; letter-spacing: 1px; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50%; flex: 0 1 auto; }
 .brand span { color: var(--dim); }
+.brand .brand-addr { letter-spacing: 0; color: var(--ink); font-weight: 600; }
 
 .axes { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
 
@@ -169,6 +173,8 @@ button {
 }
 button:hover { border-color: var(--accent); background: rgba(110,168,255,0.18); }
 button.save { color: var(--good); border-color: rgba(87,226,165,0.4); }
+button.reset-map { color: var(--hot); border-color: rgba(255,95,176,0.4); background: rgba(255,95,176,0.08); }
+button.reset-map:hover { border-color: var(--hot); background: rgba(255,95,176,0.18); }
 
 .journey-group, .observer-group, .time-group { grid-column: 1 / -1; }
 .time-input, .observer-input {
@@ -189,6 +195,11 @@ button.save { color: var(--good); border-color: rgba(87,226,165,0.4); }
 
 .log {
   flex: 1;
+  /* min-height:0 lets this flex child shrink below its content height so its
+     own overflow-y scrolls the log. Without it the flex default (min-height:
+     auto) makes the log grow with every transition entry, overflowing the
+     sidebar and shoving the command input off the bottom of the screen. */
+  min-height: 0;
   overflow-y: auto;
   padding: 12px;
   font-size: 13px;
@@ -211,7 +222,11 @@ button.save { color: var(--good); border-color: rgba(87,226,165,0.4); }
 .confirm-yes { color: var(--good); border-color: rgba(87, 226, 165, 0.5); }
 .confirm-no { color: var(--hot); border-color: rgba(255, 95, 176, 0.5); }
 
-.cmdform { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); align-items: center; }
-.prompt { color: var(--accent); white-space: nowrap; }
-#cmd { flex: 1; padding: 8px 10px; font: inherit; color: var(--ink); background: #05060d; border: 1px solid var(--line); border-radius: 8px; outline: none; }
+/* Stack the address prompt above the input rather than beside it: the address
+   grows with each transition and would squash the input if they shared a row.
+   Column layout gives the input a full-width line of its own, and the prompt is
+   free to wrap and show the whole address (anywhere, since it has no spaces). */
+.cmdform { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-top: 1px solid var(--line); align-items: stretch; }
+.prompt { color: var(--accent); overflow-wrap: anywhere; }
+#cmd { width: 100%; padding: 8px 10px; font: inherit; color: var(--ink); background: #05060d; border: 1px solid var(--line); border-radius: 8px; outline: none; }
 #cmd:focus { border-color: var(--accent); }

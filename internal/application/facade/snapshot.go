@@ -11,40 +11,44 @@ import (
 // carries every navigable axis so a GUI can render a coordinate HUD without
 // re-parsing formatted command output.
 type SessionSnapshot struct {
-	Location       string
-	OntoAddress    string
-	Mathematics    string
-	Universe       string
-	Timeline       string
-	Quantum        string
-	Simulation     int
-	Consensus      int
-	Observer       string
-	Time           time.Time
-	Planet         string
-	City           string
-	CumulativeCost float64
-	History        []string
+	Location string
+	// OntoAddress is the full canonical Onto Address; ShortOntoAddress is the
+	// compact form that omits default axes. Both carry the onto:// scheme.
+	OntoAddress      string
+	ShortOntoAddress string
+	Mathematics      string
+	Universe         string
+	Timeline         string
+	Quantum          string
+	Simulation       int
+	Consensus        int
+	Observer         string
+	Time             time.Time
+	Planet           string
+	City             string
+	CumulativeCost   float64
+	History          []string
 }
 
 // Snapshot returns a read-only view of the current session state.
 func (a *App) Snapshot() SessionSnapshot {
 	coord := a.session.Coordinate()
 	return SessionSnapshot{
-		Location:       a.session.Location(),
-		OntoAddress:    coord.OntoAddress(),
-		Mathematics:    coord.Mathematics,
-		Universe:       coord.Universe,
-		Timeline:       coord.Timeline,
-		Quantum:        coord.Quantum,
-		Simulation:     coord.Simulation,
-		Consensus:      coord.Consensus,
-		Observer:       coord.Observer,
-		Time:           coord.Time,
-		Planet:         coord.Planet,
-		City:           coord.City,
-		CumulativeCost: a.session.CumulativeCost(),
-		History:        a.session.History(),
+		Location:         a.session.Location(),
+		OntoAddress:      coord.OntoAddress(),
+		ShortOntoAddress: coord.ShortOntoAddress(),
+		Mathematics:      coord.Mathematics,
+		Universe:         coord.Universe,
+		Timeline:         coord.Timeline,
+		Quantum:          coord.Quantum,
+		Simulation:       coord.Simulation,
+		Consensus:        coord.Consensus,
+		Observer:         coord.Observer,
+		Time:             coord.Time,
+		Planet:           coord.Planet,
+		City:             coord.City,
+		CumulativeCost:   a.session.CumulativeCost(),
+		History:          a.session.History(),
 	}
 }
 
@@ -53,12 +57,22 @@ type NodeSnapshot struct {
 	ID          string
 	Name        string
 	Description string
+	Mathematics string
+	Universe    string
 	Timeline    string
 	Quantum     string
+	Simulation  int
+	Consensus   int
+	Observer    string
 	Planet      string
 	City        string
 	Location    string
 	OntoAddress string
+	// Depth is the location's reality nesting depth (see
+	// universe.CoordinateVO.NestingDepth): 0 for base reality, growing by one
+	// per reality transition away from it. GUIs use it to arrange nested
+	// realities by how deep they sit.
+	Depth int
 	// Reachable reports whether this location can be reached from the current
 	// session location using ordinary travel (a physical, same-reality route).
 	// Nodes that would need a shift/jump/observe, or that have no path at all,
@@ -91,12 +105,18 @@ func (a *App) GraphSnapshot() GraphSnapshot {
 			ID:          loc.ID,
 			Name:        loc.Name,
 			Description: loc.Description,
+			Mathematics: loc.Coordinate.Mathematics,
+			Universe:    loc.Coordinate.Universe,
 			Timeline:    loc.Coordinate.Timeline,
 			Quantum:     loc.Coordinate.Quantum,
+			Simulation:  loc.Coordinate.Simulation,
+			Consensus:   loc.Coordinate.Consensus,
+			Observer:    loc.Coordinate.Observer,
 			Planet:      loc.Coordinate.Planet,
 			City:        loc.Coordinate.City,
 			Location:    loc.Coordinate.Location,
 			OntoAddress: loc.Coordinate.OntoAddress(),
+			Depth:       loc.Coordinate.NestingDepth(),
 			Reachable:   reachable[loc.ID],
 		})
 	}

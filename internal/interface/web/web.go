@@ -64,6 +64,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/state", s.handleState)
 	mux.HandleFunc("/api/execute", s.handleExecute)
 	mux.HandleFunc("/api/save", s.handleSave)
+	mux.HandleFunc("/api/reset", s.handleReset)
 	return mux
 }
 
@@ -124,6 +125,20 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.writeState(w, "Saved.")
+}
+
+// handleReset performs a full server-side reset back to the starting map,
+// discarding every branch reality transitions created. It also clears any
+// pending home confirmation, since the session is being returned to base.
+func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.awaitingHomeConfirm = false
+	s.writeState(w, s.app.Reset())
 }
 
 // execute runs one command line, mirroring the TUI's two-step 'home' flow.

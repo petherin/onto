@@ -67,6 +67,13 @@ type App struct {
 	locationGenerator universe.LocationGeneratorService
 	homeID            string
 	dirty             bool
+
+	// initialLocations/initialEdges snapshot the universe as it was at
+	// construction (startup), so Reset can rebuild the starting map after
+	// reality transitions have grown it. LocationEntity and EdgeVO are value
+	// types, so these slices are an independent copy of the graph.
+	initialLocations []universe.LocationEntity
+	initialEdges     []universe.EdgeVO
 }
 
 // New assembles an App from already-wired dependencies. Callers (cmd/ entry
@@ -90,7 +97,36 @@ func New(
 		pathfinder:        pathfinder,
 		locationGenerator: gen,
 		homeID:            startID,
+		initialLocations:  u.AllLocations(),
+		initialEdges:      u.AllEdgesFlat(),
 	}, nil
+}
+
+// Reset rebuilds the universe to the state captured at construction (the
+// starting map) and returns the session to the start location in base reality,
+// discarding every location and edge that reality transitions created this
+// session. It marks the app dirty so the cleared map can be saved over the
+// grown one.
+func (a *App) Reset() string {
+	fresh := universe.NewAggregate()
+	for _, loc := range a.initialLocations {
+		if err := fresh.AddLocation(loc); err != nil {
+			return fmt.Sprintf("Failed to reset: %v", err)
+		}
+	}
+	for _, e := range a.initialEdges {
+		if err := fresh.AddEdge(e); err != nil {
+			return fmt.Sprintf("Failed to reset: %v", err)
+		}
+	}
+	loc, ok := fresh.GetLocation(a.homeID)
+	if !ok {
+		return fmt.Sprintf("Failed to reset: start location %q missing", a.homeID)
+	}
+	a.univ = fresh
+	a.session = exploration.NewEntity(a.homeID, loc.Coordinate)
+	a.dirty = true
+	return "Map reset to the starting realities."
 }
 
 // Execute dispatches a raw input string to the appropriate command handler.

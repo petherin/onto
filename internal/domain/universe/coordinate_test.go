@@ -46,6 +46,37 @@ func TestTimelineLevel(t *testing.T) {
 	}
 }
 
+func TestNestingDepth(t *testing.T) {
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name  string
+		coord CoordinateVO
+		want  int
+	}{
+		{"default coordinate is base reality", DefaultCoordinateVO(), 0},
+		{"zero value is base reality", CoordinateVO{}, 0},
+		{"single numeric axis", CoordinateVO{Quantum: "Q3"}, 3},
+		{
+			"numeric axes sum",
+			CoordinateVO{Universe: "U2", Timeline: "T1", Quantum: "Q1", Mathematics: "M1", Simulation: 2, Consensus: 1},
+			8,
+		},
+		{"non-default observer adds one", CoordinateVO{Observer: "Bat"}, 1},
+		{"default observer adds nothing", CoordinateVO{Observer: "Human"}, 0},
+		{"set time adds one", CoordinateVO{Time: base}, 1},
+		{
+			"everything combined",
+			CoordinateVO{Universe: "U1", Simulation: 1, Observer: "Bat", Time: base},
+			4,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.coord.NestingDepth())
+		})
+	}
+}
+
 func TestUniverseLevel(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/petherin/onto/internal/bootstrap"
 	"github.com/petherin/onto/internal/application/facade"
+	"github.com/petherin/onto/internal/bootstrap"
 	"github.com/petherin/onto/internal/domain/navigation"
 	"github.com/petherin/onto/internal/domain/universe"
 	"github.com/petherin/onto/internal/mocks"

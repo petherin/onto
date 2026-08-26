@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Onto">
+  <!-- Favicon based on the Onto "Reality Navigator" logo: concentric octagon
+       maze in navy, eight compass arrows, and a gold core. A light rounded
+       panel keeps the navy readable on dark browser tab bars. -->
+  <defs>
+    <marker id="ah" markerUnits="userSpaceOnUse" markerWidth="7" markerHeight="7"
+            refX="0" refY="3.5" orient="auto">
+      <path d="M0,0 L7,3.5 L0,7 Z" fill="#4a4fb0" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="64" height="64" rx="12" fill="#eef0f5" />
+
+  <!-- Compass arrows radiating from the core (drawn first, so the maze rings
+       sit in front of them at the crossings, as in the logo). -->
+  <g stroke="#4a4fb0" stroke-width="2" marker-end="url(#ah)">
+    <line x1="32" y1="32" x2="56" y2="32" />
+    <line x1="32" y1="32" x2="8"  y2="32" />
+    <line x1="32" y1="32" x2="32" y2="8"  />
+    <line x1="32" y1="32" x2="32" y2="56" />
+    <line x1="32" y1="32" x2="48.97" y2="15.03" />
+    <line x1="32" y1="32" x2="15.03" y2="15.03" />
+    <line x1="32" y1="32" x2="48.97" y2="48.97" />
+    <line x1="32" y1="32" x2="15.03" y2="48.97" />
+  </g>
+
+  <!-- Concentric octagon "maze" rings. -->
+  <g fill="none" stroke="#211d54" stroke-linejoin="round">
+    <polygon stroke-width="3"
+      points="54.17,41.18 41.18,54.17 22.82,54.17 9.83,41.18 9.83,22.82 22.82,9.83 41.18,9.83 54.17,22.82" />
+    <polygon stroke-width="2.6"
+      points="47.71,38.51 38.51,47.71 25.49,47.71 16.29,38.51 16.29,25.49 25.49,16.29 38.51,16.29 47.71,25.49" />
+    <polygon stroke-width="2.2"
+      points="41.24,35.83 35.83,41.24 28.17,41.24 22.76,35.83 22.76,28.17 28.17,22.76 35.83,22.76 41.24,28.17" />
+  </g>
+
+  <!-- Gold core. -->
+  <circle cx="32" cy="32" r="4" fill="#d6a327" />
+</svg>

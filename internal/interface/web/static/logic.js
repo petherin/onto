@@ -39,6 +39,18 @@ export const MODE_STYLE = {
 export const DEFAULT_MODE_STYLE = { rgb: "255,95,176", dash: [4, 4] };
 export function modeStyle(mode) { return MODE_STYLE[mode] || DEFAULT_MODE_STYLE; }
 
+// Edge-spring rest lengths for the force layout (app.js tick). Physical edges
+// keep a short rest so same-reality locations cluster tightly; reality-transition
+// edges get a much longer rest, so a shift/jump/simulate visibly pushes its child
+// sub-graph away from the parent and nesting emerges from the layout itself. A
+// mode counts as a transition when its style is dashed (physical modes are the
+// only solid ones in MODE_STYLE), so unknown modes fall on the transition side.
+export const REST_PHYSICAL = 70;
+export const REST_TRANSITION = 170;
+export function edgeRestLength(mode) {
+  return modeStyle(mode).dash.length ? REST_TRANSITION : REST_PHYSICAL;
+}
+
 // Each reality transition plays its own character-matched animation rather than
 // a single generic ripple, so the *feel* of crossing an axis matches its nature.
 // kind selects the canvas renderer in app.js (drawEffects); the colour still
@@ -74,6 +86,21 @@ export const EFFECT_DURATION = {
 export function effectSpec(mode) {
   const kind = EFFECT_KIND[mode] || DEFAULT_EFFECT_KIND;
   return { kind, duration: EFFECT_DURATION[kind] || EFFECT_DURATION.ripple };
+}
+
+// A node that a reality transition has just revealed gets a brief faint halo, so
+// the eye is drawn to what changed. spawnHalo turns the time elapsed since the
+// node appeared (ms) into that halo for the current frame: alpha fades linearly
+// from a faint peak to zero, and grow is the extra radius (in pixels) the sphere
+// swells by as it fades. It returns null before the halo starts or once it has
+// run its course, so app.js can drop the marker and the halo never lingers.
+export const SPAWN_HALO_MS = 2200;
+export const SPAWN_HALO_ALPHA = 0.28;
+export const SPAWN_HALO_GROW = 26;
+export function spawnHalo(elapsed, duration = SPAWN_HALO_MS) {
+  if (!(elapsed >= 0) || elapsed >= duration) return null;
+  const t = elapsed / duration;
+  return { t, alpha: (1 - t) * SPAWN_HALO_ALPHA, grow: 4 + t * SPAWN_HALO_GROW };
 }
 
 // Reality-transition legend: [mode, label] for the top-right key. Physical modes
@@ -126,6 +153,116 @@ export function colorFor(node) {
   return NODE_UNREACHABLE;
 }
 
+// A node's reality nesting depth (NodeSnapshot.Depth from the Go facade) maps to
+// a fixed z-layer, so deeper-nested realities stack behind base reality instead
+// of scattering. layerZ turns that integer depth into the world-space z the
+// layout springs toward each frame (app.js), while x/y stay force-directed —
+// giving stacked shells of increasing depth. Base reality (depth 0) sits on the
+// z = 0 plane; missing or non-finite depth falls back to base so a node is never
+// flung out of view.
+export const LAYER_GAP = 110;
+export function layerZ(depth) {
+  const d = Number(depth);
+  if (!Number.isFinite(d)) return 0;
+  return d * LAYER_GAP;
+}
+
+// ── Deterministic x/y layout ───────────────────────────────────────────────
+//
+// z stacks realities by nesting depth (layerZ); x/y used to be purely
+// force-directed, which read as haphazard. layoutTarget gives every node a
+// fixed home in the x/y plane so the map is ordered and repeatable: the force
+// layout then only nudges nodes off that anchor to avoid overlap.
+//
+// The home has two parts. First a reality centre: each reality axis fans its
+// sub-graph out along a fixed direction, scaled by how far that axis has moved
+// from base reality, and a reality two steps out sits twice as far as one step.
+// Every axis direction points *downward* (into a cone around straight-down), so
+// a new reality is always created below its parent — never above it — while the
+// horizontal spread keeps the axes apart (timeline leans right, quantum leans
+// left, universe goes straight down). Second a physical offset within that
+// reality: each place is pinned to a stable angle on a ring around its reality
+// centre (derived from the place name), so the *same* place lands in the *same*
+// relative spot in every reality, and the reality's home sits dead centre. The
+// result: base reality clusters at the origin and each nested reality is its own
+// tidy satellite cluster, always fanning downward.
+
+// hashString is a small deterministic FNV-1a hash → an unsigned 32-bit int, so
+// the same string always yields the same layout angle/offset across sessions
+// and machines. Kept tiny and dependency-free; it is not cryptographic.
+export function hashString(value) {
+  const s = String(value);
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+// axisLevel turns a reality-axis value into a signed distance from its base.
+// The base value (and empty/undefined) is 0; a plain number or a trailing
+// number ("Q1", "T2") is that number; any other label gets a small stable
+// offset so distinct named realities still separate instead of colliding.
+export function axisLevel(value, base) {
+  if (value === undefined || value === null || value === "") return 0;
+  if (value === base) return 0;
+  const s = String(value);
+  const n = Number(s);
+  if (Number.isFinite(n)) return n;
+  const m = /(\d+)$/.exec(s);
+  if (m) return Number(m[1]);
+  return 1 + (hashString(s) % 3);
+}
+
+// Fixed unit direction per reality axis. All point downward (world +y, which is
+// screen-down in every view), spread evenly across a 30°–150° cone so a new
+// reality always appears below its parent yet each axis stays visually distinct.
+export const AXIS_DIR = {
+  timeline:   [0.866, 0.5],    //  30° — down and to the right
+  simulation: [0.643, 0.766],  //  50°
+  math:       [0.342, 0.940],  //  70°
+  universe:   [0, 1],          //  90° — straight down
+  consensus:  [-0.342, 0.940], // 110°
+  observer:   [-0.643, 0.766], // 130°
+  quantum:    [-0.866, 0.5],   // 150° — down and to the left
+};
+export const REALITY_SPREAD = 160;
+export const PHYS_RADIUS = 65;
+
+// realityCenter sums each axis's direction × its level × REALITY_SPREAD, giving
+// the x/y anchor for a node's whole reality. Base reality resolves to {0,0}.
+export function realityCenter(node) {
+  const levels = {
+    timeline: axisLevel(node.Timeline, DEFAULTS.Timeline),
+    quantum: axisLevel(node.Quantum, DEFAULTS.Quantum),
+    universe: axisLevel(node.Universe, DEFAULTS.Universe),
+    math: axisLevel(node.Mathematics, DEFAULTS.Mathematics),
+    simulation: axisLevel(node.Simulation, 0),
+    consensus: axisLevel(node.Consensus, 0),
+    observer: axisLevel(node.Observer, DEFAULTS.Observer),
+  };
+  let x = 0, y = 0;
+  for (const axis in AXIS_DIR) {
+    const [dx, dy] = AXIS_DIR[axis];
+    x += dx * levels[axis] * REALITY_SPREAD;
+    y += dy * levels[axis] * REALITY_SPREAD;
+  }
+  return { x, y };
+}
+
+// layoutTarget is the node's full x/y home: its reality centre plus a fixed
+// physical offset. The reality's "Home" sits at the centre; every other place
+// rings around it at a stable, name-derived angle so the same place occupies the
+// same relative position in every reality.
+export function layoutTarget(node) {
+  const c = realityCenter(node);
+  const place = String(node.Location || node.Name || node.ID || "");
+  if (place.trim().toLowerCase() === "home") return c;
+  const angle = (hashString(place) % 360) * (Math.PI / 180);
+  return { x: c.x + Math.cos(angle) * PHYS_RADIUS, y: c.y + Math.sin(angle) * PHYS_RADIUS };
+}
+
 // project maps a node's world position to screen space. It rotates about the Y
 // (yaw) then X (pitch) axes, then applies a perspective divide so depth reads as
 // size. Pulled out of the canvas so the maths is testable in isolation; app.js's
@@ -146,6 +283,64 @@ export function project(n, view, width, height) {
     depth: z2,
     persp,
   };
+}
+
+// ── Camera controls ─────────────────────────────────────────────────────────
+// Rotation is free on both axes: a drag turns yaw (rotY) with horizontal motion
+// and pitch (rotX) with vertical motion, with no limits, so the map can be spun
+// to any orientation the pointer asks for. The drag orbits about the pivot under
+// the cursor (see unproject/panToScreen) rather than the canvas centre.
+// ROTATE_SPEED converts pointer pixels to radians (lower = finer control).
+export const ROTATE_SPEED = 0.006;
+
+// clampScale bounds wheel zoom. The floor is very low so a big, sprawling map
+// can be pulled right out to fit on screen; the ceiling keeps a single node from
+// filling the canvas. Non-finite input falls back to the floor.
+export const MIN_SCALE = 0.003;
+export const MAX_SCALE = 3;
+export function clampScale(scale) {
+  if (!Number.isFinite(scale)) return MIN_SCALE;
+  return scale < MIN_SCALE ? MIN_SCALE : scale > MAX_SCALE ? MAX_SCALE : scale;
+}
+
+// zoomOffset re-centres the pan so the world point under the cursor stays put
+// while the scale changes — i.e. the wheel zooms toward the pointer instead of
+// the canvas centre. Per axis: `o` is the current pan offset, `cursor` the
+// pointer position and `center` the canvas centre (both CSS px), and `factor` is
+// the scale ratio actually applied (newScale / oldScale, after clamping). It
+// returns the new pan offset. factor === 1 leaves the offset untouched.
+export function zoomOffset(o, cursor, center, factor) {
+  return cursor - center - (cursor - center - o) * factor;
+}
+
+// unproject is the inverse of project for points lying on the view plane through
+// the world origin — the plane the camera faces, where the rotated depth z2 is 0
+// and the perspective factor is exactly 1. Given a screen point it returns the
+// world point on that plane, used to find the pivot under the cursor when
+// orbiting. It undoes the pan/scale, then the pitch (rotX) and yaw (rotY)
+// rotations in reverse of project's order.
+export function unproject(sx, sy, view, width, height) {
+  const x1 = (sx - width / 2 - view.ox) / view.scale;
+  const y1 = (sy - height / 2 - view.oy) / view.scale;
+  const cx = Math.cos(view.rotX), sxp = Math.sin(view.rotX);
+  const cy = Math.cos(view.rotY), syp = Math.sin(view.rotY);
+  // Undo the pitch with z2 pinned to 0: inverse-rotate (y1, 0) back to (wy, z1).
+  const wy = y1 * cx;
+  const z1 = -y1 * sxp;
+  // Undo the yaw: inverse-rotate (x1, z1) back to (wx, wz).
+  const wx = x1 * cy + z1 * syp;
+  const wz = -x1 * syp + z1 * cy;
+  return { x: wx, y: wy, z: wz };
+}
+
+// panToScreen returns the pan offset {ox, oy} that makes world point `p` project
+// to the screen target (tx, ty) under the given rotation/scale. Orbiting uses it
+// to hold the pivot (the point grabbed at drag start) fixed on screen while the
+// rotation changes, so the map spins about the cursor rather than the canvas
+// centre.
+export function panToScreen(p, view, width, height, tx, ty) {
+  const proj = project(p, { ...view, ox: 0, oy: 0 }, width, height);
+  return { ox: tx - proj.x, oy: ty - proj.y };
 }
 
 // depthAlpha maps a node's projected depth to an opacity so nodes further from

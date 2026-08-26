@@ -19,6 +19,27 @@ import {
   NODE_REACHABLE,
   NODE_QUANTUM,
   NODE_UNREACHABLE,
+  layerZ,
+  LAYER_GAP,
+  clampScale,
+  MIN_SCALE,
+  MAX_SCALE,
+  zoomOffset,
+  unproject,
+  panToScreen,
+  hashString,
+  axisLevel,
+  realityCenter,
+  layoutTarget,
+  AXIS_DIR,
+  REALITY_SPREAD,
+  PHYS_RADIUS,
+  edgeRestLength,
+  REST_PHYSICAL,
+  REST_TRANSITION,
+  spawnHalo,
+  SPAWN_HALO_MS,
+  SPAWN_HALO_ALPHA,
   project,
   FOCAL,
   depthAlpha,
@@ -106,6 +127,59 @@ test("colorFor: unreachable default/undefined quantum is grey", () => {
   assert.equal(colorFor({ reachable: false, quantum: DEFAULTS.Quantum }), NODE_UNREACHABLE);
   assert.equal(colorFor({ reachable: false }), NODE_UNREACHABLE);
 });
+
+test("layerZ: base reality (depth 0) sits on the z=0 plane", () => {
+  assert.equal(layerZ(0), 0);
+});
+
+test("layerZ: each depth is one LAYER_GAP deeper than the last", () => {
+  assert.equal(layerZ(1), LAYER_GAP);
+  assert.equal(layerZ(3), 3 * LAYER_GAP);
+  assert.equal(layerZ(2) - layerZ(1), LAYER_GAP);
+});
+
+test("layerZ: missing or non-finite depth falls back to base reality", () => {
+  assert.equal(layerZ(undefined), 0);
+  assert.equal(layerZ(null), 0);
+  assert.equal(layerZ(NaN), 0);
+  assert.equal(layerZ("nonsense"), 0);
+});
+
+test("edgeRestLength: physical modes rest short so a reality's locations cluster", () => {
+  assert.equal(edgeRestLength("walk"), REST_PHYSICAL);
+  assert.equal(edgeRestLength("flight"), REST_PHYSICAL);
+});
+
+test("edgeRestLength: reality transitions rest longer, pushing child sub-graphs out", () => {
+  assert.equal(edgeRestLength("quantum"), REST_TRANSITION);
+  assert.equal(edgeRestLength("timeline"), REST_TRANSITION);
+  assert.ok(REST_TRANSITION > REST_PHYSICAL);
+});
+
+test("edgeRestLength: unknown modes fall on the transition side", () => {
+  assert.equal(edgeRestLength("nonsense"), REST_TRANSITION);
+  assert.equal(edgeRestLength(undefined), REST_TRANSITION);
+});
+
+test("spawnHalo: is null before it starts and once it has run its course", () => {
+  assert.equal(spawnHalo(-1), null);
+  assert.equal(spawnHalo(SPAWN_HALO_MS), null);
+  assert.equal(spawnHalo(SPAWN_HALO_MS + 100), null);
+});
+
+test("spawnHalo: starts at its peak alpha and fades to zero as it grows", () => {
+  const start = spawnHalo(0);
+  const mid = spawnHalo(SPAWN_HALO_MS / 2);
+  assert.equal(start.alpha, SPAWN_HALO_ALPHA);
+  assert.ok(start.alpha > mid.alpha, "alpha must fade over time");
+  assert.ok(mid.grow > start.grow, "sphere must swell over time");
+});
+
+test("spawnHalo: honours an explicit duration", () => {
+  assert.equal(spawnHalo(500, 1000).t, 0.5);
+  assert.equal(spawnHalo(1000, 1000), null);
+});
+
 
 const identityView = { scale: 1, ox: 0, oy: 0, rotX: 0, rotY: 0 };
 const approx = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${a} !~= ${b}`);
@@ -208,4 +282,164 @@ test("escapeHtml: neutralises markup so values can't inject HTML", () => {
 test("escapeHtml: coerces non-string input to a string", () => {
   assert.equal(escapeHtml(42), "42");
   assert.equal(escapeHtml(0), "0");
+});
+
+test("clampScale: bounds zoom and allows pulling far out", () => {
+  assert.equal(clampScale(1), 1);
+  assert.equal(clampScale(0), MIN_SCALE);
+  assert.equal(clampScale(0.0001), MIN_SCALE);
+  assert.equal(clampScale(99), MAX_SCALE);
+  assert.equal(clampScale(NaN), MIN_SCALE);
+  assert.ok(MIN_SCALE <= 0.003, "the zoom-out floor is low enough to fit a sprawling map");
+});
+
+test("zoomOffset: is a no-op when the scale doesn't change", () => {
+  assert.equal(zoomOffset(30, 550, 400, 1), 30);
+  assert.equal(zoomOffset(-80, 120, 400, 1), -80);
+});
+
+test("zoomOffset: keeps the world point under the cursor fixed on screen", () => {
+  // Reconstruct the projection's 1-D screen mapping: screen = center + o + X*scale.
+  const center = 400, cursor = 550, o = 30, oldScale = 1, newScale = 2.5;
+  const content = (cursor - center - o) / oldScale; // world X under the cursor
+  const newO = zoomOffset(o, cursor, center, newScale / oldScale);
+  const screenAfter = center + newO + content * newScale;
+  assert.ok(Math.abs(screenAfter - cursor) < 1e-9, "content under the cursor must not move");
+});
+
+test("zoomOffset: works when zooming out as well", () => {
+  const center = 300, cursor = 90, o = 15, oldScale = 2, newScale = 0.5;
+  const content = (cursor - center - o) / oldScale;
+  const newO = zoomOffset(o, cursor, center, newScale / oldScale);
+  assert.ok(Math.abs((center + newO + content * newScale) - cursor) < 1e-9);
+});
+
+test("unproject: round-trips with project (screen → world → screen)", () => {
+  // unproject returns the world point on the origin view plane; projecting it
+  // back must land on the original screen point.
+  const view = { scale: 1.4, ox: 25, oy: -18, rotX: 0.6, rotY: -0.4 };
+  const w = unproject(510, 220, view, 800, 600);
+  const p = project(w, view, 800, 600);
+  assert.ok(Math.abs(p.x - 510) < 1e-9 && Math.abs(p.y - 220) < 1e-9);
+});
+
+test("panToScreen: places a world point exactly under the screen target", () => {
+  const view = { scale: 2, ox: 0, oy: 0, rotX: 0.3, rotY: 0.9 };
+  const p = { x: 12, y: -7, z: 40 };
+  const pan = panToScreen(p, view, 800, 600, 510, 220);
+  const proj = project(p, { ...view, ...pan }, 800, 600);
+  assert.ok(Math.abs(proj.x - 510) < 1e-9 && Math.abs(proj.y - 220) < 1e-9);
+});
+
+test("orbit: rotating about the cursor keeps the grabbed pivot under the pointer", () => {
+  // Grab the point under the cursor, rotate, re-pan via panToScreen, and the
+  // pivot must still project to the original cursor position.
+  const cursorX = 520, cursorY = 250;
+  const view = { scale: 1.2, ox: 40, oy: -30, rotX: 0.5, rotY: 0.35 };
+  const pivot = unproject(cursorX, cursorY, view, 800, 600);
+  const rotated = { ...view, rotY: view.rotY + 0.4, rotX: view.rotX - 0.25 };
+  const pan = panToScreen(pivot, rotated, 800, 600, cursorX, cursorY);
+  const proj = project(pivot, { ...rotated, ...pan }, 800, 600);
+  assert.ok(Math.abs(proj.x - cursorX) < 1e-9 && Math.abs(proj.y - cursorY) < 1e-9);
+});
+
+test("hashString is deterministic and non-negative", () => {
+  assert.equal(hashString("Park"), hashString("Park"));
+  assert.notEqual(hashString("Park"), hashString("Station"));
+  assert.ok(hashString("anything") >= 0);
+});
+
+test("axisLevel: base value and empty resolve to zero", () => {
+  assert.equal(axisLevel("Prime", DEFAULTS.Timeline), 0);
+  assert.equal(axisLevel("Q0", DEFAULTS.Quantum), 0);
+  assert.equal(axisLevel("", DEFAULTS.Universe), 0);
+  assert.equal(axisLevel(undefined, DEFAULTS.Observer), 0);
+  assert.equal(axisLevel(0, 0), 0);
+});
+
+test("axisLevel: numbers and trailing-number labels read as their level", () => {
+  assert.equal(axisLevel("T1", DEFAULTS.Timeline), 1);
+  assert.equal(axisLevel("Q3", DEFAULTS.Quantum), 3);
+  assert.equal(axisLevel(2, 0), 2); // simulation / consensus ints
+});
+
+test("axisLevel: arbitrary labels get a small stable non-zero offset", () => {
+  const a = axisLevel("Dream", DEFAULTS.Universe);
+  assert.equal(a, axisLevel("Dream", DEFAULTS.Universe));
+  assert.ok(a >= 1 && a <= 3);
+});
+
+test("realityCenter: base reality sits at the origin", () => {
+  const c = realityCenter({ Timeline: "Prime", Quantum: "Q0", Universe: "Origin", Mathematics: "Classical", Simulation: 0, Consensus: 0, Observer: "Human" });
+  assert.equal(c.x, 0);
+  assert.equal(c.y, 0);
+});
+
+test("realityCenter: each axis fans out in its own fixed direction and scales with level", () => {
+  const t1 = realityCenter({ Timeline: "T1" });
+  assert.deepEqual([t1.x, t1.y], [AXIS_DIR.timeline[0] * REALITY_SPREAD, AXIS_DIR.timeline[1] * REALITY_SPREAD]);
+  // A quantum shift leans left, a timeline jump leans right.
+  const q1 = realityCenter({ Quantum: "Q1" });
+  assert.ok(q1.x < 0 && t1.x > 0);
+  // Two steps out sits twice as far as one.
+  const t2 = realityCenter({ Timeline: "T2" });
+  assert.equal(t2.x, t1.x * 2);
+});
+
+test("every axis direction points downward, so a new reality never appears above its parent", () => {
+  for (const axis in AXIS_DIR) {
+    const [, dy] = AXIS_DIR[axis];
+    assert.ok(dy > 0, `${axis} must fan downward (dy > 0), got ${dy}`);
+  }
+});
+
+test("realityCenter: every single-axis reality sits below base reality", () => {
+  const cases = [
+    { Timeline: "T1" },
+    { Quantum: "Q1" },
+    { Universe: "Elsewhere" },
+    { Mathematics: "Intuitionist" },
+    { Simulation: 1 },
+    { Consensus: 1 },
+    { Observer: "Cat" },
+  ];
+  for (const node of cases) {
+    assert.ok(realityCenter(node).y > 0, `expected a downward centre for ${JSON.stringify(node)}`);
+  }
+});
+
+test("layoutTarget: even a non-home place in a new reality lands below base reality", () => {
+  // The physical ring can nudge a node upward within its reality, but the
+  // downward reality offset must always win so nodes are created downward.
+  for (const place of ["Park", "Station", "City Centre", "Museum", "Harbour"]) {
+    assert.ok(layoutTarget({ Location: place, Timeline: "T1" }).y > 0, `${place} should sit below base`);
+    assert.ok(layoutTarget({ Location: place, Quantum: "Q1" }).y > 0, `${place} should sit below base`);
+  }
+});
+
+test("layoutTarget: a reality's Home sits dead centre on its reality centre", () => {
+  const node = { Location: "Home", Quantum: "Q1" };
+  assert.deepEqual(layoutTarget(node), realityCenter(node));
+});
+
+test("layoutTarget: the same place lands at the same relative offset in every reality", () => {
+  const base = layoutTarget({ Location: "Park" });
+  const q1 = layoutTarget({ Location: "Park", Quantum: "Q1" });
+  const q1Center = realityCenter({ Quantum: "Q1" });
+  // The offset from each reality's centre is identical for the same place.
+  assert.ok(Math.abs((base.x - 0) - (q1.x - q1Center.x)) < 1e-9);
+  assert.ok(Math.abs((base.y - 0) - (q1.y - q1Center.y)) < 1e-9);
+});
+
+test("layoutTarget: non-home places sit exactly PHYS_RADIUS from their reality centre", () => {
+  const node = { Location: "Station", Timeline: "T1" };
+  const c = realityCenter(node);
+  const p = layoutTarget(node);
+  const r = Math.hypot(p.x - c.x, p.y - c.y);
+  assert.ok(Math.abs(r - PHYS_RADIUS) < 1e-9);
+});
+
+test("layoutTarget is deterministic for the same node", () => {
+  const node = { Location: "City Centre", Quantum: "Q2", Timeline: "T1" };
+  assert.deepEqual(layoutTarget(node), layoutTarget(node));
 });

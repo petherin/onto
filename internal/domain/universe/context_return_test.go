@@ -33,11 +33,11 @@ func TestEnsureLowerContextCreatesMissingReverse(t *testing.T) {
 		ID:   "park-1-s1",
 		Name: "Park spur",
 		Coordinate: CoordinateVO{
-			Location:   "Park spur",
-			Simulation: 1,
-			Quantum:    "Q0",
-			Timeline:   "Prime",
-			Universe:   "Origin",
+			Location:    "Park spur",
+			Simulation:  1,
+			Quantum:     "Q0",
+			Timeline:    "Prime",
+			Universe:    "Origin",
 			Mathematics: "Classical",
 		},
 	}

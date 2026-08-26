@@ -104,6 +104,25 @@ func (c CoordinateVO) MathematicsLevel() int {
 	return 0
 }
 
+// NestingDepth reports how many reality transitions separate this coordinate
+// from base reality: the sum of every axis's nesting level. It counts the
+// numeric axes (universe, timeline, quantum, mathematics, simulation, and
+// consensus) plus one each for a non-default observer and a set (non-zero)
+// time. The default coordinate — base reality — has depth 0. It gives GUIs a
+// single measure of "how deep" a location sits so they can lay nested realities
+// out by depth rather than scattering them.
+func (c CoordinateVO) NestingDepth() int {
+	depth := c.UniverseLevel() + c.TimelineLevel() + c.QuantumLevel() +
+		c.MathematicsLevel() + c.Simulation + c.Consensus
+	if c.Observer != "" && c.Observer != DefaultCoordinateVO().Observer {
+		depth++
+	}
+	if !c.Time.IsZero() {
+		depth++
+	}
+	return depth
+}
+
 // SamePhysicalReality reports whether two coordinates differ only in their
 // spatial position. Physical travel must not cross any reality boundary.
 func (c CoordinateVO) SamePhysicalReality(other CoordinateVO) bool {

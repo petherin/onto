@@ -122,3 +122,41 @@ func TestIsPhysical(t *testing.T) {
 		})
 	}
 }
+
+func TestFindInReality(t *testing.T) {
+	u := universe.NewAggregate()
+	base := universe.DefaultCoordinateVO()
+	q1 := base
+	q1.Quantum = "Q1"
+
+	// The same physical place ("Park") exists in two realities.
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: coordAt(base, "Park")}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "park-q1", Name: "Park (Q1)", Coordinate: coordAt(q1, "Park")}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "city-centre-q1", Name: "City Centre (Q1)", Coordinate: coordAt(q1, "City Centre")}))
+
+	// A plain name resolves to the copy in the caller's reality.
+	got, ok := u.FindInReality(q1, "park")
+	require.True(t, ok)
+	assert.Equal(t, "park-q1", got.ID)
+
+	// From base reality the same name resolves to the base copy.
+	got, ok = u.FindInReality(base, "park")
+	require.True(t, ok)
+	assert.Equal(t, "park", got.ID)
+
+	// Human-typed multi-word names are normalised to match the Location field.
+	got, ok = u.FindInReality(q1, "City Centre")
+	require.True(t, ok)
+	assert.Equal(t, "city-centre-q1", got.ID)
+
+	// No copy of "park" exists in an unrelated reality.
+	other := base
+	other.Timeline = "T1"
+	_, ok = u.FindInReality(other, "park")
+	assert.False(t, ok)
+}
+
+func coordAt(base universe.CoordinateVO, location string) universe.CoordinateVO {
+	base.Location = location
+	return base
+}

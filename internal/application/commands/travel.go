@@ -34,7 +34,14 @@ type TravelCommand struct {
 // and reports whether the destination is a dead end.
 func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 	norm := strings.ToLower(strings.ReplaceAll(target, " ", "-"))
-	if _, ok := c.Universe.GetLocation(norm); !ok {
+	// Resolve the destination within the session's current reality first, so a
+	// plain name typed while nested ("park") means the copy of that place in
+	// this reality, not the base-reality original. Fall back to a literal ID
+	// that exists in another reality so the pathfinder can still reject it with
+	// the informative "no physical route" message rather than "unknown".
+	if loc, ok := c.Universe.FindInReality(c.Session.Coordinate(), target); ok {
+		norm = loc.ID
+	} else if _, ok := c.Universe.GetLocation(norm); !ok {
 		return nil, fmt.Errorf("%w: %s", navigation.ErrUnknownDestination, target)
 	}
 
