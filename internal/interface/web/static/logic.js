@@ -39,6 +39,43 @@ export const MODE_STYLE = {
 export const DEFAULT_MODE_STYLE = { rgb: "255,95,176", dash: [4, 4] };
 export function modeStyle(mode) { return MODE_STYLE[mode] || DEFAULT_MODE_STYLE; }
 
+// Each reality transition plays its own character-matched animation rather than
+// a single generic ripple, so the *feel* of crossing an axis matches its nature.
+// kind selects the canvas renderer in app.js (drawEffects); the colour still
+// comes from modeStyle so the key, edges, and effect never drift apart. Physical
+// travel and any unknown mode fall back to the plain expanding ripple.
+export const EFFECT_KIND = {
+  universe:   "fade",          // reality dissolves to black and re-forms as a new bubble
+  quantum:    "superposition", // jittering, flickering probability ghosts collapse
+  timeline:   "sweep",         // a bright bar jumps sideways along the timeline
+  simulation: "glitch",        // the simulation re-renders in torn scanlines
+  observer:   "blink",         // eyelids close and reopen — you wake as someone else
+  consensus:  "shockwave",     // agreed-upon reality wobbles outward as it drifts
+  time:       "clock",         // a clock hand sweeps the dial to the new moment
+  math:       "grid",          // the underlying mathematical structure flashes into view
+};
+export const DEFAULT_EFFECT_KIND = "ripple";
+
+// How long each kind runs (ms). The fade and blink are longer because they take
+// over the whole screen; the ripple keeps its original 900ms so plain travel is
+// unchanged.
+export const EFFECT_DURATION = {
+  fade: 1400,
+  superposition: 1000,
+  sweep: 850,
+  glitch: 900,
+  blink: 1100,
+  shockwave: 1200,
+  clock: 1300,
+  grid: 1000,
+  ripple: 900,
+};
+
+export function effectSpec(mode) {
+  const kind = EFFECT_KIND[mode] || DEFAULT_EFFECT_KIND;
+  return { kind, duration: EFFECT_DURATION[kind] || EFFECT_DURATION.ripple };
+}
+
 // Reality-transition legend: [mode, label] for the top-right key. Physical modes
 // are intentionally omitted — every solid-blue edge is ordinary travel.
 export const TRANSITION_LEGEND = [
@@ -138,4 +175,12 @@ export function abbreviateLabel(name, max = LABEL_MAX) {
   if (name.length <= max) return name;
   if (max <= 1) return name.slice(0, Math.max(max, 0));
   return name.slice(0, max - 1) + "\u2026";
+}
+
+// escapeHtml keeps values that end up in innerHTML — a free-form observer name
+// the user typed, or any server-provided label — from being interpreted as
+// markup. Non-string input is coerced to a string first.
+export const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+export function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }

@@ -10,6 +10,10 @@ import {
   DEFAULTS,
   modeStyle,
   DEFAULT_MODE_STYLE,
+  effectSpec,
+  EFFECT_KIND,
+  EFFECT_DURATION,
+  DEFAULT_EFFECT_KIND,
   detectTransition,
   colorFor,
   NODE_REACHABLE,
@@ -21,6 +25,7 @@ import {
   MIN_DEPTH_ALPHA,
   abbreviateLabel,
   LABEL_MAX,
+  escapeHtml,
 } from "./static/logic.js";
 
 test("modeStyle returns solid blue for physical modes", () => {
@@ -38,6 +43,30 @@ test("modeStyle returns a distinct dashed style per transition", () => {
 test("modeStyle falls back for unknown modes", () => {
   assert.equal(modeStyle("nonsense"), DEFAULT_MODE_STYLE);
   assert.equal(modeStyle(undefined), DEFAULT_MODE_STYLE);
+});
+
+test("effectSpec gives each reality transition its own animation kind", () => {
+  assert.equal(effectSpec("universe").kind, "fade");
+  assert.equal(effectSpec("quantum").kind, "superposition");
+  assert.equal(effectSpec("observer").kind, "blink");
+  // Distinct kinds so no two transitions look the same.
+  const kinds = Object.values(EFFECT_KIND);
+  assert.equal(new Set(kinds).size, kinds.length);
+});
+
+test("effectSpec falls back to the ripple for physical/unknown modes", () => {
+  assert.equal(effectSpec("walk").kind, DEFAULT_EFFECT_KIND);
+  assert.equal(effectSpec(undefined).kind, DEFAULT_EFFECT_KIND);
+  assert.equal(effectSpec("walk").kind, "ripple");
+});
+
+test("effectSpec returns the duration for its kind", () => {
+  assert.equal(effectSpec("universe").duration, EFFECT_DURATION.fade);
+  assert.equal(effectSpec("walk").duration, EFFECT_DURATION.ripple);
+  // Every declared kind has a positive duration.
+  for (const kind of new Set([...Object.values(EFFECT_KIND), DEFAULT_EFFECT_KIND])) {
+    assert.ok(EFFECT_DURATION[kind] > 0, `missing duration for ${kind}`);
+  }
 });
 
 test("detectTransition returns null when a snapshot is missing", () => {
@@ -160,4 +189,23 @@ test("abbreviateLabel: honours an explicit max", () => {
 test("abbreviateLabel: non-string input yields an empty string", () => {
   assert.equal(abbreviateLabel(undefined), "");
   assert.equal(abbreviateLabel(null), "");
+});
+
+test("escapeHtml: leaves ordinary text untouched", () => {
+  assert.equal(escapeHtml("Bat"), "Bat");
+  assert.equal(escapeHtml("Timeline Prime-2"), "Timeline Prime-2");
+});
+
+test("escapeHtml: neutralises markup so values can't inject HTML", () => {
+  assert.equal(
+    escapeHtml('<img src=x onerror="alert(1)">'),
+    "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;",
+  );
+  assert.equal(escapeHtml("a & b"), "a &amp; b");
+  assert.equal(escapeHtml("it's"), "it&#39;s");
+});
+
+test("escapeHtml: coerces non-string input to a string", () => {
+  assert.equal(escapeHtml(42), "42");
+  assert.equal(escapeHtml(0), "0");
 });

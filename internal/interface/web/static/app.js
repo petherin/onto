@@ -9,10 +9,12 @@ import {
   modeStyle,
   TRANSITION_LEGEND,
   detectTransition,
+  effectSpec,
   colorFor,
   project,
   depthAlpha,
   abbreviateLabel,
+  escapeHtml,
 } from "./logic.js";
 
 const canvas = document.getElementById("map");
@@ -36,11 +38,21 @@ async function api(path, body) {
     ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
     : {};
   const res = await fetch(path, opts);
+  if (!res.ok) throw new Error(`${path} responded ${res.status}`);
   return res.json();
 }
 
-async function refresh() { apply(await api("/api/state")); }
-async function run(command) { apply(await api("/api/execute", { command })); }
+// refresh/run funnel every request through apply(). A failed request keeps the
+// last-good state on screen and logs it, rather than surfacing an unhandled
+// promise rejection or blanking the UI.
+async function refresh() {
+  try { apply(await api("/api/state")); }
+  catch (err) { console.error("failed to load state", err); }
+}
+async function run(command) {
+  try { apply(await api("/api/execute", { command })); }
+  catch (err) { console.error(`command failed: ${command}`, err); }
+}
 
 function apply(s) {
   const prev = state && state.session;
@@ -98,7 +110,7 @@ function syncNodes(graph) {
 
 function badge(label, value, active) {
   const cls = active ? "badge active" : "badge";
-  return `<span class="${cls}">${label} <b>${value}</b></span>`;
+  return `<span class="${cls}">${escapeHtml(label)} <b>${escapeHtml(value)}</b></span>`;
 }
 
 function renderHUD(sess) {
@@ -183,13 +195,17 @@ function toScreen(n) { return project(n, view, canvas.clientWidth, canvas.client
 
 // ── Transition animation ─────────────────────────────────────────────────────
 // detectTransition (logic.js) diffs a reality axis between snapshots; when it
-// reports a change we queue a ripple that drawEffects paints from the current
-// location, tinted with that transition's colour.
+// reports a change we queue an effect. Each transition plays its own
+// character-matched animation (effectSpec picks the kind + duration): a universe
+// shift fades reality to black and back, a quantum shift flickers through
+// superposed ghosts, an observer shift blinks new eyes open, and so on. The
+// colour always comes from that transition's modeStyle, so the effect matches
+// the edges and the legend.
 const effects = [];
-const EFFECT_MS = 900;
 
 function triggerEffect(mode) {
-  effects.push({ mode, start: performance.now() });
+  const { kind, duration } = effectSpec(mode);
+  effects.push({ mode, kind, duration, start: performance.now() });
 }
 
 function draw() {
@@ -257,32 +273,169 @@ function draw() {
   drawEffects(cur);
 }
 
-// drawEffects paints staggered expanding rings from the current location for
-// each active transition, tinted with that transition's colour, then drops
-// effects that have finished. Called every frame from draw() (tick drives it).
+// drawEffects advances each active transition and hands it to the renderer for
+// its kind (EFFECT_RENDERERS), passing normalised progress t in [0,1), the
+// transition's rgb, the screen-space origin (the current location), and the
+// canvas size. Finished effects are dropped. Called every frame from draw().
 function drawEffects(curId) {
   if (!effects.length) return;
   const now = performance.now();
   const node = curId ? nodes.get(curId) : null;
-  const origin = node ? toScreen(node) : { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 };
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const origin = node ? toScreen(node) : { x: w / 2, y: h / 2 };
   for (let i = effects.length - 1; i >= 0; i--) {
-    const t = (now - effects[i].start) / EFFECT_MS;
+    const e = effects[i];
+    const t = (now - e.start) / e.duration;
     if (t >= 1) { effects.splice(i, 1); continue; }
-    const st = modeStyle(effects[i].mode);
+    const render = EFFECT_RENDERERS[e.kind] || EFFECT_RENDERERS.ripple;
+    ctx.save();
+    render(t, modeStyle(e.mode).rgb, origin, w, h);
+    ctx.restore();
+  }
+}
+
+// Each renderer draws one transition for progress t in [0,1). They run inside a
+// ctx.save()/restore() so they can set alpha, line styles, and clips freely.
+const EFFECT_RENDERERS = {
+  // Plain travel and unknown modes: staggered expanding rings from the origin.
+  ripple(t, rgb, o) {
     for (let k = 0; k < 3; k++) {
       const tt = t - k * 0.12;
       if (tt <= 0) continue;
-      const radius = 12 + tt * 130 * view.scale;
-      const alpha = (1 - tt) * 0.9;
       ctx.beginPath();
-      ctx.strokeStyle = `rgba(${st.rgb},${alpha})`;
+      ctx.strokeStyle = `rgba(${rgb},${(1 - tt) * 0.9})`;
       ctx.lineWidth = 2.5 * (1 - tt) + 0.5;
-      ctx.arc(origin.x, origin.y, radius, 0, Math.PI * 2);
+      ctx.arc(o.x, o.y, 12 + tt * 130 * view.scale, 0, Math.PI * 2);
       ctx.stroke();
     }
-  }
-  ctx.lineWidth = 1;
-}
+  },
+
+  // Universe shift: the whole screen dissolves to a dark tinted void at the
+  // midpoint, then the new bubble universe fades back in.
+  fade(t, rgb, o, w, h) {
+    const a = Math.sin(t * Math.PI);            // 0 → 1 → 0
+    ctx.fillStyle = `rgba(6,4,14,${Math.min(1, a * 1.6)})`;
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = `rgba(${rgb},${a * 0.25})`; // a wash of the universe's hue
+    ctx.fillRect(0, 0, w, h);
+  },
+
+  // Quantum shift: several jittered, flickering ghost rings — superposed
+  // possibilities collapsing to one.
+  superposition(t, rgb, o) {
+    const fade = 1 - t;
+    for (let k = 0; k < 6; k++) {
+      const jx = (Math.random() - 0.5) * 26 * fade;
+      const jy = (Math.random() - 0.5) * 26 * fade;
+      const r = 10 + t * 120 * view.scale + Math.random() * 22;
+      ctx.beginPath();
+      ctx.strokeStyle = `rgba(${rgb},${(0.15 + Math.random() * 0.5) * fade})`;
+      ctx.lineWidth = 1 + Math.random() * 2;
+      ctx.arc(o.x + jx, o.y + jy, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  },
+
+  // Timeline jump: a bright bar sweeps sideways across the map with a trailing
+  // wake, like scrubbing along a filmstrip.
+  sweep(t, rgb, o, w, h) {
+    const x = t * (w + 160) - 80;
+    const g = ctx.createLinearGradient(x - 90, 0, x + 30, 0);
+    g.addColorStop(0, `rgba(${rgb},0)`);
+    g.addColorStop(0.85, `rgba(${rgb},${0.45 * (1 - t * 0.4)})`);
+    g.addColorStop(1, `rgba(${rgb},${0.85 * (1 - t * 0.4)})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(x - 90, 0, 120, h);
+    ctx.strokeStyle = `rgba(235,240,255,${0.55 * (1 - t)})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, h);
+    ctx.stroke();
+  },
+
+  // Simulation shift: the frame tears into horizontally-displaced scanline
+  // bands, as if the world is being re-rendered.
+  glitch(t, rgb, o, w, h) {
+    const fade = 1 - t;
+    for (let b = 0; b < 16; b++) {
+      if (Math.random() > 0.55) continue;
+      const by = Math.random() * h;
+      const bh = 3 + Math.random() * 18;
+      const off = (Math.random() - 0.5) * 70 * fade;
+      ctx.fillStyle = `rgba(${rgb},${(0.08 + Math.random() * 0.3) * fade})`;
+      ctx.fillRect(off, by, w, bh);
+    }
+  },
+
+  // Observer shift: eyelids close from top and bottom and reopen — waking as a
+  // different observer.
+  blink(t, rgb, o, w, h) {
+    const a = Math.sin(t * Math.PI);           // fully shut at the midpoint
+    const lid = a * (h / 2 + 2);
+    ctx.fillStyle = "rgba(3,4,11,0.97)";
+    ctx.fillRect(0, 0, w, lid);
+    ctx.fillRect(0, h - lid, w, lid);
+    ctx.fillStyle = `rgba(${rgb},${0.6 * a})`; // glowing rim on each lid edge
+    ctx.fillRect(0, lid - 2, w, 2);
+    ctx.fillRect(0, h - lid, w, 2);
+  },
+
+  // Consensus drift: a heavy, wobbling shockwave rolls outward as agreed reality
+  // settles into a new shape.
+  shockwave(t, rgb, o) {
+    const fade = 1 - t;
+    const base = 10 + t * 200 * view.scale;
+    ctx.strokeStyle = `rgba(${rgb},${0.9 * fade})`;
+    ctx.lineWidth = 3 * fade + 0.5;
+    ctx.beginPath();
+    for (let ang = 0; ang <= Math.PI * 2 + 0.16; ang += 0.16) {
+      const r = base + Math.sin(ang * 6 + t * 18) * 12 * fade;
+      const px = o.x + Math.cos(ang) * r, py = o.y + Math.sin(ang) * r;
+      if (ang === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  },
+
+  // Time shift: a clock hand sweeps a full turn around the origin, tracing a
+  // dial as it goes.
+  clock(t, rgb, o) {
+    const R = 130 * view.scale;
+    const fade = 1 - t;
+    ctx.strokeStyle = `rgba(${rgb},${0.35 * fade})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, R, 0, Math.PI * 2);
+    ctx.stroke();
+    const ang = -Math.PI / 2 + t * Math.PI * 2;
+    ctx.strokeStyle = `rgba(${rgb},${0.9 * fade})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(o.x, o.y);
+    ctx.lineTo(o.x + Math.cos(ang) * R, o.y + Math.sin(ang) * R);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(${rgb},${0.55 * fade})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, R, -Math.PI / 2, ang);
+    ctx.stroke();
+  },
+
+  // Mathematical shift: the underlying grid of structure flashes into view and
+  // fades, exposing the maths beneath the world.
+  grid(t, rgb, o, w, h) {
+    const a = Math.sin(t * Math.PI);
+    ctx.strokeStyle = `rgba(${rgb},${0.35 * a})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const gap = 40;
+    for (let x = 0; x <= w; x += gap) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+    for (let y = 0; y <= h; y += gap) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
+    ctx.stroke();
+  },
+};
 
 // ── Interaction ────────────────────────────────────────────────────────────
 
