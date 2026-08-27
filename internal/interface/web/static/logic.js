@@ -88,6 +88,130 @@ export function effectSpec(mode) {
   return { kind, duration: EFFECT_DURATION[kind] || EFFECT_DURATION.ripple };
 }
 
+// Each reality transition also gets its own synthesised cue, sound-designed in the
+// spirit of Star Wars / Alien — organic and grungy rather than clean and
+// synthetic. The character comes from abused, inharmonic sources: ring modulation
+// for clangorous metal, FM at non-integer ratios for struck-metal and creature
+// timbres, per-voice distortion for grit, resonant band-passed noise for breath
+// and wind, and a little random pitch jitter so no two plays are identical. The
+// player (app.js) adds the shared space: a convolution reverb with pre-delay,
+// master saturation, and a compressor for glue. No audio assets.
+//
+// A voice is one source with an envelope:
+//   type              "sine" | "triangle" | "sawtooth" | "square" | "noise"
+//                     ("noise" is filtered white noise — whooshes, breath, air)
+//   freq, freqEnd     pitch start and optional glide target (Hz); ignored for noise
+//   gain              peak level 0–1 (scaled by the player's master gain)
+//   attack, release   envelope times (s); a long attack makes a reverse-style swell
+//   delay             optional start offset (s) so voices stack or arrive late
+//   detune            optional detune (cents) for width/beating between layers
+//   jitter            optional random detune (± cents), re-rolled each play, for
+//                     organic imperfection (pitched voices only)
+//   pan               optional stereo position (−1 left … +1 right)
+//   drive             optional distortion 0–1 — grit/saturation ("grunge")
+//   ring              optional ring modulation { freq, depth? } — metallic, alien
+//                     sidebands; depth 1 is true ring mod, below 1 blends to tremolo
+//   fm                optional frequency modulation { ratio, depth } — a modulator
+//                     at freq×ratio bends pitch by ±depth Hz; non-integer ratios
+//                     give inharmonic, struck-metal / creature timbres
+//   filter            optional sweep { type?, freq, freqEnd, q } — type defaults to
+//                     "lowpass"; "highpass"/"bandpass" shape noise into whooshes
+//   lfo               optional modulation { target: "gain" | "pitch" | "filter",
+//                     freq, depth } — gain depth 0–1 (tremolo/flicker), pitch depth
+//                     in cents (wobble), filter depth in Hz (organic sweep)
+// Physical/unknown modes never reach here (only detectTransition arms a sound),
+// but DEFAULT_SOUND keeps it safe.
+export const SOUND_SPEC = {
+  // Reality dissolves and re-forms — the biggest cue. A driven noise swell tears
+  // in, then a distorted, ring-modulated saw cluster booms like a groaning hull
+  // under a gritty sub drop, and an FM'd shimmer clangs away into the reverb.
+  universe: [
+    { type: "noise", gain: 0.4, attack: 1.0, release: 0.6, drive: 0.5, filter: { type: "highpass", freq: 200, freqEnd: 5000, q: 0.7 } },
+    { type: "sine",     freq: 120, freqEnd: 26, gain: 0.95, attack: 0.03, release: 2.8, drive: 0.4, filter: { freq: 500, freqEnd: 55, q: 6 }, delay: 0.85 },
+    { type: "sawtooth", freq: 55,  freqEnd: 52, gain: 0.42, attack: 0.08, release: 2.7, detune: -8, jitter: 12, drive: 0.55, ring: { freq: 47, depth: 0.35 }, filter: { freq: 220, freqEnd: 1300, q: 4 }, delay: 0.85 },
+    { type: "sawtooth", freq: 82.5, freqEnd: 80, gain: 0.3, attack: 0.08, release: 2.6, detune: 8, jitter: 12, drive: 0.5, delay: 0.88 },
+    { type: "sine",     freq: 900, freqEnd: 240, gain: 0.2, attack: 0.2, release: 1.9, fm: { ratio: 2.7, depth: 220 }, delay: 0.95, pan: 0.3 },
+  ],
+  // Superposed probability ghosts flicker and collapse: two ring-modulated,
+  // jittering voices beat against each other under a fast gain flicker, panned
+  // wide, with an FM sparkle and a gritty band-passed noise hissing through.
+  quantum: [
+    { type: "sine", freq: 660, freqEnd: 990,  gain: 0.4, attack: 0.01, release: 0.9, detune: 11, jitter: 15, pan: -0.4, ring: { freq: 140, depth: 0.7 }, lfo: { target: "gain", freq: 19, depth: 0.6 } },
+    { type: "sine", freq: 668, freqEnd: 1000, gain: 0.4, attack: 0.01, release: 0.9, detune: -11, jitter: 15, pan: 0.4, delay: 0.02, ring: { freq: 150, depth: 0.7 }, lfo: { target: "gain", freq: 23, depth: 0.6 } },
+    { type: "sine", freq: 1320, freqEnd: 1980, gain: 0.16, attack: 0.02, release: 0.7, fm: { ratio: 3.3, depth: 400 }, delay: 0.05 },
+    { type: "noise", gain: 0.12, attack: 0.02, release: 0.6, drive: 0.3, filter: { type: "bandpass", freq: 2600, freqEnd: 5200, q: 4 } },
+  ],
+  // A bright bar jumps sideways: a driven band-passed noise whoosh rises and
+  // sweeps, a gritty jittering saw riser climbs with it, then an FM'd sub thump
+  // lands as the new timeline arrives.
+  timeline: [
+    { type: "noise", gain: 0.34, attack: 0.28, release: 0.34, drive: 0.5, filter: { type: "bandpass", freq: 500, freqEnd: 6000, q: 1.4 } },
+    { type: "sawtooth", freq: 200, freqEnd: 1200, gain: 0.4, attack: 0.02, release: 0.6, detune: 6, jitter: 10, drive: 0.55, filter: { freq: 300, freqEnd: 5000, q: 3 } },
+    { type: "sine", freq: 170, freqEnd: 74, gain: 0.6, attack: 0.005, release: 0.55, drive: 0.4, fm: { ratio: 1.5, depth: 80 }, delay: 0.32 },
+  ],
+  // The simulation re-renders in torn scanlines: a heavily driven, ring-modulated
+  // square stutters via a fast gain flicker, a hard-distorted square glitches
+  // against it over a sub, and a gritty high-passed noise crackles like tearing.
+  simulation: [
+    { type: "square", freq: 140, freqEnd: 88, gain: 0.36, attack: 0.005, release: 0.6, drive: 0.6, ring: { freq: 90, depth: 0.5 }, filter: { freq: 900, freqEnd: 180, q: 4 }, lfo: { target: "gain", freq: 32, depth: 0.9 } },
+    { type: "square", freq: 222, freqEnd: 176, gain: 0.24, attack: 0.005, release: 0.4, detune: 18, jitter: 20, drive: 0.7, delay: 0.06, pan: 0.25 },
+    { type: "sine",   freq: 90,  freqEnd: 50, gain: 0.5, attack: 0.005, release: 0.55, drive: 0.35 },
+    { type: "noise",  gain: 0.12, attack: 0.005, release: 0.5, drive: 0.4, filter: { type: "highpass", freq: 3000, freqEnd: 4200, q: 0.7 }, lfo: { target: "gain", freq: 60, depth: 0.9 } },
+  ],
+  // Eyelids close and reopen — you wake as someone else: a breathy noise formant
+  // swells in with a slow resonant filter sweep, an FM'd, jittering, vibrato'd
+  // body settles over a warm undertone, and an airy top drifts.
+  observer: [
+    { type: "noise", gain: 0.18, attack: 0.5, release: 0.7, drive: 0.25, filter: { type: "bandpass", freq: 700, freqEnd: 1600, q: 6 }, lfo: { target: "filter", freq: 0.7, depth: 500 } },
+    { type: "sine", freq: 520, freqEnd: 300, gain: 0.5, attack: 0.06, release: 1.1, jitter: 14, fm: { ratio: 1.4, depth: 60 }, filter: { freq: 1200, freqEnd: 480, q: 2 }, delay: 0.25, lfo: { target: "pitch", freq: 5, depth: 14 } },
+    { type: "triangle", freq: 260, freqEnd: 180, gain: 0.34, attack: 0.1, release: 1.2, jitter: 10, delay: 0.25 },
+    { type: "sine", freq: 1040, freqEnd: 700, gain: 0.12, attack: 0.12, release: 0.9, delay: 0.3, pan: -0.3 },
+  ],
+  // Agreed reality wobbles outward as it drifts: a driven low noise shockwave
+  // bursts, a ring-modulated, jittering body groans and wobbles over a gritty
+  // sub, and an FM'd overtone rings out — a hull flexing.
+  consensus: [
+    { type: "noise", gain: 0.24, attack: 0.02, release: 0.95, drive: 0.45, filter: { type: "lowpass", freq: 1200, freqEnd: 200, q: 1 } },
+    { type: "triangle", freq: 420, freqEnd: 210, gain: 0.46, attack: 0.03, release: 1.2, detune: -6, jitter: 16, drive: 0.4, ring: { freq: 63, depth: 0.5 }, lfo: { target: "pitch", freq: 6, depth: 30 } },
+    { type: "sine", freq: 140, freqEnd: 64, gain: 0.6, attack: 0.02, release: 1.3, drive: 0.4 },
+    { type: "triangle", freq: 630, freqEnd: 315, gain: 0.2, attack: 0.03, release: 1.0, fm: { ratio: 2.4, depth: 120 }, delay: 0.05, pan: 0.35 },
+  ],
+  // A clock hand sweeps the dial: a high reverse-swell rushes up to the strike,
+  // two ring-modulated, FM'd metal clangs land (a struck mechanism, not clean
+  // ticks), and an inharmonic chime blooms and rings out beneath.
+  time: [
+    { type: "noise", gain: 0.16, attack: 0.35, release: 0.16, filter: { type: "highpass", freq: 1500, freqEnd: 5000, q: 0.7 } },
+    { type: "sine", freq: 1200, gain: 0.5, attack: 0.002, release: 0.18, drive: 0.4, ring: { freq: 430, depth: 0.6 }, fm: { ratio: 2.8, depth: 300 }, delay: 0.36 },
+    { type: "sine", freq: 1200, gain: 0.5, attack: 0.002, release: 0.18, drive: 0.4, ring: { freq: 430, depth: 0.6 }, fm: { ratio: 2.8, depth: 300 }, delay: 0.54 },
+    { type: "sine", freq: 600,  gain: 0.3, attack: 0.01, release: 1.7, fm: { ratio: 3.1, depth: 180 }, delay: 0.36 },
+  ],
+  // The underlying mathematical structure flashes into view: a noise swell lifts
+  // into a struck-crystal bell chord made inharmonic by FM — sub root, root,
+  // fifth, and a shimmering ring-modulated octave — ringing long into the reverb.
+  math: [
+    { type: "noise", gain: 0.14, attack: 0.4, release: 0.5, filter: { type: "highpass", freq: 2000, freqEnd: 7000, q: 0.7 } },
+    { type: "sine", freq: 261,  gain: 0.4,  attack: 0.02, release: 1.8, fm: { ratio: 1.41, depth: 90 }, delay: 0.3 },
+    { type: "sine", freq: 523,  gain: 0.5,  attack: 0.01, release: 1.9, fm: { ratio: 2.76, depth: 130 }, ring: { freq: 311, depth: 0.3 }, delay: 0.3 },
+    { type: "sine", freq: 784,  gain: 0.4,  attack: 0.01, release: 1.9, fm: { ratio: 3.14, depth: 160 }, delay: 0.34, pan: 0.25 },
+    { type: "sine", freq: 1046, gain: 0.22, attack: 0.02, release: 1.8, delay: 0.38, pan: -0.25, lfo: { target: "gain", freq: 7, depth: 0.4 } },
+  ],
+};
+export const DEFAULT_SOUND = [
+  { type: "sine", freq: 440, freqEnd: 330, gain: 0.4, attack: 0.01, release: 0.5, filter: { freq: 2000, freqEnd: 600, q: 1 } },
+];
+
+// soundSpec returns the voices for a mode (falling back to DEFAULT_SOUND) plus
+// the total duration (s) the sound occupies — the latest voice's delay + attack
+// + release — so the player and any caller agree on when it has finished.
+export function soundSpec(mode) {
+  const voices = SOUND_SPEC[mode] || DEFAULT_SOUND;
+  const duration = voices.reduce(
+    (max, v) => Math.max(max, (v.delay || 0) + v.attack + v.release),
+    0,
+  );
+  return { voices, duration };
+}
+
 // A node that a reality transition has just revealed gets a brief faint halo, so
 // the eye is drawn to what changed. spawnHalo turns the time elapsed since the
 // node appeared (ms) into that halo for the current frame: alpha fades linearly

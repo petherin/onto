@@ -14,6 +14,9 @@ import {
   EFFECT_KIND,
   EFFECT_DURATION,
   DEFAULT_EFFECT_KIND,
+  soundSpec,
+  SOUND_SPEC,
+  DEFAULT_SOUND,
   detectTransition,
   TRANSITIONS,
   TRANSITION_LEGEND,
@@ -94,6 +97,95 @@ test("effectSpec returns the duration for its kind", () => {
   for (const kind of new Set([...Object.values(EFFECT_KIND), DEFAULT_EFFECT_KIND])) {
     assert.ok(EFFECT_DURATION[kind] > 0, `missing duration for ${kind}`);
   }
+});
+
+test("soundSpec gives each reality transition its own character", () => {
+  // Cues lead with a noise texture (whoosh/swell) then stack their tonal body,
+  // so the tonal character lives in the layers rather than the first voice.
+  assert.ok(soundSpec("timeline").voices.some((v) => v.type === "sawtooth"), "timeline has a saw riser");
+  assert.ok(soundSpec("simulation").voices.some((v) => v.type === "square"), "simulation is buzzy squares");
+  // The clock still lands two crisp ticks at the same pitch, one after the other.
+  const ticks = soundSpec("time").voices.filter((v) => v.type === "sine" && v.freq === 1200);
+  assert.equal(ticks.length, 2, "the clock strikes twice");
+  assert.ok(ticks[1].delay > ticks[0].delay, "the second tick arrives after the first");
+});
+
+test("every reality transition is layered like a film cue, not a bare tone", () => {
+  // Each named transition stacks multiple voices (texture + sub + body + shimmer)
+  // so it reads as cinematic rather than a single oscillator.
+  for (const mode of Object.keys(SOUND_SPEC)) {
+    assert.ok(soundSpec(mode).voices.length >= 2, `${mode} should be layered`);
+    // Every cue opens with a noise texture leading into the tonal hit.
+    assert.ok(soundSpec(mode).voices.some((v) => v.type === "noise"), `${mode} needs a noise texture`);
+  }
+  // Cinematic weight: the universe reset carries a deep sub-bass drop.
+  const universe = soundSpec("universe").voices;
+  assert.ok(universe.some((v) => v.freqEnd !== undefined && v.freqEnd <= 60), "universe needs a sub drop");
+});
+
+test("soundSpec falls back to the default sound for unknown modes", () => {
+  assert.equal(soundSpec("walk").voices, DEFAULT_SOUND);
+  assert.equal(soundSpec(undefined).voices, DEFAULT_SOUND);
+});
+
+test("soundSpec duration spans the latest-finishing voice's delay, attack and release", () => {
+  // The chime tail under the clock ticks outlasts the ticks themselves, so the
+  // reported duration follows whichever voice finishes last, not the array order.
+  for (const mode of [...Object.keys(SOUND_SPEC), "walk"]) {
+    const { voices, duration } = soundSpec(mode);
+    const end = Math.max(...voices.map((v) => (v.delay || 0) + v.attack + v.release));
+    assert.equal(duration, end, `${mode} duration must span its longest voice`);
+  }
+});
+
+test("every declared sound voice has a sane, playable envelope", () => {
+  const specs = [...Object.values(SOUND_SPEC), DEFAULT_SOUND];
+  for (const voices of specs) {
+    for (const v of voices) {
+      // Pitched voices carry a frequency; noise voices are broadband, so they
+      // shape their character through a filter instead of a pitch.
+      if (v.type === "noise") {
+        assert.ok(v.filter, "a noise voice must be shaped by a filter");
+      } else {
+        assert.ok(v.freq > 0, `freq must be positive, got ${v.freq}`);
+      }
+      assert.ok(v.gain > 0 && v.gain <= 1, `gain must be in (0,1], got ${v.gain}`);
+      assert.ok(v.attack > 0 && v.release > 0, "attack and release must be positive");
+      if (v.freqEnd !== undefined) assert.ok(v.freqEnd > 0, "freqEnd must be positive for a glide");
+      if (v.pan !== undefined) assert.ok(v.pan >= -1 && v.pan <= 1, `pan must be in [-1,1], got ${v.pan}`);
+      if (v.filter) {
+        assert.ok(v.filter.freq > 0, "filter start cutoff must be positive");
+        if (v.filter.freqEnd !== undefined) assert.ok(v.filter.freqEnd > 0, "filter sweep target must be positive");
+      }
+      if (v.lfo) {
+        assert.ok(["gain", "pitch", "filter"].includes(v.lfo.target), `lfo target must be gain, pitch or filter, got ${v.lfo.target}`);
+        assert.ok(v.lfo.freq > 0, "lfo rate must be positive");
+        assert.ok(v.lfo.depth > 0, "lfo depth must be positive");
+      }
+      // Grunge/organic shaping fields must stay in sane ranges.
+      if (v.drive !== undefined) assert.ok(v.drive > 0 && v.drive <= 1, `drive must be in (0,1], got ${v.drive}`);
+      if (v.jitter !== undefined) assert.ok(v.jitter > 0, `jitter must be positive cents, got ${v.jitter}`);
+      if (v.ring) {
+        assert.ok(v.ring.freq > 0, "ring frequency must be positive");
+        if (v.ring.depth !== undefined) assert.ok(v.ring.depth > 0 && v.ring.depth <= 1, `ring depth must be in (0,1], got ${v.ring.depth}`);
+      }
+      if (v.fm) {
+        assert.ok(v.fm.ratio > 0, "fm ratio must be positive");
+        assert.ok(v.fm.depth > 0, "fm depth must be positive");
+      }
+    }
+  }
+});
+
+test("the palette leans on organic, grungy techniques, not clean oscillators", () => {
+  // The Star Wars / Alien character comes from abused sources — distortion,
+  // ring modulation, inharmonic FM, and per-play jitter — so at least some voice
+  // must reach for each, or we've drifted back to a plain synthesiser.
+  const all = Object.values(SOUND_SPEC).flat();
+  assert.ok(all.some((v) => v.drive), "some voice should be driven/distorted for grit");
+  assert.ok(all.some((v) => v.ring), "some voice should be ring-modulated for metallic character");
+  assert.ok(all.some((v) => v.fm), "some voice should use FM for inharmonic, organic timbres");
+  assert.ok(all.some((v) => v.jitter), "some voice should jitter for organic imperfection");
 });
 
 test("detectTransition returns null when a snapshot is missing", () => {

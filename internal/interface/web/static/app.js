@@ -11,6 +11,7 @@ import {
   detectTransition,
   requiredTransition,
   effectSpec,
+  soundSpec,
   colorFor,
   layerZ,
   layoutTarget,
@@ -51,6 +52,11 @@ const nodes = new Map(); // id -> {id, name, x, y, z, vx, vy, vz}
 // depth-layer stack reads as a ladder from the first frame; dragging, the wheel,
 // and the view buttons mutate it from there.
 const view = { scale: 1, ox: 0, oy: 0, rotX: 0, rotY: 0 };
+// viewAnim tweens the camera (scale + pan) toward a target over a short time. It
+// backs the auto-framing that runs when a move reveals new nodes, so the camera
+// glides to the new framing instead of snapping. Any manual camera change (drag,
+// wheel, or a view button) clears it so the user always wins.
+let viewAnim = null;
 
 // setVerticalView / setDefaultView back the view buttons and the initial framing.
 // Vertical is a near-top-down angle with no yaw, so z (nesting depth) drives
@@ -58,11 +64,13 @@ const view = { scale: 1, ox: 0, oy: 0, rotX: 0, rotY: 0 };
 // with an upward pan nudging the base layer to the top of the canvas rather than
 // its centre. Default is the free three-quarter view.
 function setVerticalView() {
+  viewAnim = null;
   view.rotX = -1.42; view.rotY = 0;
   view.ox = 0; view.oy = -canvas.clientHeight * 0.32;
   view.scale = 1;
 }
 function setDefaultView() {
+  viewAnim = null;
   view.rotX = 0.5; view.rotY = 0.35;
   view.ox = 0; view.oy = 0; view.scale = 1;
 }
@@ -70,8 +78,22 @@ function setDefaultView() {
 // on screen at once (fitView computes the scale + pan). Use it to recover from a
 // map that has sprawled or zoomed off-frame without losing the current angle.
 function setFitView() {
+  viewAnim = null;
   const fit = fitView(nodes.values(), view, canvas.clientWidth, canvas.clientHeight);
   view.scale = fit.scale; view.ox = fit.ox; view.oy = fit.oy;
+}
+// frameToFit smoothly re-frames the map to the same "everything on screen" target
+// as setFitView, but animates the camera there (via viewAnim in tick) instead of
+// snapping. Called when a move reveals new locations so the freshly-added nodes
+// are always brought on screen alongside as much of the existing map as fits.
+function frameToFit() {
+  const fit = fitView(nodes.values(), view, canvas.clientWidth, canvas.clientHeight);
+  viewAnim = {
+    t0: performance.now(),
+    dur: 600,
+    from: { scale: view.scale, ox: view.ox, oy: view.oy },
+    to: fit,
+  };
 }
 let logCount = 0;
 // Mirrors stateDTO.Dirty: true when the session has unsaved mutations. Drives
@@ -102,6 +124,7 @@ async function run(command) {
 function apply(s) {
   const prev = state && state.session;
   state = s;
+  const hadNodes = nodes.size > 0;
   const added = syncNodes(s.graph);
   renderHUD(s.session);
   renderLog(s);
@@ -118,6 +141,7 @@ function apply(s) {
   const mode = detectTransition(prev, s.session);
   if (mode) {
     triggerEffect(mode);
+    playSound(mode);
     // Halo whatever locations this transition just revealed, in the transition's
     // own colour, so the eye is drawn to what changed. Physical moves can add
     // nodes too, but only a reality transition arms the halo.
@@ -128,6 +152,11 @@ function apply(s) {
       if (n) { n.spawn = now; n.spawnRgb = rgb; }
     }
   }
+  // Auto-frame the camera whenever a move reveals new locations, so new nodes are
+  // never off-screen. Skipped on the first population and after a reset-map (both
+  // start from an empty cache, hadNodes === false) so the deliberate boot framing
+  // stands rather than being overridden.
+  if (added.length && hadNodes) frameToFit();
 }
 
 // renderConfirm shows the Confirm/Cancel bar and locks the free-text input
@@ -390,6 +419,16 @@ function tick() {
     n.vx *= 0.86; n.vy *= 0.86; n.vz *= 0.86;
     n.x += n.vx; n.y += n.vy; n.z += n.vz;
   }
+  // Advance the camera auto-framing tween (set by frameToFit), easing scale and
+  // pan toward the fit target with an ease-in-out; cleared once it completes.
+  if (viewAnim) {
+    const p = Math.min(1, (performance.now() - viewAnim.t0) / viewAnim.dur);
+    const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+    view.scale = viewAnim.from.scale + (viewAnim.to.scale - viewAnim.from.scale) * e;
+    view.ox = viewAnim.from.ox + (viewAnim.to.ox - viewAnim.from.ox) * e;
+    view.oy = viewAnim.from.oy + (viewAnim.to.oy - viewAnim.from.oy) * e;
+    if (p >= 1) viewAnim = null;
+  }
   draw();
   requestAnimationFrame(tick);
 }
@@ -415,6 +454,275 @@ const effects = [];
 function triggerEffect(mode) {
   const { kind, duration } = effectSpec(mode);
   effects.push({ mode, kind, duration, start: performance.now() });
+}
+
+// ── Transition sound ─────────────────────────────────────────────────────────
+// Each reality transition plays its own layered, cinematic cue (soundSpec picks
+// the voices in logic.js). The Web Audio context is created lazily on the first
+// transition — always inside the user gesture that triggered the move — so the
+// browser's autoplay policy is satisfied without a separate "click to enable"
+// step. A muted preference persists in localStorage and gates playback entirely.
+//
+// Each cue is sound-designed in a Star Wars / Alien spirit — organic and grungy
+// rather than clean, so voices carry per-voice distortion (drive), ring
+// modulation, FM at inharmonic ratios, and random pitch jitter (see logic.js).
+// The graph gives every cue a shared, scored space. Each voice fans into a dry
+// bus and a reverb send; the reverb is a ConvolverNode fed a synthesised
+// decaying-noise impulse (no asset) after a short pre-delay, so tails bloom like
+// a film score. Both buses pass through a gentle WaveShaper (analog-style warmth)
+// and a DynamicsCompressor (glue + peak taming) before the destination.
+// MASTER_GAIN keeps the mix gentle so a move never startles.
+const MASTER_GAIN = 0.12;
+const REVERB_SECONDS = 3.4;   // impulse length — how long the tail rings
+const REVERB_DECAY = 2.2;     // higher = faster decay (steeper tail)
+const REVERB_WET = 0.38;      // reverb send level relative to the dry bus
+const REVERB_PREDELAY = 0.03; // gap before the tail — pushes the space back
+let audioCtx = null;
+let dryBus = null;    // voices → here (dry) → saturation
+let wetSend = null;   // voices → here → pre-delay → convolver → saturation
+let noiseBuffer = null; // shared white-noise source buffer for noise voices
+let muted = localStorage.getItem("onto.muted") === "1";
+
+// makeImpulse builds a stereo impulse response as exponentially-decaying white
+// noise — a cheap, dependency-free convolution reverb that sounds like a large,
+// soft hall rather than a specific room.
+function makeImpulse(ctx) {
+  const rate = ctx.sampleRate;
+  const len = Math.floor(rate * REVERB_SECONDS);
+  const buf = ctx.createBuffer(2, len, rate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, REVERB_DECAY);
+    }
+  }
+  return buf;
+}
+
+// makeNoise builds a couple of seconds of stereo white noise, looped by every
+// "noise" voice to synthesise whooshes, risers, and air.
+function makeNoise(ctx) {
+  const len = Math.floor(ctx.sampleRate * 2);
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  }
+  return buf;
+}
+
+// saturationCurve is a soft tanh-style shaping curve: near-linear at low level,
+// gently rounding peaks, so the mix reads as warm rather than clipped.
+function saturationCurve() {
+  const n = 1024;
+  const curve = new Float32Array(n);
+  const k = 1.6;
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 2 - 1;
+    curve[i] = Math.tanh(k * x);
+  }
+  return curve;
+}
+
+// makeDriveCurve builds a per-voice distortion curve — the "grunge". amount 0 is
+// clean; higher values fold peaks over into gritty, saturated harmonics so a
+// voice reads as an abused analog source (metal, tape, blown speaker) rather than
+// a clean oscillator. Uses the classic k-parameter soft-clip shape.
+function makeDriveCurve(amount) {
+  const n = 1024;
+  const curve = new Float32Array(n);
+  const k = amount * 60;
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 2 - 1;
+    curve[i] = ((1 + k) * x) / (1 + k * Math.abs(x));
+  }
+  return curve;
+}
+
+// ensureAudio lazily builds the context and the shared master chain on the first
+// transition. Returns false if the browser has no Web Audio support.
+function ensureAudio() {
+  if (audioCtx) return true;
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) return false;
+  audioCtx = new Ctor();
+  const master = audioCtx.createDynamicsCompressor();
+  const shaper = audioCtx.createWaveShaper();
+  shaper.curve = saturationCurve();
+  shaper.oversample = "2x";
+  shaper.connect(master);
+  master.connect(audioCtx.destination);
+  dryBus = audioCtx.createGain();
+  dryBus.gain.value = 1;
+  dryBus.connect(shaper);
+  const reverb = audioCtx.createConvolver();
+  reverb.buffer = makeImpulse(audioCtx);
+  const preDelay = audioCtx.createDelay(1);
+  preDelay.delayTime.value = REVERB_PREDELAY;
+  wetSend = audioCtx.createGain();
+  wetSend.gain.value = REVERB_WET;
+  wetSend.connect(preDelay).connect(reverb).connect(shaper);
+  noiseBuffer = makeNoise(audioCtx);
+  return true;
+}
+
+// applyRing ring-modulates a voice: the signal passes through a gain node whose
+// gain is swung by a sine at ring.freq. At depth 1 the gain crosses zero — true
+// ring modulation, the clangorous metallic sidebands of classic sci-fi robots
+// and alien voices; below 1 it stays partly open, blending toward tremolo.
+// Returns the ring node so the caller keeps building the chain.
+function applyRing(v, inNode, t0, t2) {
+  const depth = v.ring.depth === undefined ? 1 : v.ring.depth;
+  const ring = audioCtx.createGain();
+  ring.gain.value = 1 - depth; // base offset; the modulator swings ±depth around it
+  const mod = audioCtx.createOscillator();
+  mod.frequency.value = v.ring.freq;
+  const md = audioCtx.createGain();
+  md.gain.value = depth;
+  mod.connect(md).connect(ring.gain);
+  mod.start(t0);
+  mod.stop(t2 + 0.05);
+  inNode.connect(ring);
+  return ring;
+}
+
+// applyFM frequency-modulates an oscillator carrier: a modulator at freq×ratio
+// bends the carrier's frequency by ±depth Hz. Non-integer ratios give inharmonic
+// partials — struck metal, groaning hulls, organic "clang" — instead of a clean
+// pitch, which is what pulls the timbre away from a synthesiser.
+function applyFM(v, carrier, t0, t2) {
+  const mod = audioCtx.createOscillator();
+  mod.frequency.value = v.freq * v.fm.ratio;
+  const md = audioCtx.createGain();
+  md.gain.value = v.fm.depth;
+  mod.connect(md).connect(carrier.frequency);
+  mod.start(t0);
+  mod.stop(t2 + 0.05);
+}
+
+// applyLFO wires a modulation oscillator onto a voice: a gain target multiplies
+// the envelope (tremolo/flicker) via an inserted node; a pitch target sways the
+// source's detune (vibrato/wobble); a filter target sweeps the filter cutoff
+// (organic movement). Returns the (possibly new) output node so the caller can
+// keep building the chain. The modulator runs for the voice's whole life.
+function applyLFO(v, source, filter, envOut, t0, t2) {
+  const mod = audioCtx.createOscillator();
+  mod.frequency.value = v.lfo.freq;
+  const depth = audioCtx.createGain();
+  depth.gain.value = v.lfo.depth;
+  mod.connect(depth);
+  mod.start(t0);
+  mod.stop(t2 + 0.05);
+  if (v.lfo.target === "pitch" && source.detune) {
+    depth.connect(source.detune); // cents
+    return envOut;
+  }
+  if (v.lfo.target === "filter" && filter) {
+    depth.connect(filter.frequency); // Hz
+    return envOut;
+  }
+  // gain flicker: a node whose gain oscillates about 1 by ±depth.
+  const trem = audioCtx.createGain();
+  trem.gain.value = 1;
+  depth.connect(trem.gain);
+  envOut.connect(trem);
+  return trem;
+}
+
+function playSound(mode) {
+  if (muted) return;
+  try {
+    if (!ensureAudio()) return;
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const now = audioCtx.currentTime;
+    for (const v of soundSpec(mode).voices) {
+      const t0 = now + (v.delay || 0);
+      const t1 = t0 + v.attack;
+      const t2 = t1 + v.release;
+
+      // Source: filtered white noise for "noise" voices, otherwise an oscillator
+      // (optionally FM'd for inharmonic, organic timbres).
+      let source;
+      if (v.type === "noise") {
+        source = audioCtx.createBufferSource();
+        source.buffer = noiseBuffer;
+        source.loop = true;
+      } else {
+        source = audioCtx.createOscillator();
+        source.type = v.type;
+        source.frequency.setValueAtTime(v.freq, t0);
+        if (v.freqEnd) source.frequency.exponentialRampToValueAtTime(v.freqEnd, t2);
+        // detune + a random per-play jitter so repeats never sound identical.
+        const jitter = v.jitter ? (Math.random() * 2 - 1) * v.jitter : 0;
+        if (v.detune || jitter) source.detune.setValueAtTime((v.detune || 0) + jitter, t0);
+        if (v.fm) applyFM(v, source, t0, t2);
+      }
+
+      // Per-voice chain:
+      //   source → [ring mod] → [drive] → [filter sweep] → gain(env) → [LFO] → [pan]
+      let node = source;
+      if (v.ring) node = applyRing(v, node, t0, t2);
+      if (v.drive) {
+        const shaper = audioCtx.createWaveShaper();
+        shaper.curve = makeDriveCurve(v.drive);
+        shaper.oversample = "4x";
+        node.connect(shaper);
+        node = shaper;
+      }
+      let filter = null;
+      if (v.filter) {
+        filter = audioCtx.createBiquadFilter();
+        filter.type = v.filter.type || "lowpass";
+        filter.Q.value = v.filter.q || 1;
+        filter.frequency.setValueAtTime(v.filter.freq, t0);
+        if (v.filter.freqEnd) filter.frequency.exponentialRampToValueAtTime(v.filter.freqEnd, t2);
+        node.connect(filter);
+        node = filter;
+      }
+      const gain = audioCtx.createGain();
+      // Linear attack up to the voice's peak, then an exponential decay to near
+      // silence (exponential ramps can't reach exactly 0).
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(v.gain * MASTER_GAIN, t1);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t2);
+      node.connect(gain);
+      let out = gain;
+      if (v.lfo) out = applyLFO(v, source, filter, out, t0, t2);
+      if (v.pan !== undefined && audioCtx.createStereoPanner) {
+        const panner = audioCtx.createStereoPanner();
+        panner.pan.value = v.pan;
+        out.connect(panner);
+        out = panner;
+      }
+      // Send each voice to both the dry bus and the reverb, so every layer sits
+      // in the same scored space.
+      out.connect(dryBus);
+      out.connect(wetSend);
+      source.start(t0);
+      source.stop(t2 + 0.05);
+    }
+  } catch (err) {
+    console.error("sound failed", err);
+  }
+}
+
+// Mute toggle: flips the preference, persists it, and reflects state in the
+// button label/title. Muting never touches the audio graph — playSound simply
+// short-circuits — so an in-flight sound is left to finish naturally.
+const muteBtn = document.getElementById("mute");
+function renderMute() {
+  if (!muteBtn) return;
+  muteBtn.textContent = muted ? "🔇" : "🔊";
+  muteBtn.title = muted ? "Transition sounds off — click to unmute" : "Transition sounds on — click to mute";
+  muteBtn.classList.toggle("muted", muted);
+}
+if (muteBtn) {
+  muteBtn.addEventListener("click", () => {
+    muted = !muted;
+    localStorage.setItem("onto.muted", muted ? "1" : "0");
+    renderMute();
+  });
+  renderMute();
 }
 
 function draw() {
@@ -697,6 +1005,8 @@ canvas.addEventListener("mousedown", (e) => {
   // A plain drag pans the map; Shift+drag orbits it in 3D. When starting an
   // orbit we capture the pivot — the world point under the cursor — so the drag
   // spins the view about that point rather than the canvas centre.
+  // A manual pan/orbit cancels any in-flight auto-framing so the user always wins.
+  viewAnim = null;
   dragging = { x: e.offsetX, y: e.offsetY, rotate: e.shiftKey };
   if (dragging.rotate) {
     dragging.pivot = unproject(e.offsetX, e.offsetY, view, canvas.clientWidth, canvas.clientHeight);
@@ -745,6 +1055,7 @@ window.addEventListener("beforeunload", (e) => {
 });
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
+  viewAnim = null; // manual zoom cancels any in-flight auto-framing
   const step = e.deltaY < 0 ? 1.1 : 0.9;
   // clampScale keeps zoom sane; its floor is low so a big, sprawling map can be
   // pulled right out to fit on screen. Then re-centre the pan on the pointer so

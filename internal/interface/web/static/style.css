@@ -73,6 +73,11 @@ html, body {
 .objective.reached { color: var(--warm); border-color: var(--warm); }
 .objective.won { color: var(--good); border-color: var(--good); }
 
+/* Sound toggle sits at the far right of the HUD. It opts out of the global
+   button flex-grow so it stays a compact square rather than stretching. */
+.mute { flex: 0 0 auto; width: 34px; padding: 6px 0; font-size: 16px; line-height: 1; }
+.mute.muted { color: var(--dim); }
+
 main { display: flex; height: calc(100% - 53px); }
 
 #stage { position: relative; flex: 1; min-width: 0; }
@@ -84,8 +89,14 @@ main { display: flex; height: calc(100% - 53px); }
   position: absolute;
   left: 16px;
   bottom: 12px;
+  /* Cap the width and allow wrapping so the hint never runs off the stage (and
+     behind the legend) on a narrow map; half the stage keeps it clear of the
+     bottom-right legend. */
+  max-width: min(52ch, 50%);
   font-size: 12px;
   color: var(--dim);
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .legend {
