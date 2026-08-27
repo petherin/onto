@@ -16,13 +16,36 @@ func (a *App) Where() string {
 	r := q.Where()
 	coord := r.Coordinate
 	return fmt.Sprintf(
-		"Reality Coordinate\n%s\n\nMathematics: %s\nUniverse : %s\nTimeline : %s\nQuantum  : %s\nSimulation: %d\nConsensus: %d\nPlanet   : %s\nCountry  : %s\nRegion   : %s\nCity     : %s\nLocation : %s\nObserver : %s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
+		"Reality Coordinate\n%s\n\nMathematics: %s\nUniverse : %s\nTimeline : %s\nQuantum  : %s\nSimulation: %d\nConsensus: %d\nPlanet   : %s\nCountry  : %s\nRegion   : %s\nCity     : %s\nLocation : %s\nObserver : %s\n\nCumulative journey cost\n%.0f%s\n\nPossible journeys\n%s",
 		coord.OntoAddress(),
 		coord.Mathematics, coord.Universe, coord.Timeline, coord.Quantum, coord.Simulation, coord.Consensus,
 		coord.Planet, coord.Country, coord.Region, coord.City, coord.Location, coord.Observer,
 		a.session.CumulativeCost(),
+		a.objectiveStatus(),
 		a.formatEdges(r.Edges),
 	)
+}
+
+// objectiveStatus formats the budget and objective lines for status displays,
+// each as its own labelled block. It returns an empty string when neither a
+// budget nor a target is in force, so non-game sessions are unaffected.
+func (a *App) objectiveStatus() string {
+	s := a.session
+	var b strings.Builder
+	if s.HasBudget() {
+		fmt.Fprintf(&b, "\n\nBudget remaining\n%.0f of %.0f", s.RemainingBudget(), s.Budget())
+	}
+	if s.HasTarget() {
+		status := "not yet reached"
+		switch {
+		case s.Won():
+			status = "complete — reached and returned home"
+		case s.ReachedTarget():
+			status = "reached — return home to win"
+		}
+		fmt.Fprintf(&b, "\n\nObjective\nReach %s and return home (%s)", s.Target().ShortOntoAddress(), status)
+	}
+	return b.String()
 }
 
 // Look formats the name and description of the current location.

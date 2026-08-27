@@ -17,9 +17,21 @@ import (
 type Entity struct {
 	currentLocation   string
 	currentCoordinate universe.CoordinateVO
+	startLocation     string
 	travelHistory     []string
 	cumulativeCost    float64
 	contextStack      []ContextTransition
+
+	// Game state. budget is the spending pool: a value of 0 means unlimited
+	// (no budget in force). target is the objective coordinate; hasTarget marks
+	// whether one is set. reachedTarget records that the target has been visited
+	// at least once, and won records that the objective is complete (target
+	// reached and the traveller has since returned to the start location).
+	budget        float64
+	target        universe.CoordinateVO
+	hasTarget     bool
+	reachedTarget bool
+	won           bool
 }
 
 // ContextTransition records one entered contextual branch so it can be
@@ -32,12 +44,29 @@ type ContextTransition struct {
 }
 
 // NewEntity creates an Entity positioned at the given location and coordinate.
+// The start location is recorded so a win condition can detect a return home.
+// No budget or target is set by default (unlimited spending, no objective);
+// use SetBudget and SetTarget to enable game rules.
 func NewEntity(location string, coord universe.CoordinateVO) *Entity {
 	return &Entity{
 		currentLocation:   location,
 		currentCoordinate: coord,
+		startLocation:     location,
 		travelHistory:     []string{},
 	}
+}
+
+// SetBudget installs a spending pool. A budget of 0 (the default) means
+// spending is unlimited and CanAfford always succeeds.
+func (s *Entity) SetBudget(budget float64) { s.budget = budget }
+
+// SetTarget installs the objective coordinate and re-evaluates the goal against
+// the current position (so a target set at the start location is not counted as
+// already reached unless the traveller is genuinely there).
+func (s *Entity) SetTarget(target universe.CoordinateVO) {
+	s.target = target
+	s.hasTarget = true
+	s.evaluateGoal()
 }
 
 // Clone returns a deep copy of the entity so callers can branch exploration
@@ -67,6 +96,67 @@ func (s *Entity) History() []string {
 // CumulativeCost returns the total cost accumulated across all movements.
 func (s *Entity) CumulativeCost() float64 { return s.cumulativeCost }
 
+// StartLocation returns the ID of the location the session began at (home).
+func (s *Entity) StartLocation() string { return s.startLocation }
+
+// Budget returns the spending pool (0 means unlimited).
+func (s *Entity) Budget() float64 { return s.budget }
+
+// HasBudget reports whether a finite budget is in force.
+func (s *Entity) HasBudget() bool { return s.budget > 0 }
+
+// RemainingBudget returns how much of the budget is left after cumulative cost.
+// With no budget in force it returns 0; callers should gate on HasBudget.
+// Returning home is always permitted even when it costs more than the budget
+// covers (see ReturnHomeCommand), so cumulative cost can exceed the budget; a
+// depleted budget is reported as empty (0) rather than a negative value.
+func (s *Entity) RemainingBudget() float64 {
+	if !s.HasBudget() {
+		return 0
+	}
+	if remaining := s.budget - s.cumulativeCost; remaining > 0 {
+		return remaining
+	}
+	return 0
+}
+
+// CanAfford reports whether a move of the given cost is within budget. With no
+// budget in force every move is affordable.
+func (s *Entity) CanAfford(cost float64) bool {
+	if !s.HasBudget() {
+		return true
+	}
+	return s.cumulativeCost+cost <= s.budget
+}
+
+// Target returns the objective coordinate.
+func (s *Entity) Target() universe.CoordinateVO { return s.target }
+
+// HasTarget reports whether an objective coordinate is set.
+func (s *Entity) HasTarget() bool { return s.hasTarget }
+
+// ReachedTarget reports whether the objective coordinate has been visited.
+func (s *Entity) ReachedTarget() bool { return s.reachedTarget }
+
+// Won reports whether the objective is complete: the target was reached and the
+// traveller has since returned to the start location.
+func (s *Entity) Won() bool { return s.won }
+
+// evaluateGoal updates reachedTarget and won against the current position. It is
+// called after every movement. Coordinates are compared by canonical Onto
+// Address so a position reached via any route counts as the same target.
+func (s *Entity) evaluateGoal() {
+	if !s.hasTarget {
+		return
+	}
+	if !s.reachedTarget && s.currentCoordinate.OntoAddress() == s.target.OntoAddress() {
+		s.reachedTarget = true
+	}
+	if s.reachedTarget && s.currentLocation == s.startLocation {
+		s.won = true
+	}
+}
+
 // ContextTransitions returns a snapshot of entered contextual branches.
 func (s *Entity) ContextTransitions() []ContextTransition {
 	out := make([]ContextTransition, len(s.contextStack))
@@ -81,6 +171,7 @@ func (s *Entity) MoveTo(loc universe.LocationEntity, cost float64) {
 	s.currentCoordinate = loc.Coordinate
 	s.cumulativeCost += cost
 	s.travelHistory = append(s.travelHistory, fmt.Sprintf("%s -> %s", prev, loc.ID))
+	s.evaluateGoal()
 }
 
 // TransitionTo applies a contextual movement and records or removes its
@@ -93,6 +184,7 @@ func (s *Entity) TransitionTo(loc universe.LocationEntity, cost float64, mode un
 	s.currentLocation = loc.ID
 	s.currentCoordinate = loc.Coordinate
 	s.cumulativeCost += cost
+	s.evaluateGoal()
 	label := string(mode) + " shift"
 	switch mode {
 	case universe.ConsensusShift:

@@ -5,6 +5,7 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -12,6 +13,10 @@ import (
 	"github.com/petherin/onto/internal/domain/navigation"
 	"github.com/petherin/onto/internal/domain/universe"
 )
+
+// ErrInsufficientBudget is returned by a move command when the session's
+// remaining budget cannot cover the move's cost. The move is not applied.
+var ErrInsufficientBudget = errors.New("not enough budget")
 
 // TravelResult is the value returned by a successful TravelCommand execution.
 type TravelResult struct {
@@ -28,6 +33,10 @@ type TravelCommand struct {
 	Universe   *universe.Aggregate
 	Session    *exploration.Entity
 	Pathfinder navigation.PathfinderService
+	// IgnoreBudget bypasses the affordability gate. Returning home must always
+	// succeed even when the remaining budget cannot cover the walk home, so the
+	// return-home workflow sets this; ordinary travel leaves it false.
+	IgnoreBudget bool
 }
 
 // Execute validates the target, finds a physical-only route, moves the session,
@@ -65,6 +74,10 @@ func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 	var pathCost float64
 	for _, e := range path {
 		pathCost += e.Cost
+	}
+	if !c.IgnoreBudget && !c.Session.CanAfford(pathCost) {
+		return nil, fmt.Errorf("%w to travel to %s — it costs %.0f but only %.0f remains",
+			ErrInsufficientBudget, target, pathCost, c.Session.RemainingBudget())
 	}
 	c.Session.MoveTo(loc, pathCost)
 

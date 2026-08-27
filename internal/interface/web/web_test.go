@@ -19,7 +19,7 @@ import (
 // newTestServer builds a *Server backed by an isolated, per-test data file so
 // these tests never touch the repo's real data/locations.json, mirroring the
 // helper used by the TUI tests.
-func newTestServer(t *testing.T) *Server {
+func newTestServer(t *testing.T, opts ...facade.Option) *Server {
 	t.Helper()
 	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
 
@@ -31,6 +31,7 @@ func newTestServer(t *testing.T) *Server {
 		state.StartID,
 		navigation.NewBFSPathfinder(),
 		universe.NewSequentialLocationGenerator(),
+		opts...,
 	)
 	require.NoError(t, err)
 	return NewServer(app)
@@ -255,4 +256,57 @@ func TestState_JSONKeysMatchFrontend(t *testing.T) {
 	for _, key := range []string{"From", "To", "Mode"} {
 		assert.Containsf(t, payload.Graph.Edges[0], key, "edge JSON must expose %q for mode styling", key)
 	}
+}
+
+// TestState_GameFieldsSerialized covers the game HUD contract: with a budget and
+// target in force, /api/state must expose every game field app.js reads
+// (renderGame), and those fields must track win progression — the budget draws
+// down as moves are spent, the objective flips to reached at the target, and to
+// won once home again. A non-game server omits the game state, so only a
+// game-enabled server proves the fields.
+func TestState_GameFieldsSerialized(t *testing.T) {
+	s := newTestServer(t,
+		facade.WithBudget(facade.DefaultBudget),
+		facade.WithTarget(facade.DefaultTarget(universe.DefaultCoordinateVO())),
+	)
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	// Decode the raw JSON into a map so the assertions check the wire keys the
+	// browser reads, not just that the typed struct round-trips.
+	resp, err := http.Get(srv.URL + "/api/state")
+	require.NoError(t, err)
+	var keyed struct {
+		Session map[string]any `json:"session"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&keyed))
+	_ = resp.Body.Close()
+	for _, key := range []string{"HasBudget", "Budget", "RemainingBudget", "HasTarget", "TargetAddress", "TargetShortAddress", "ReachedTarget", "Won"} {
+		assert.Containsf(t, keyed.Session, key, "session JSON must expose %q for the game HUD", key)
+	}
+
+	var initial stateDTO
+	getJSON(t, srv.URL+"/api/state", &initial)
+	assert.True(t, initial.Session.HasBudget)
+	assert.Equal(t, facade.DefaultBudget, initial.Session.Budget)
+	assert.Equal(t, facade.DefaultBudget, initial.Session.RemainingBudget)
+	assert.True(t, initial.Session.HasTarget)
+	assert.False(t, initial.Session.ReachedTarget)
+	assert.False(t, initial.Session.Won)
+
+	// Two quantum shifts reach the Q2 objective: reached but not yet won, and the
+	// budget has drawn down below its start.
+	postJSON(t, srv.URL+"/api/execute", `{"command":"shift"}`, &stateDTO{})
+	var reached stateDTO
+	postJSON(t, srv.URL+"/api/execute", `{"command":"shift"}`, &reached)
+	assert.True(t, reached.Session.ReachedTarget, "arriving at the target marks it reached")
+	assert.False(t, reached.Session.Won, "reaching the target is not a win until home again")
+	assert.Less(t, reached.Session.RemainingBudget, facade.DefaultBudget, "shifts spend from the budget")
+
+	// Shifting back to home after reaching wins.
+	postJSON(t, srv.URL+"/api/execute", `{"command":"shift back"}`, &stateDTO{})
+	var won stateDTO
+	postJSON(t, srv.URL+"/api/execute", `{"command":"shift back"}`, &won)
+	assert.True(t, won.Session.Won, "reached target and returned home wins")
+	assert.Equal(t, "home", won.Session.Location)
 }

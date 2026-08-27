@@ -33,6 +33,9 @@ const ctx = canvas.getContext("2d");
 const brandEl = document.getElementById("brand");
 const axesEl = document.getElementById("axes");
 const costEl = document.getElementById("cost-value");
+const budgetEl = document.getElementById("budget");
+const budgetValueEl = document.getElementById("budget-value");
+const objectiveEl = document.getElementById("objective");
 const logEl = document.getElementById("log");
 const promptEl = document.getElementById("prompt");
 const cmdInput = document.getElementById("cmd");
@@ -208,6 +211,36 @@ function renderHUD(sess) {
   ];
   axesEl.innerHTML = parts.join("");
   costEl.textContent = Math.round(sess.CumulativeCost || 0);
+  renderGame(sess);
+}
+
+// renderGame updates the budget chip and objective badge from the session's
+// game state. Both are hidden entirely when no budget/target is in force, so a
+// non-game session shows only the cost chip.
+function renderGame(sess) {
+  if (budgetEl) {
+    if (sess.HasBudget) {
+      budgetEl.style.display = "";
+      budgetValueEl.textContent = Math.round(sess.RemainingBudget || 0);
+      budgetEl.classList.toggle("low", (sess.RemainingBudget || 0) <= 0);
+    } else {
+      budgetEl.style.display = "none";
+    }
+  }
+  if (!objectiveEl) return;
+  if (!sess.HasTarget) { objectiveEl.style.display = "none"; return; }
+  objectiveEl.style.display = "";
+  const target = (sess.TargetShortAddress || "").replace(/^onto:\/\//, "");
+  if (sess.Won) {
+    objectiveEl.className = "objective won";
+    objectiveEl.textContent = "✓ objective complete — you win";
+  } else if (sess.ReachedTarget) {
+    objectiveEl.className = "objective reached";
+    objectiveEl.textContent = "target reached — return home to win";
+  } else {
+    objectiveEl.className = "objective";
+    objectiveEl.textContent = `objective: reach ${target} & return home`;
+  }
 }
 
 // currentNodeSnapshot finds the graph node the session is currently at, so

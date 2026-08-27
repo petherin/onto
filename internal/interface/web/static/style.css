@@ -59,6 +59,19 @@ html, body {
 .cost { display: flex; align-items: center; gap: 8px; }
 .cost-label { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
 .cost-value { font-size: 20px; font-weight: 700; color: var(--good); }
+#budget .cost-value { color: var(--accent); }
+#budget.low .cost-value { color: #ff5f5f; }
+
+/* Objective badge sits at the right of the HUD. It recolours as the goal
+   progresses: neutral while pending, warm once the target is reached, and green
+   on a win. */
+.objective {
+  white-space: nowrap; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+  padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line);
+  color: var(--dim); background: var(--bg2);
+}
+.objective.reached { color: var(--warm); border-color: var(--warm); }
+.objective.won { color: var(--good); border-color: var(--good); }
 
 main { display: flex; height: calc(100% - 53px); }
 

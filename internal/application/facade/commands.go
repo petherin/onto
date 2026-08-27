@@ -1,12 +1,26 @@
 package facade
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/petherin/onto/internal/application/commands"
 	"github.com/petherin/onto/internal/application/queries"
+	"github.com/petherin/onto/internal/domain/universe"
 )
+
+// afford gates a move on the session's budget. When the move is affordable it
+// returns ("", true) and the caller proceeds; otherwise it returns a rejection
+// message and false, and the caller must return that message without moving.
+// With no budget in force every move is affordable.
+func (a *App) afford(label string, cost float64) (string, bool) {
+	if a.session.CanAfford(cost) {
+		return "", true
+	}
+	return fmt.Sprintf("Not enough budget to %s — it costs %.0f but only %.0f remains.",
+		label, cost, a.session.RemainingBudget()), false
+}
 
 // Travel attempts physical movement to target.
 func (a *App) Travel(target string) string {
@@ -17,6 +31,9 @@ func (a *App) Travel(target string) string {
 	}
 	result, err := cmd.Execute(target)
 	if result == nil {
+		if errors.Is(err, commands.ErrInsufficientBudget) {
+			return err.Error()
+		}
 		norm := normalise(target)
 		if _, known := a.univ.GetLocation(norm); !known {
 			if norm == a.session.NextQuantumID() {
@@ -59,6 +76,9 @@ func (a *App) Travel(target string) string {
 
 // Shift advances the session to the next quantum branch of the current location.
 func (a *App) Shift() string {
+	if msg, ok := a.afford("shift", universe.QuantumShiftCost); !ok {
+		return msg
+	}
 	cmd := &commands.ShiftCommand{Universe: a.univ, Session: a.session}
 	result, err := cmd.Execute()
 	if result == nil {
@@ -70,6 +90,9 @@ func (a *App) Shift() string {
 
 // ShiftBack returns the session to the previous quantum branch.
 func (a *App) ShiftBack() string {
+	if msg, ok := a.afford("shift back", universe.QuantumShiftCost); !ok {
+		return msg
+	}
 	cmd := &commands.ShiftCommand{Universe: a.univ, Session: a.session, Back: true}
 	result, err := cmd.Execute()
 	if result == nil {
@@ -81,6 +104,9 @@ func (a *App) ShiftBack() string {
 
 // Jump advances the session to the next timeline branch of the current location.
 func (a *App) Jump() string {
+	if msg, ok := a.afford("jump", universe.TimelineShiftCost); !ok {
+		return msg
+	}
 	cmd := &commands.JumpCommand{Universe: a.univ, Session: a.session}
 	result, err := cmd.Execute()
 	if result == nil {
@@ -92,6 +118,9 @@ func (a *App) Jump() string {
 
 // JumpBack returns the session to the previous timeline branch.
 func (a *App) JumpBack() string {
+	if msg, ok := a.afford("jump back", universe.TimelineShiftCost); !ok {
+		return msg
+	}
 	cmd := &commands.JumpCommand{Universe: a.univ, Session: a.session, Back: true}
 	result, err := cmd.Execute()
 	if result == nil {
@@ -103,6 +132,9 @@ func (a *App) JumpBack() string {
 
 // Universe shifts the session to the next bubble universe of the current location.
 func (a *App) Universe() string {
+	if msg, ok := a.afford("shift universe", universe.UniverseShiftCost); !ok {
+		return msg
+	}
 	cmd := &commands.UniverseCommand{Universe: a.univ, Session: a.session}
 	result, err := cmd.Execute()
 	if result == nil {
@@ -114,6 +146,9 @@ func (a *App) Universe() string {
 
 // UniverseBack returns the session to the previous bubble universe.
 func (a *App) UniverseBack() string {
+	if msg, ok := a.afford("shift universe back", universe.UniverseShiftCost); !ok {
+		return msg
+	}
 	cmd := &commands.UniverseCommand{Universe: a.univ, Session: a.session, Back: true}
 	result, err := cmd.Execute()
 	if result == nil {
@@ -125,6 +160,9 @@ func (a *App) UniverseBack() string {
 
 // Structure shifts the session to the next mathematical structure of the current location.
 func (a *App) Structure() string {
+	if msg, ok := a.afford("shift structure", universe.MathematicalShiftCost); !ok {
+		return msg
+	}
 	cmd := &commands.StructureCommand{Universe: a.univ, Session: a.session}
 	result, err := cmd.Execute()
 	if result == nil {
@@ -136,6 +174,9 @@ func (a *App) Structure() string {
 
 // StructureBack returns the session to the previous mathematical structure.
 func (a *App) StructureBack() string {
+	if msg, ok := a.afford("shift structure back", universe.MathematicalShiftCost); !ok {
+		return msg
+	}
 	cmd := &commands.StructureCommand{Universe: a.univ, Session: a.session, Back: true}
 	result, err := cmd.Execute()
 	if result == nil {
@@ -147,6 +188,9 @@ func (a *App) StructureBack() string {
 
 // Simulate enters the next nested simulation layer of the current location.
 func (a *App) Simulate() string {
+	if msg, ok := a.afford("enter a simulation", universe.SimulationEntryCost); !ok {
+		return msg
+	}
 	cmd := &commands.SimulateCommand{Universe: a.univ, Session: a.session}
 	result, err := cmd.Execute()
 	if result == nil {
@@ -158,6 +202,9 @@ func (a *App) Simulate() string {
 
 // SimulateBack exits one simulation layer toward base reality.
 func (a *App) SimulateBack() string {
+	if msg, ok := a.afford("exit the simulation", universe.SimulationExitCost); !ok {
+		return msg
+	}
 	cmd := &commands.SimulateCommand{Universe: a.univ, Session: a.session, Back: true}
 	result, err := cmd.Execute()
 	if result == nil {
@@ -169,6 +216,9 @@ func (a *App) SimulateBack() string {
 
 // Drift enters the next consensus divergence from the current location.
 func (a *App) Drift() string {
+	if msg, ok := a.afford("drift", universe.ConsensusShiftCost); !ok {
+		return msg
+	}
 	cmd := &commands.DriftCommand{Universe: a.univ, Session: a.session}
 	result, err := cmd.Execute()
 	if result == nil {
@@ -180,6 +230,9 @@ func (a *App) Drift() string {
 
 // Align returns the session one level toward shared consensus.
 func (a *App) Align() string {
+	if msg, ok := a.afford("align", universe.ConsensusShiftCost); !ok {
+		return msg
+	}
 	cmd := &commands.DriftCommand{Universe: a.univ, Session: a.session, Back: true}
 	result, err := cmd.Execute()
 	if result == nil {
@@ -191,6 +244,9 @@ func (a *App) Align() string {
 
 // Observe shifts the session to the given observer perspective.
 func (a *App) Observe(observer string) string {
+	if msg, ok := a.afford("change observer", universe.ObserverShiftCost); !ok {
+		return msg
+	}
 	cmd := &commands.ObserveCommand{Universe: a.univ, Session: a.session, Observer: observer}
 	result, err := cmd.Execute()
 	if result == nil {
@@ -202,6 +258,9 @@ func (a *App) Observe(observer string) string {
 
 // ObserveBack restores the previous observer perspective.
 func (a *App) ObserveBack() string {
+	if msg, ok := a.afford("restore observer", universe.ObserverShiftCost); !ok {
+		return msg
+	}
 	cmd := &commands.ObserveCommand{Universe: a.univ, Session: a.session, Back: true}
 	result, err := cmd.Execute()
 	if result == nil {
@@ -213,6 +272,9 @@ func (a *App) ObserveBack() string {
 
 // Time enters a temporal branch at the given RFC3339 timestamp.
 func (a *App) Time(target string) string {
+	if msg, ok := a.afford("time shift", universe.TimeShiftCost); !ok {
+		return msg
+	}
 	result, err := (&commands.TimeCommand{Universe: a.univ, Session: a.session, Target: target}).Execute()
 	if result == nil {
 		return fmt.Sprintf("Time shift failed: %v", err)
@@ -223,6 +285,9 @@ func (a *App) Time(target string) string {
 
 // TimeBack returns the session through the temporal branch.
 func (a *App) TimeBack() string {
+	if msg, ok := a.afford("time shift back", universe.TimeShiftCost); !ok {
+		return msg
+	}
 	result, err := (&commands.TimeCommand{Universe: a.univ, Session: a.session, Back: true}).Execute()
 	if result == nil {
 		return fmt.Sprintf("Cannot return through time: %v", err)
@@ -330,6 +395,7 @@ func (a *App) GoHome() string {
 
 // GoHomeConfirm executes the home journey produced by GoHome.
 func (a *App) GoHomeConfirm() string {
+	reached, won := a.session.ReachedTarget(), a.session.Won()
 	cmd := &commands.ReturnHomeCommand{
 		Universe:   a.univ,
 		Session:    a.session,
@@ -353,5 +419,5 @@ func (a *App) GoHomeConfirm() string {
 		}
 	}
 	return fmt.Sprintf("Heading home...\n\nSteps taken\n%s\n\nYou are home.\n\nCumulative journey cost\n%.0f",
-		strings.Join(lines, "\n"), a.session.CumulativeCost())
+		strings.Join(lines, "\n"), a.session.CumulativeCost()) + a.goalBanner(reached, won)
 }

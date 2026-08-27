@@ -192,3 +192,85 @@ func TestSimulationLevelAndNextID(t *testing.T) {
 		})
 	}
 }
+
+func TestBudget_UnlimitedByDefault(t *testing.T) {
+	e := exploration.NewEntity("home", defaultCoord())
+
+	assert.False(t, e.HasBudget())
+	assert.True(t, e.CanAfford(1_000_000), "no budget means every move is affordable")
+	assert.Equal(t, 0.0, e.RemainingBudget())
+}
+
+func TestBudget_TracksRemainingAndAffordability(t *testing.T) {
+	e := exploration.NewEntity("home", defaultCoord())
+	e.SetBudget(100)
+
+	assert.True(t, e.HasBudget())
+	assert.Equal(t, 100.0, e.RemainingBudget())
+	assert.True(t, e.CanAfford(100), "a move spending the whole budget is affordable")
+	assert.False(t, e.CanAfford(101), "a move exceeding the budget is not affordable")
+
+	e.MoveTo(universe.LocationEntity{ID: "a", Coordinate: defaultCoord()}, 60)
+	assert.Equal(t, 40.0, e.RemainingBudget())
+	assert.True(t, e.CanAfford(40))
+	assert.False(t, e.CanAfford(41))
+}
+
+// Returning home is always permitted even when it costs more than the budget
+// covers, so cumulative cost can exceed the budget. The remaining budget must
+// then report as empty (0) rather than a negative value.
+func TestBudget_RemainingClampsToZeroWhenOverspent(t *testing.T) {
+	e := exploration.NewEntity("home", defaultCoord())
+	e.SetBudget(10)
+
+	e.MoveTo(universe.LocationEntity{ID: "a", Coordinate: defaultCoord()}, 25)
+
+	assert.Equal(t, 0.0, e.RemainingBudget(), "remaining never goes negative")
+	assert.False(t, e.CanAfford(1), "an overspent budget cannot afford any further move")
+}
+
+func TestWinCondition_ReachTargetThenReturnHome(t *testing.T) {
+	target := defaultCoord()
+	target.Quantum = "Q2"
+
+	e := exploration.NewEntity("home", defaultCoord())
+	e.SetTarget(target)
+	assert.True(t, e.HasTarget())
+	assert.False(t, e.ReachedTarget(), "target set at home is not reached from the start")
+	assert.False(t, e.Won())
+
+	// Shift out to Q1 then Q2 (the target); reached but not yet won.
+	q1 := defaultCoord()
+	q1.Quantum = "Q1"
+	e.TransitionTo(universe.LocationEntity{ID: "home-q1", Coordinate: q1}, 20, universe.QuantumShift, false)
+	assert.False(t, e.ReachedTarget())
+
+	q2 := defaultCoord()
+	q2.Quantum = "Q2"
+	e.TransitionTo(universe.LocationEntity{ID: "home-q2", Coordinate: q2}, 20, universe.QuantumShift, false)
+	assert.True(t, e.ReachedTarget(), "arriving at the target coordinate marks it reached")
+	assert.False(t, e.Won(), "still away from home")
+
+	// Shift back down to Q1 then home; returning home after reaching wins.
+	e.TransitionTo(universe.LocationEntity{ID: "home-q1", Coordinate: q1}, 20, universe.QuantumShift, true)
+	assert.False(t, e.Won())
+	e.TransitionTo(universe.LocationEntity{ID: "home", Coordinate: defaultCoord()}, 20, universe.QuantumShift, true)
+	assert.True(t, e.Won(), "reached target and returned to the start location")
+}
+
+func TestWinCondition_ReturnHomeWithoutReachingDoesNotWin(t *testing.T) {
+	target := defaultCoord()
+	target.Quantum = "Q2"
+
+	e := exploration.NewEntity("home", defaultCoord())
+	e.SetTarget(target)
+
+	// Move to a station and back home without ever reaching the target.
+	stationCoord := defaultCoord()
+	stationCoord.Location = "Station"
+	e.MoveTo(universe.LocationEntity{ID: "station", Coordinate: stationCoord}, 1)
+	e.MoveTo(universe.LocationEntity{ID: "home", Coordinate: defaultCoord()}, 1)
+
+	assert.False(t, e.ReachedTarget())
+	assert.False(t, e.Won())
+}

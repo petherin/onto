@@ -28,6 +28,20 @@ type SessionSnapshot struct {
 	City             string
 	CumulativeCost   float64
 	History          []string
+
+	// Game state. HasBudget reports whether a finite spending pool is in force;
+	// when true, Budget is the pool and RemainingBudget is what is left.
+	// HasTarget reports whether an objective is set; when true, TargetAddress /
+	// TargetShortAddress locate it, ReachedTarget marks that it has been
+	// visited, and Won marks the objective complete (reached and back home).
+	HasBudget          bool
+	Budget             float64
+	RemainingBudget    float64
+	HasTarget          bool
+	TargetAddress      string
+	TargetShortAddress string
+	ReachedTarget      bool
+	Won                bool
 }
 
 // Snapshot returns a read-only view of the current session state.
@@ -49,6 +63,15 @@ func (a *App) Snapshot() SessionSnapshot {
 		City:             coord.City,
 		CumulativeCost:   a.session.CumulativeCost(),
 		History:          a.session.History(),
+
+		HasBudget:          a.session.HasBudget(),
+		Budget:             a.session.Budget(),
+		RemainingBudget:    a.session.RemainingBudget(),
+		HasTarget:          a.session.HasTarget(),
+		TargetAddress:      a.session.Target().OntoAddress(),
+		TargetShortAddress: a.session.Target().ShortOntoAddress(),
+		ReachedTarget:      a.session.ReachedTarget(),
+		Won:                a.session.Won(),
 	}
 }
 

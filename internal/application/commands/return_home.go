@@ -193,7 +193,7 @@ func (c *ReturnHomeCommand) unwindRecordedTransitions() ([]ReturnHomeStep, error
 	}
 
 	if c.Session.Location() != c.HomeID {
-		result, err := (&TravelCommand{Universe: c.Universe, Session: c.Session, Pathfinder: c.Pathfinder}).Execute(c.HomeID)
+		result, err := (&TravelCommand{Universe: c.Universe, Session: c.Session, Pathfinder: c.Pathfinder, IgnoreBudget: true}).Execute(c.HomeID)
 		if err != nil {
 			return steps, err
 		}

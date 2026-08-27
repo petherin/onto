@@ -10,6 +10,7 @@ Onto is an experimental CLI for navigating reality as a coordinate system.
 - [Core idea](#core-idea)
 - [Coordinate model](#coordinate-model)
 - [Example CLI experience](#example-cli-experience)
+- [Game mode](#game-mode)
 - [Current status](#current-status)
 - [Architecture](#architecture)
 - [Getting started](#getting-started)
@@ -368,6 +369,19 @@ help                   List all commands
 exit                   Leave the CLI
 ```
 
+## Game mode
+
+The explorer can run as a small game. When enabled (the default for both `cmd/cli` and `cmd/web`), two rules apply on top of ordinary navigation:
+
+- **Budget.** You start with a finite spending pool (`1000` by default). Every move spends its cost against the pool — physical travel costs the sum of its edges, and each contextual transition costs the amount shown in the [contextual transition reference](#contextual-transition-reference) (e.g. `shift` 20, `jump` 800). A move you cannot afford is **refused and spends nothing**, so the session is never left half-moved. The most expensive transitions (`universe`, `structure`) are out of reach on the starting budget, so the budget is felt.
+- **Objective.** You are given a target coordinate (by default the second quantum branch of home, `Q2`). The objective is to **reach the target and return home**. Reaching it announces "Objective reached — now return home to win"; getting home afterwards announces "You win!".
+
+`where` shows your **budget remaining** and **objective status** at every step, and the browser HUD shows a budget chip (red when depleted) and an objective badge (pending → reached → won).
+
+Returning home is **always allowed**, even when the walk home costs more than the budget covers — an over-budget return completes rather than stranding you, and the remaining budget simply reports as empty (`0`) rather than going negative.
+
+Game mode is off when no budget is set (a budget of `0` means unlimited spending and no objective), which is how the delivery-layer tests exercise navigation without the game rules.
+
 ## Current status
 
 The app is functional. It includes:
@@ -380,6 +394,7 @@ The app is functional. It includes:
 - `travel` rejects routes that cross any reality boundary — physical and contextual travel are kept separate
 - `home` command: shows the full plan and estimated cost to unwind every contextual axis (restore observer, align consensus, exit simulation, and reverse temporal, timeline, quantum, universe, and structure shifts), then travel back to the start location before asking for confirmation
 - cumulative journey cost tracked across the session and shown in `where` output and after every move
+- an optional [game mode](#game-mode) (on by default): a finite budget that refuses unaffordable moves, and a reach-the-target-and-return-home win condition, surfaced in `where` and the browser HUD
 - a full coordinate model covering mathematical structure, universe, timeline, quantum, simulation, consensus, physical location, observer, and time
 - location and edge data loaded from `data/locations.json`, with a built-in fallback map
 - `make validate-locations` checks saved location IDs, edge references, and physical reality boundaries before committing graph data
