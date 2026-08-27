@@ -110,3 +110,61 @@ func TestLoad_MergeCoordinate_PreservesExistingValues(t *testing.T) {
 	assert.Equal(t, "Mars", loc.Coordinate.Planet, "non-default planet must not be overwritten")
 	assert.Equal(t, "T3", loc.Coordinate.Timeline, "non-default timeline must not be overwritten")
 }
+
+// TestLoad_RepairsNonCanonicalIDs reproduces a save written by an older version
+// where a nearby location generated inside a universe branch got the corrupt ID
+// "park-u1-1" (a bare index after the -u1 axis suffix). On load the repository
+// must re-canonicalise it to "park-1-u1", remap every edge endpoint, and thereby
+// let universe back / return-home step down from it again.
+func TestLoad_RepairsNonCanonicalIDs(t *testing.T) {
+	origin := universe.DefaultCoordinateVO()
+	origin.Location = "Park"
+
+	u1 := origin
+	u1.Universe = "U1"
+
+	// park -> park-u1 (universe branch) -> park-u1-1 (corrupt nearby in-branch).
+	payload := struct {
+		Locations []universe.LocationEntity `json:"locations"`
+		Edges     []universe.EdgeVO         `json:"edges"`
+	}{
+		Locations: []universe.LocationEntity{
+			{ID: "park", Name: "Park", Coordinate: origin},
+			{ID: "park-u1", Name: "Park", Coordinate: u1},
+			{ID: "park-u1-1", Name: "Nearby 1", Coordinate: u1},
+		},
+		Edges: []universe.EdgeVO{
+			{From: "park", To: "park-u1", Mode: universe.UniverseShift, Cost: universe.UniverseShiftCost},
+			{From: "park-u1", To: "park", Mode: universe.UniverseShift, Cost: universe.UniverseShiftCost},
+			{From: "park-u1", To: "park-u1-1", Mode: universe.Walk, Cost: 1},
+			{From: "park-u1-1", To: "park-u1", Mode: universe.Walk, Cost: 1},
+		},
+	}
+	path := writeTempJSON(t, payload)
+
+	loaded, err := persistence.NewJSONRepository(path).Load()
+	require.NoError(t, err)
+
+	// The corrupt ID is gone; the canonical one is present.
+	_, okOld := loaded.GetLocation("park-u1-1")
+	assert.False(t, okOld, "corrupt ID must be renamed away")
+	repaired, okNew := loaded.GetLocation("park-1-u1")
+	require.True(t, okNew, "canonical ID must exist after repair")
+	assert.Equal(t, "U1", repaired.Coordinate.Universe)
+
+	// Edges were remapped onto the canonical ID.
+	edges := loaded.EdgesFrom("park-u1")
+	var found bool
+	for _, e := range edges {
+		if e.To == "park-1-u1" {
+			found = true
+		}
+		assert.NotEqual(t, "park-u1-1", e.To, "no edge may still point at the corrupt ID")
+	}
+	assert.True(t, found, "edge from park-u1 must now target park-1-u1")
+
+	// universe back now resolves from the repaired node instead of failing.
+	destID, err := universe.EnsureLowerContext(loaded, "park-1-u1", universe.UniverseShift)
+	require.NoError(t, err)
+	assert.Equal(t, "park-1", destID)
+}

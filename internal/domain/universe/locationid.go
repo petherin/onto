@@ -3,6 +3,7 @@ package universe
 import (
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 // axisSuffixes captures the reality-branch axes encoded in a location ID's
@@ -127,6 +128,99 @@ func buildLocationID(base string, ax axisSuffixes) string {
 func ParseLocationID(id string) (base string, mathematics, universeLvl, quantum, timeline, consensus, simulation int, time, observer string) {
 	b, ax := parseLocationID(id)
 	return b, ax.mathematics, ax.universe, ax.quantum, ax.timeline, ax.consensus, ax.simulation, ax.time, ax.observer
+}
+
+// CanonicalLocationID rebuilds id so its reality-axis suffixes are taken from
+// coord and appear in canonical order, while the physical anchor (the base
+// place name plus any numeric nearby indices) is preserved in its original
+// order. The ID's own time/observer tokens are kept verbatim, since those
+// axes are edge-defined rather than level-encoded.
+//
+// It repairs IDs whose axis suffixes drifted out of canonical position — most
+// importantly a nearby location generated inside a reality branch, where a bare
+// "-<index>" was appended after an axis suffix (e.g. "park-u1-1"), leaving the
+// ID's encoded axes disagreeing with its coordinate and breaking every *back /
+// return-home step. Such an ID is rebuilt to "park-1-u1". A healthy, already
+// canonical ID is returned unchanged, so callers can detect corruption simply
+// by comparing the result to the original.
+func CanonicalLocationID(id string, coord CoordinateVO) string {
+	_, idAx := parseLocationID(id)
+	ax := axisSuffixes{
+		mathematics: coord.MathematicsLevel(),
+		universe:    coord.UniverseLevel(),
+		quantum:     coord.QuantumLevel(),
+		timeline:    coord.TimelineLevel(),
+		consensus:   coord.Consensus,
+		simulation:  coord.Simulation,
+		time:        idAx.time,
+		observer:    idAx.observer,
+	}
+	return buildLocationID(physicalAnchor(id), ax)
+}
+
+// LocationIDIsMalformed reports whether id carries a reality-axis segment buried
+// where parseLocationID cannot strip it — the corruption class that breaks *back
+// navigation. It is true precisely when the physical anchor (axes removed from
+// anywhere) differs from the base parseLocationID recovers by stripping only
+// canonical trailing suffixes. A nearby location spawned inside a branch, whose
+// bare "-<index>" was appended after an axis suffix (e.g. "park-u1-1"), is
+// malformed: parse stops at the trailing "-1" leaving "-u1" stranded in the
+// base. An ID that merely omits axis suffixes it could carry (e.g. a hand-seeded
+// "base" whose coordinate is on Timeline T3) is NOT malformed, so load-time
+// repair leaves it untouched rather than renaming a legitimate place. An
+// order-shuffled but fully strippable ID (e.g. "home-q2-u1") is likewise not
+// malformed — parse recovers its axes regardless of order, so it navigates fine.
+func LocationIDIsMalformed(id string) bool {
+	base, _ := parseLocationID(id)
+	return physicalAnchor(id) != base
+}
+
+// physicalAnchor strips every reality-axis segment from id wherever it appears,
+// leaving only the base place name and any numeric nearby indices in their
+// original order. Unlike parseLocationID (which only strips canonical trailing
+// suffixes), this tolerates axis suffixes interleaved with nearby indices, so a
+// corrupt "park-u1-1" reduces to the anchor "park-1". An observer marker ("o")
+// and everything after it are dropped, since the observer token may itself
+// contain hyphens; a time marker ("at") drops the single token that follows.
+func physicalAnchor(id string) string {
+	parts := strings.Split(id, "-")
+	if len(parts) == 0 {
+		return id
+	}
+	anchor := []string{parts[0]}
+	for i := 1; i < len(parts); i++ {
+		seg := parts[i]
+		switch {
+		case seg == "o":
+			return strings.Join(anchor, "-")
+		case seg == "at":
+			i++ // skip the timestamp token that follows the marker
+		case isNumericAxisSegment(seg):
+			// drop a level-encoded axis suffix (m/u/q/t/c/s + digits)
+		default:
+			anchor = append(anchor, seg) // base word part or numeric nearby index
+		}
+	}
+	return strings.Join(anchor, "-")
+}
+
+// isNumericAxisSegment reports whether seg is a level-encoded axis suffix token
+// (one of the m/u/q/t/c/s axis letters followed by one or more digits).
+func isNumericAxisSegment(seg string) bool {
+	if len(seg) < 2 {
+		return false
+	}
+	switch seg[0] {
+	case 'm', 'u', 'q', 't', 'c', 's':
+	default:
+		return false
+	}
+	for _, r := range seg[1:] {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // CanonicalIDWithSimulation parses currentID, overrides its simulation axis,

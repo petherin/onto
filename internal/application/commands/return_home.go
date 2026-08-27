@@ -12,11 +12,10 @@ import (
 // ReturnHomeCommand coordinates the contextual returns and final physical trip
 // required to return a session to its start location.
 type ReturnHomeCommand struct {
-	Universe        *universe.Aggregate
-	Session         *exploration.Entity
-	Pathfinder      navigation.PathfinderService
-	HomeID          string
-	DefaultObserver string
+	Universe   *universe.Aggregate
+	Session    *exploration.Entity
+	Pathfinder navigation.PathfinderService
+	HomeID     string
 }
 
 // ReturnHomeStep is one planned or completed leg of a return-home journey.
@@ -27,162 +26,17 @@ type ReturnHomeStep struct {
 }
 
 // Plan returns the ordered return-home steps without mutating the session.
+// The session's recorded context stack is the single source of truth for what
+// must be unwound (empty stack ⇔ already at base reality, so the plan is just
+// the physical walk home).
 func (c *ReturnHomeCommand) Plan() ([]ReturnHomeStep, float64) {
-	if transitions := c.Session.ContextTransitions(); len(transitions) > 0 {
-		return c.planRecordedTransitions(transitions)
-	}
-	var steps []ReturnHomeStep
-	planned := c.Session.Location()
-	for {
-		current, ok := c.Universe.GetLocation(planned)
-		if !ok || current.Coordinate.Observer == c.DefaultObserver {
-			break
-		}
-		next, ok := c.observerReturn(planned)
-		if !ok {
-			return append(steps, ReturnHomeStep{Action: "observe back", Detail: "return path unavailable"}), 0
-		}
-		dest, _ := c.Universe.GetLocation(next)
-		steps = append(steps, ReturnHomeStep{Action: "observe back", Detail: fmt.Sprintf("%s → %s", current.Coordinate.Observer, dest.Coordinate.Observer), Cost: universe.ObserverShiftCost})
-		planned = next
-	}
-	for _, transition := range []struct {
-		mode   universe.TravelModeVO
-		action string
-		cost   float64
-		count  int
-	}{
-		{universe.ConsensusShift, "align", universe.ConsensusShiftCost, c.Session.ConsensusLevel()},
-		{universe.SimulationEntry, "simulate back", universe.SimulationExitCost, c.Session.SimulationLevel()},
-		{universe.TimelineShift, "jump back", universe.TimelineShiftCost, c.Session.TimelineLevel()},
-		{universe.QuantumShift, "shift back", universe.QuantumShiftCost, c.Session.QuantumLevel()},
-		{universe.UniverseShift, "universe back", universe.UniverseShiftCost, c.Session.UniverseLevel()},
-		{universe.MathematicalShift, "structure back", universe.MathematicalShiftCost, c.Session.MathematicsLevel()},
-	} {
-		for range transition.count {
-			current, _ := c.Universe.GetLocation(planned)
-			detail := ""
-			switch transition.mode {
-			case universe.ConsensusShift:
-				detail = fmt.Sprintf("consensus %d → %d", current.Coordinate.Consensus, current.Coordinate.Consensus-1)
-			case universe.SimulationEntry:
-				detail = fmt.Sprintf("simulation %d → %d", current.Coordinate.Simulation, current.Coordinate.Simulation-1)
-			case universe.TimelineShift:
-				detail = fmt.Sprintf("timeline %s → T%d", current.Coordinate.Timeline, current.Coordinate.TimelineLevel()-1)
-			case universe.QuantumShift:
-				detail = fmt.Sprintf("quantum %s → Q%d", current.Coordinate.Quantum, current.Coordinate.QuantumLevel()-1)
-			case universe.UniverseShift:
-				detail = fmt.Sprintf("universe %s → U%d", current.Coordinate.Universe, current.Coordinate.UniverseLevel()-1)
-			case universe.MathematicalShift:
-				detail = fmt.Sprintf("mathematics %s → M%d", current.Coordinate.Mathematics, current.Coordinate.MathematicsLevel()-1)
-			}
-			steps = append(steps, ReturnHomeStep{Action: transition.action, Detail: detail, Cost: transition.cost})
-			if next, ok := c.lowerContext(planned, transition.mode); ok {
-				planned = next
-			}
-		}
-	}
-	for {
-		current, ok := c.Universe.GetLocation(planned)
-		if !ok || current.Coordinate.Time.IsZero() {
-			break
-		}
-		next, ok := c.timeReturn(planned)
-		if !ok {
-			return append(steps, ReturnHomeStep{Action: "time back", Detail: "return path unavailable"}), 0
-		}
-		dest, _ := c.Universe.GetLocation(next)
-		steps = append(steps, ReturnHomeStep{Action: "time back", Detail: fmt.Sprintf("%s → %s", current.Coordinate.Time.Format("2006-01-02T15:04:05Z07:00"), dest.Coordinate.Time.Format("2006-01-02T15:04:05Z07:00")), Cost: universe.TimeShiftCost})
-		planned = next
-	}
-	if planned != c.HomeID {
-		if path, ok := c.Pathfinder.FindRoute(c.Universe, planned, c.HomeID); ok {
-			for _, edge := range path {
-				if !edge.Mode.IsPhysical() {
-					break
-				}
-				steps = append(steps, ReturnHomeStep{Action: "travel", Detail: fmt.Sprintf("%s -> %s", edge.From, edge.To), Cost: edge.Cost})
-			}
-		}
-	}
-	var cost float64
-	for _, step := range steps {
-		cost += step.Cost
-	}
-	return steps, cost
+	return c.planRecordedTransitions(c.Session.ContextTransitions())
 }
 
-// Execute applies the return-home workflow.
+// Execute applies the return-home workflow, unwinding the recorded context
+// stack (if any) and then walking the remaining physical route home.
 func (c *ReturnHomeCommand) Execute() ([]ReturnHomeStep, error) {
-	if len(c.Session.ContextTransitions()) > 0 {
-		return c.unwindRecordedTransitions()
-	}
-	var steps []ReturnHomeStep
-	for c.Session.Coordinate().Observer != c.DefaultObserver {
-		result, err := (&ObserveCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
-		if err != nil {
-			return steps, err
-		}
-
-		steps = append(steps, ReturnHomeStep{Action: "observe back", Detail: result.Observer, Cost: universe.ObserverShiftCost})
-	}
-	for c.Session.ConsensusLevel() > 0 {
-		result, err := (&DriftCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
-		if err != nil {
-			return steps, err
-		}
-		steps = append(steps, ReturnHomeStep{Action: "align", Detail: fmt.Sprintf("%d", result.Consensus), Cost: universe.ConsensusShiftCost})
-	}
-	for c.Session.SimulationLevel() > 0 {
-		result, err := (&SimulateCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
-		if err != nil {
-			return steps, err
-		}
-		steps = append(steps, ReturnHomeStep{Action: "simulate back", Detail: fmt.Sprintf("%d", result.Simulation), Cost: universe.SimulationExitCost})
-	}
-	for c.Session.TimelineLevel() > 0 {
-		result, err := (&JumpCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
-		if err != nil {
-			return steps, err
-		}
-		steps = append(steps, ReturnHomeStep{Action: "jump back", Detail: result.NextTimeline, Cost: universe.TimelineShiftCost})
-	}
-	for c.Session.QuantumLevel() > 0 {
-		result, err := (&ShiftCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
-		if err != nil {
-			return steps, err
-		}
-		steps = append(steps, ReturnHomeStep{Action: "shift back", Detail: result.NextQuantum, Cost: universe.QuantumShiftCost})
-	}
-	for c.Session.UniverseLevel() > 0 {
-		result, err := (&UniverseCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
-		if err != nil {
-			return steps, err
-		}
-		steps = append(steps, ReturnHomeStep{Action: "universe back", Detail: result.NextUniverse, Cost: universe.UniverseShiftCost})
-	}
-	for c.Session.MathematicsLevel() > 0 {
-		result, err := (&StructureCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
-		if err != nil {
-			return steps, err
-		}
-		steps = append(steps, ReturnHomeStep{Action: "structure back", Detail: result.NextMathematics, Cost: universe.MathematicalShiftCost})
-	}
-	for !c.Session.Coordinate().Time.IsZero() {
-		result, err := (&TimeCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
-		if err != nil {
-			return steps, err
-		}
-		steps = append(steps, ReturnHomeStep{Action: "time back", Detail: result.Time.Format("2006-01-02T15:04:05Z07:00"), Cost: universe.TimeShiftCost})
-	}
-	if c.Session.Location() != c.HomeID {
-		result, err := (&TravelCommand{Universe: c.Universe, Session: c.Session, Pathfinder: c.Pathfinder}).Execute(c.HomeID)
-		if err != nil {
-			return steps, err
-		}
-		steps = append(steps, ReturnHomeStep{Action: "travel", Detail: result.Location.Name})
-	}
-	return steps, nil
+	return c.unwindRecordedTransitions()
 }
 
 func (c *ReturnHomeCommand) planRecordedTransitions(transitions []exploration.ContextTransition) ([]ReturnHomeStep, float64) {
@@ -204,8 +58,17 @@ func (c *ReturnHomeCommand) planRecordedTransitions(transitions []exploration.Co
 		fromCoord := plannedCoord
 		toCoord, ok := universe.LowerContextCoordinate(fromCoord, mode)
 		if !ok {
-			// Observer/time and unknown modes: fall back to edge lookup only.
-			if id, found := c.returnDestination(plannedID, mode); found {
+			// Observer/time and unknown modes: the return is edge-defined. Prefer
+			// an existing return edge; otherwise self-heal the enclosing
+			// counterpart from the recorded origin (the same repair Execute does)
+			// so the plan matches a trip that will actually succeed.
+			id, found := c.returnDestination(plannedID, mode)
+			if !found {
+				if healed, err := universe.EnsureContextualReturn(c.Universe, plannedID, transitions[i].OriginID, mode); err == nil {
+					id, found = healed, true
+				}
+			}
+			if found {
 				origin, _ := c.Universe.GetLocation(id)
 				steps = append(steps, ReturnHomeStep{
 					Action: returnAction(mode),
@@ -311,6 +174,18 @@ func (c *ReturnHomeCommand) unwindRecordedTransitions() ([]ReturnHomeStep, error
 		mode := transition.Mode
 		current, _ := c.Universe.GetLocation(c.Session.Location())
 		origin, _ := c.Universe.GetLocation(transition.OriginID)
+		// Observer/time returns are edge-defined and cannot self-heal by ID
+		// arithmetic the way the numeric axes do inside EnsureLowerContext. A
+		// node spawned inside such a branch (e.g. a nearby dead-end) has no
+		// return edge, so reconstruct the enclosing counterpart from the
+		// recorded origin before unwinding.
+		if mode == universe.ObserverShift || mode == universe.TimeShift {
+			if _, found := c.returnDestination(c.Session.Location(), mode); !found {
+				if _, err := universe.EnsureContextualReturn(c.Universe, c.Session.Location(), transition.OriginID, mode); err != nil {
+					return steps, err
+				}
+			}
+		}
 		if err := c.unwind(mode); err != nil {
 			return steps, err
 		}
@@ -350,26 +225,10 @@ func returnDetail(mode universe.TravelModeVO, current, origin universe.LocationE
 	return ""
 }
 
+// planDetail formats a from → to label for a step from current down to origin.
+// It is the entity-typed convenience wrapper over planDetailCoords.
 func planDetail(mode universe.TravelModeVO, current, origin universe.LocationEntity) string {
-	switch mode {
-	case universe.ObserverShift:
-		return fmt.Sprintf("%s → %s", current.Coordinate.Observer, origin.Coordinate.Observer)
-	case universe.ConsensusShift:
-		return fmt.Sprintf("consensus %d → %d", current.Coordinate.Consensus, origin.Coordinate.Consensus)
-	case universe.SimulationEntry:
-		return fmt.Sprintf("simulation %d → %d", current.Coordinate.Simulation, origin.Coordinate.Simulation)
-	case universe.TimelineShift:
-		return fmt.Sprintf("timeline %s → %s", current.Coordinate.Timeline, origin.Coordinate.Timeline)
-	case universe.QuantumShift:
-		return fmt.Sprintf("quantum %s → %s", current.Coordinate.Quantum, origin.Coordinate.Quantum)
-	case universe.UniverseShift:
-		return fmt.Sprintf("universe %s → %s", current.Coordinate.Universe, origin.Coordinate.Universe)
-	case universe.MathematicalShift:
-		return fmt.Sprintf("mathematics %s → %s", current.Coordinate.Mathematics, origin.Coordinate.Mathematics)
-	case universe.TimeShift:
-		return fmt.Sprintf("%s → %s", current.Coordinate.Time.Format("2006-01-02T15:04:05Z07:00"), origin.Coordinate.Time.Format("2006-01-02T15:04:05Z07:00"))
-	}
-	return ""
+	return planDetailCoords(mode, current.Coordinate, origin.Coordinate)
 }
 
 func (c *ReturnHomeCommand) unwind(mode universe.TravelModeVO) error {

@@ -40,9 +40,13 @@ func (r *JSONRepository) Load() (*universe.Aggregate, error) {
 	}
 
 	defaults := universe.DefaultCoordinateVO()
-	u := universe.NewAggregate()
 	for i := range s.Locations {
 		s.Locations[i].Coordinate = mergeCoordinate(s.Locations[i].Coordinate, defaults)
+	}
+	canonicalizeIDs(&s)
+
+	u := universe.NewAggregate()
+	for i := range s.Locations {
 		if err := u.AddLocation(s.Locations[i]); err != nil {
 			return nil, fmt.Errorf("load location %q: %w", s.Locations[i].ID, err)
 		}
@@ -53,6 +57,58 @@ func (r *JSONRepository) Load() (*universe.Aggregate, error) {
 		}
 	}
 	return u, nil
+}
+
+// canonicalizeIDs repairs location IDs written by older versions whose
+// reality-axis suffixes drifted out of canonical position — most importantly
+// nearby locations generated inside a reality branch (e.g. "park-u1-1" instead
+// of "park-1-u1"), whose malformed IDs broke universe/quantum/etc. "back" and
+// return-home navigation. It rewrites each non-conforming location ID and remaps
+// every edge endpoint, then drops any edges that become duplicates once their
+// endpoints collapse onto the same canonical IDs. Renames that would collide
+// with an existing (or already-claimed) ID are skipped, leaving that node as-is
+// rather than risk merging two distinct places.
+func canonicalizeIDs(s *serialized) {
+	claimed := make(map[string]bool, len(s.Locations))
+	for _, l := range s.Locations {
+		claimed[l.ID] = true
+	}
+
+	rename := make(map[string]string)
+	for i := range s.Locations {
+		id := s.Locations[i].ID
+		if !universe.LocationIDIsMalformed(id) {
+			continue
+		}
+		canon := universe.CanonicalLocationID(id, s.Locations[i].Coordinate)
+		if canon == id || claimed[canon] {
+			continue
+		}
+		rename[id] = canon
+		claimed[canon] = true
+		s.Locations[i].ID = canon
+	}
+	if len(rename) == 0 {
+		return
+	}
+
+	seen := make(map[string]bool, len(s.Edges))
+	out := s.Edges[:0]
+	for _, e := range s.Edges {
+		if nid, ok := rename[e.From]; ok {
+			e.From = nid
+		}
+		if nid, ok := rename[e.To]; ok {
+			e.To = nid
+		}
+		key := e.From + "\x00" + e.To + "\x00" + string(e.Mode)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, e)
+	}
+	s.Edges = out
 }
 
 // mergeCoordinate fills any empty string fields in c with the corresponding

@@ -40,6 +40,17 @@ func NewEntity(location string, coord universe.CoordinateVO) *Entity {
 	}
 }
 
+// Clone returns a deep copy of the entity so callers can branch exploration
+// from a given position without mutating the original session's location,
+// history, or context stack. The travel history and context stack slices are
+// copied rather than shared so later moves on either copy stay independent.
+func (s *Entity) Clone() *Entity {
+	cp := *s
+	cp.travelHistory = append([]string(nil), s.travelHistory...)
+	cp.contextStack = append([]ContextTransition(nil), s.contextStack...)
+	return &cp
+}
+
 // Location returns the ID of the current location.
 func (s *Entity) Location() string { return s.currentLocation }
 

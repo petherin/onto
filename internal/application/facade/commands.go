@@ -6,7 +6,6 @@ import (
 
 	"github.com/petherin/onto/internal/application/commands"
 	"github.com/petherin/onto/internal/application/queries"
-	"github.com/petherin/onto/internal/domain/universe"
 )
 
 // Travel attempts physical movement to target.
@@ -298,11 +297,10 @@ func NeedsHomeConfirm(plan string) bool {
 // GoHome builds the route plan for returning home (no movement occurs).
 func (a *App) GoHome() string {
 	cmd := &commands.ReturnHomeCommand{
-		Universe:        a.univ,
-		Session:         a.session,
-		Pathfinder:      a.pathfinder,
-		HomeID:          a.homeID,
-		DefaultObserver: universe.DefaultCoordinateVO().Observer,
+		Universe:   a.univ,
+		Session:    a.session,
+		Pathfinder: a.pathfinder,
+		HomeID:     a.homeID,
 	}
 	steps, cost := cmd.Plan()
 	if len(steps) == 0 {
@@ -333,11 +331,10 @@ func (a *App) GoHome() string {
 // GoHomeConfirm executes the home journey produced by GoHome.
 func (a *App) GoHomeConfirm() string {
 	cmd := &commands.ReturnHomeCommand{
-		Universe:        a.univ,
-		Session:         a.session,
-		Pathfinder:      a.pathfinder,
-		HomeID:          a.homeID,
-		DefaultObserver: universe.DefaultCoordinateVO().Observer,
+		Universe:   a.univ,
+		Session:    a.session,
+		Pathfinder: a.pathfinder,
+		HomeID:     a.homeID,
 	}
 	steps, err := cmd.Execute()
 	if err != nil {

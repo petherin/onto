@@ -43,8 +43,15 @@ func NewNearbyLocation(u *Aggregate, originID string, coordinate CoordinateVO) (
 	if _, exists := u.GetLocation(originID); !exists {
 		return LocationEntity{}, EdgeVO{}, EdgeVO{}, fmt.Errorf("%w: %s", ErrUnknownEdgeEndpoint, originID)
 	}
+	// Number the nearby index onto the origin's stable base and reassemble
+	// canonically, so a location spawned inside a reality branch keeps its
+	// axis suffixes in canonical order (e.g. "park-1-u1", not "park-u1-1").
+	// A bare "-i" appended after an axis suffix would make the ID's encoded
+	// axes disagree with its coordinate, breaking LowerContextID and hence
+	// every *back / return-home step for that axis.
+	base, ax := parseLocationID(originID)
 	for i := 1; i < 1000; i++ {
-		id := fmt.Sprintf("%s-%d", originID, i)
+		id := buildLocationID(fmt.Sprintf("%s-%d", base, i), ax)
 		if _, exists := u.GetLocation(id); exists {
 			continue
 		}

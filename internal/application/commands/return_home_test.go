@@ -142,16 +142,109 @@ func TestReturnHomeExecute_AfterOutOfOrderBack_NoStaleTransitions(t *testing.T) 
 
 	// ReturnHome must not attempt to unwind anything and must not error.
 	cmd := &commands.ReturnHomeCommand{
-		Universe:        u,
-		Session:         sess,
-		Pathfinder:      navigation.NewBFSPathfinder(),
-		HomeID:          "home",
-		DefaultObserver: universe.DefaultCoordinateVO().Observer,
+		Universe:   u,
+		Session:    sess,
+		Pathfinder: navigation.NewBFSPathfinder(),
+		HomeID:     "home",
 	}
 	steps, err := cmd.Execute()
 	require.NoError(t, err)
 	require.Empty(t, steps)
 	require.Equal(t, "home", sess.Location())
+}
+
+// expandNearbyAndTravel generates the next nearby location off originID, commits
+// it and its bidirectional edges, then walks the session there via TravelCommand
+// — mirroring what the facade does when a user travels past the edge of a
+// branch's graph. It returns the new location's ID.
+func expandNearbyAndTravel(t *testing.T, u *universe.Aggregate, sess *exploration.Entity, pf navigation.PathfinderService, originID string) string {
+	t.Helper()
+	origin, ok := u.GetLocation(originID)
+	require.True(t, ok)
+	loc, out, back, err := universe.NewNearbyLocation(u, originID, origin.Coordinate)
+	require.NoError(t, err)
+	require.NoError(t, u.AddLocation(loc))
+	require.NoError(t, u.AddEdge(out))
+	require.NoError(t, u.AddEdge(back))
+	_, err = (&commands.TravelCommand{Universe: u, Session: sess, Pathfinder: pf}).Execute(loc.ID)
+	require.NoError(t, err)
+	return loc.ID
+}
+
+// TestReturnHomeExecute_NearbyInsideBranch_TravelsHome reproduces the reported
+// "no route: home" failure end-to-end through the commands. A user shifts into
+// universe U1 and then expands dead ends *inside* U1 — nearby nodes that have no
+// counterpart in the Origin reality. On return-home, unwinding the universe used
+// to land the session on an isolated Origin counterpart, so the final walk home
+// failed. The fix mirrors the branch node's physical edges down, so ReturnHome
+// completes and the session ends at home.
+func TestReturnHomeExecute_NearbyInsideBranch_TravelsHome(t *testing.T) {
+	u := mocks.NewTestUniverse()
+	loc, _ := u.GetLocation("home")
+	sess := exploration.NewEntity("home", loc.Coordinate)
+	pf := navigation.NewBFSPathfinder()
+
+	// Enter U1 (records a universe transition and clones the physical graph).
+	_, err := (&commands.UniverseCommand{Universe: u, Session: sess}).Execute()
+	require.NoError(t, err)
+	require.Equal(t, "home-u1", sess.Location())
+
+	// Expand two dead ends while inside U1 and walk into them.
+	firstID := expandNearbyAndTravel(t, u, sess, pf, sess.Location())
+	secondID := expandNearbyAndTravel(t, u, sess, pf, firstID)
+	require.Equal(t, "home-1-u1", firstID)
+	require.Equal(t, "home-1-1-u1", secondID)
+	require.Equal(t, "home-1-1-u1", sess.Location())
+
+	cmd := &commands.ReturnHomeCommand{
+		Universe:   u,
+		Session:    sess,
+		Pathfinder: pf,
+		HomeID:     "home",
+	}
+	steps, err := cmd.Execute()
+	require.NoError(t, err)
+	require.NotEmpty(t, steps)
+	require.Equal(t, "home", sess.Location())
+	require.Equal(t, 0, sess.UniverseLevel())
+	require.Empty(t, sess.ContextTransitions())
+}
+
+// TestReturnHomeExecute_NearbyInsideObserverBranch_TravelsHome is the
+// observer-axis analogue of the universe case above, and the concrete bug the
+// depth-5 model test first surfaced. A nearby dead-end spawned inside an
+// observer branch (home-1-o-cat) has only physical edges — no observer-return
+// edge — and observer returns are edge-defined, so they cannot self-heal by ID
+// arithmetic like the numeric axes. Return-home used to fail with "no observer
+// path back from here"; the fix reconstructs the enclosing counterpart from the
+// recorded transition origin, so ReturnHome now completes back to home.
+func TestReturnHomeExecute_NearbyInsideObserverBranch_TravelsHome(t *testing.T) {
+	u := mocks.NewTestUniverse()
+	loc, _ := u.GetLocation("home")
+	sess := exploration.NewEntity("home", loc.Coordinate)
+	pf := navigation.NewBFSPathfinder()
+
+	// Enter an observer branch, then expand a dead end inside it and walk there.
+	_, err := (&commands.ObserveCommand{Universe: u, Session: sess, Observer: "Cat"}).Execute()
+	require.NoError(t, err)
+	require.Equal(t, "home-o-cat", sess.Location())
+
+	nearbyID := expandNearbyAndTravel(t, u, sess, pf, sess.Location())
+	require.Equal(t, "home-1-o-cat", nearbyID)
+	require.Equal(t, "home-1-o-cat", sess.Location())
+
+	cmd := &commands.ReturnHomeCommand{
+		Universe:   u,
+		Session:    sess,
+		Pathfinder: pf,
+		HomeID:     "home",
+	}
+	steps, err := cmd.Execute()
+	require.NoError(t, err)
+	require.NotEmpty(t, steps)
+	require.Equal(t, "home", sess.Location())
+	require.Equal(t, universe.DefaultCoordinateVO().Observer, sess.Coordinate().Observer)
+	require.Empty(t, sess.ContextTransitions())
 }
 
 func TestReturnHomeExecute_CreatesMissingReversePath(t *testing.T) {

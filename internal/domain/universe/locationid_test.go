@@ -130,3 +130,63 @@ func TestParseLocationID_NearbyIDPreservedAsOpaqueBase(t *testing.T) {
 		t.Fatalf("expected home-1-q1, got %q", branched)
 	}
 }
+
+func TestCanonicalLocationID(t *testing.T) {
+	u1 := DefaultCoordinateVO()
+	u1.Universe = "U1"
+
+	u1q2 := DefaultCoordinateVO()
+	u1q2.Universe = "U1"
+	u1q2.Quantum = "Q2"
+
+	withTime := DefaultCoordinateVO()
+	withTime.Universe = "U1"
+
+	withObserver := DefaultCoordinateVO()
+	withObserver.Quantum = "Q1"
+
+	cases := []struct {
+		name  string
+		id    string
+		coord CoordinateVO
+		want  string
+	}{
+		{"base id untouched", "home", DefaultCoordinateVO(), "home"},
+		{"healthy canonical untouched", "park-1-u1", u1, "park-1-u1"},
+		{"healthy hyphenated base untouched", "city-centre-q1", withObserver, "city-centre-q1"},
+		{"buried nearby index repaired", "park-u1-1", u1, "park-1-u1"},
+		{"deeply buried nearby index repaired", "park-1-1-u1-1", u1, "park-1-1-1-u1"},
+		{"multi-axis buried index repaired", "park-u1-1-q2", u1q2, "park-1-u1-q2"},
+		{"order shuffle normalised", "home-q2-u1", u1q2, "home-u1-q2"},
+		{"time token preserved", "park-u1-1-at-20250101t000000z", withTime, "park-1-u1-at-20250101t000000z"},
+		{"observer token preserved", "park-1-q1-o-mirror", withObserver, "park-1-q1-o-mirror"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := CanonicalLocationID(tc.id, tc.coord); got != tc.want {
+				t.Fatalf("CanonicalLocationID(%q) = %q, want %q", tc.id, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLocationIDIsMalformed(t *testing.T) {
+	cases := []struct {
+		id   string
+		want bool
+	}{
+		{"home", false},         // plain base
+		{"park-1", false},       // nearby index, no axis
+		{"park-1-u1", false},    // healthy canonical
+		{"home-q2-u1", false},   // order-shuffled but fully strippable
+		{"base", false},         // omits axes it could carry — not corruption
+		{"park-u1-1", true},     // index buried after axis suffix
+		{"park-1-1-u1-1", true}, // deeply buried index
+		{"park-u1-1-q2", true},  // buried index amid multiple axes
+	}
+	for _, tc := range cases {
+		if got := LocationIDIsMalformed(tc.id); got != tc.want {
+			t.Errorf("LocationIDIsMalformed(%q) = %v, want %v", tc.id, got, tc.want)
+		}
+	}
+}
