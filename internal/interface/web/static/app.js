@@ -9,6 +9,7 @@ import {
   modeStyle,
   TRANSITION_LEGEND,
   detectTransition,
+  requiredTransition,
   effectSpec,
   colorFor,
   layerZ,
@@ -36,6 +37,9 @@ const logEl = document.getElementById("log");
 const promptEl = document.getElementById("prompt");
 const cmdInput = document.getElementById("cmd");
 const confirmEl = document.getElementById("confirm");
+const inspectorEl = document.getElementById("inspector");
+const trailEl = document.getElementById("trail");
+const saveBtn = document.getElementById("save-btn");
 
 let state = null;
 let edges = [];
@@ -61,6 +65,9 @@ function setDefaultView() {
   view.ox = 0; view.oy = 0; view.scale = 1;
 }
 let logCount = 0;
+// Mirrors stateDTO.Dirty: true when the session has unsaved mutations. Drives
+// the save-button indicator and the beforeunload guard.
+let dirty = false;
 
 async function api(path, body) {
   const opts = body
@@ -90,6 +97,9 @@ function apply(s) {
   renderHUD(s.session);
   renderLook(s);
   renderLog(s);
+  renderInspector();
+  renderTrail(s);
+  renderDirty(s);
   // Bottom-right prompt shows the current node's name (a short, shell-like
   // cue); the full onto:// address lives in the loc badge in the header.
   // Hovering the prompt still reveals the address.
@@ -147,6 +157,7 @@ function syncNodes(graph) {
         quantum: n.Quantum,
         depth: n.Depth || 0,
         reachable: n.Reachable,
+        info: nodeInfo(n),
         tx: target.x,
         ty: target.y,
         x: target.x + (Math.random() - 0.5) * 8,
@@ -161,6 +172,7 @@ function syncNodes(graph) {
       node.quantum = n.Quantum;
       node.depth = n.Depth || 0;
       node.reachable = n.Reachable;
+      node.info = nodeInfo(n);
       node.tx = target.x;
       node.ty = target.y;
     }
@@ -217,6 +229,89 @@ function renderLog(s) {
     logEl.scrollTop = logEl.scrollHeight;
     if (++logCount > 40) logEl.removeChild(logEl.firstChild);
   }
+}
+
+// nodeInfo distils a NodeSnapshot into the fields the inspector reads: display
+// name, description, canonical onto:// address, reachability, and the reality
+// axes requiredTransition() diffs against the session. Stored on each node in
+// syncNodes so the inspector needs no second graph lookup.
+function nodeInfo(n) {
+  return {
+    id: n.ID,
+    name: n.Name || n.ID,
+    description: n.Description || "",
+    address: n.OntoAddress || "",
+    reachable: !!n.Reachable,
+    Mathematics: n.Mathematics,
+    Universe: n.Universe,
+    Timeline: n.Timeline,
+    Quantum: n.Quantum,
+    Simulation: n.Simulation,
+    Consensus: n.Consensus,
+    Observer: n.Observer,
+  };
+}
+
+// renderInspector fills the side-panel inspector with the hovered node's
+// details, falling back to the current location when nothing is hovered. The
+// footer answers "how do I get there?": you-are-here, click-to-travel for a
+// reachable same-reality node, a command chip when a reality transition is
+// required (requiredTransition), or no-route when it's otherwise unreachable.
+function renderInspector() {
+  if (!inspectorEl) return;
+  const sess = state && state.session;
+  const curId = sess && sess.Location;
+  const targetId = hoveredId || curId;
+  const node = targetId ? nodes.get(targetId) : null;
+  const info = node && node.info;
+  if (!info) { inspectorEl.innerHTML = ""; return; }
+  let status;
+  if (info.id === curId) {
+    status = '<span class="insp-status here">you are here</span>';
+  } else if (info.reachable) {
+    status = '<span class="insp-status go">click to travel</span>';
+  } else {
+    const t = requiredTransition(sess, info);
+    if (t) {
+      const st = modeStyle(t.mode);
+      status =
+        '<span class="insp-status">needs</span>' +
+        `<span class="cmd-chip" style="border-color:rgba(${st.rgb},0.5);color:rgb(${st.rgb})">${escapeHtml(t.command)}</span>` +
+        `<span class="insp-status dim">to reach this ${escapeHtml(t.label)}</span>`;
+    } else {
+      status = '<span class="insp-status blocked">no route from here</span>';
+    }
+  }
+  const desc = info.description ? `<div class="insp-desc">${escapeHtml(info.description)}</div>` : "";
+  const addr = info.address ? `<div class="insp-addr" title="onto address">${escapeHtml(info.address)}</div>` : "";
+  inspectorEl.innerHTML =
+    `<div class="insp-title">${escapeHtml(info.name)}</div>` + desc + addr +
+    `<div class="insp-foot">${status}</div>`;
+}
+
+// renderTrail renders the session's journey history (SessionSnapshot.History)
+// as an ordered list, newest last. It re-renders only when the history changes
+// (length + last entry) so it doesn't churn on every unrelated state refresh.
+function renderTrail(s) {
+  if (!trailEl) return;
+  const hist = (s.session && s.session.History) || [];
+  const sig = hist.length + "|" + (hist[hist.length - 1] || "");
+  if (sig === trailEl.dataset.sig) return;
+  trailEl.dataset.sig = sig;
+  if (!hist.length) { trailEl.innerHTML = ""; return; }
+  const items = hist.map((h) => `<li>${escapeHtml(h)}</li>`).join("");
+  const label = hist.length === 1 ? "move" : "moves";
+  trailEl.innerHTML =
+    `<div class="trail-title">journey · ${hist.length} ${label}</div>` +
+    `<ol class="trail-list">${items}</ol>`;
+}
+
+// renderDirty mirrors stateDTO.Dirty onto the save button (a dot appears when
+// there are unsaved mutations) and keeps the module `dirty` flag the
+// beforeunload guard reads in sync.
+function renderDirty(s) {
+  dirty = !!(s && s.dirty);
+  if (saveBtn) saveBtn.classList.toggle("dirty", dirty);
 }
 
 // ── Force-directed layout ──────────────────────────────────────────────────
@@ -582,12 +677,18 @@ canvas.addEventListener("mousedown", (e) => {
 // "travel here" ones), the default cursor otherwise. Skipped while dragging so
 // panning/rotating keeps its own cursor.
 canvas.addEventListener("mousemove", (e) => {
-  if (dragging) { hoveredId = null; return; }
+  if (dragging) {
+    if (hoveredId !== null) { hoveredId = null; renderInspector(); }
+    return;
+  }
   const hit = nodeAt(e.offsetX, e.offsetY);
-  hoveredId = hit ? hit.id : null;
+  const id = hit ? hit.id : null;
+  if (id !== hoveredId) { hoveredId = id; renderInspector(); }
   canvas.style.cursor = hit && hit.reachable ? "pointer" : "default";
 });
-canvas.addEventListener("mouseleave", () => { hoveredId = null; });
+canvas.addEventListener("mouseleave", () => {
+  if (hoveredId !== null) { hoveredId = null; renderInspector(); }
+});
 window.addEventListener("mousemove", (e) => {
   if (!dragging) return;
   if (dragging.rotate) {
@@ -606,6 +707,13 @@ window.addEventListener("mousemove", (e) => {
   }
 });
 window.addEventListener("mouseup", () => { dragging = null; });
+// Warn before leaving with unsaved mutations, so a branch-heavy session isn't
+// lost to an accidental navigation. Armed only while the server reports dirty.
+window.addEventListener("beforeunload", (e) => {
+  if (!dirty) return;
+  e.preventDefault();
+  e.returnValue = "";
+});
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
   const step = e.deltaY < 0 ? 1.1 : 0.9;
@@ -720,9 +828,9 @@ window.addEventListener("keydown", (e) => {
   if (!el) return;
   el.innerHTML =
     '<span class="legend-title">transitions</span>' +
-    TRANSITION_LEGEND.map(([mode, label]) => {
+    TRANSITION_LEGEND.map(({ mode, label, command }) => {
       const st = modeStyle(mode);
-      return `<span class="legend-item"><i class="line" style="background:rgb(${st.rgb})"></i>${label}</span>`;
+      return `<span class="legend-item"><i class="line" style="background:rgb(${st.rgb})"></i>${escapeHtml(label)}<span class="legend-cmd">${escapeHtml(command)}</span></span>`;
     }).join("");
 })();
 

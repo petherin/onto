@@ -103,37 +103,58 @@ export function spawnHalo(elapsed, duration = SPAWN_HALO_MS) {
   return { t, alpha: (1 - t) * SPAWN_HALO_ALPHA, grow: 4 + t * SPAWN_HALO_GROW };
 }
 
-// Reality-transition legend: [mode, label] for the top-right key. Physical modes
-// are intentionally omitted — every solid-blue edge is ordinary travel.
-export const TRANSITION_LEGEND = [
-  ["quantum", "quantum · shift"],
-  ["timeline", "timeline · jump"],
-  ["universe", "universe"],
-  ["simulation", "simulation"],
-  ["consensus", "consensus · drift"],
-  ["observer", "observer"],
-  ["time", "time"],
-  ["math", "structure"],
+// TRANSITIONS is the single source of truth for reality transitions: each entry
+// ties a coordinate axis to its edge/effect `mode`, a human `label`, and the
+// `command` that traverses it. The legend, the axis-diff detector, and the
+// "how to reach" hint all derive from this one list, so they can never drift
+// apart. Order is most-exotic-first — the priority the detector and the hint
+// resolve ties in. Physical (same-reality) travel is not a transition and is
+// intentionally absent.
+export const TRANSITIONS = [
+  { mode: "universe",   axis: "Universe",    label: "universe",   command: "universe" },
+  { mode: "timeline",   axis: "Timeline",    label: "timeline",   command: "jump" },
+  { mode: "quantum",    axis: "Quantum",     label: "quantum",    command: "shift" },
+  { mode: "math",       axis: "Mathematics", label: "structure",  command: "structure" },
+  { mode: "simulation", axis: "Simulation",  label: "simulation", command: "simulate" },
+  { mode: "consensus",  axis: "Consensus",   label: "consensus",  command: "drift" },
+  { mode: "observer",   axis: "Observer",    label: "observer",   command: "observe" },
+  { mode: "time",       axis: "Time",        label: "time",       command: "time" },
 ];
 
-// A transition is detected by diffing a reality axis between snapshots, so the
+// Reality-transition legend for the top-right key, derived from TRANSITIONS so
+// every row consistently carries its mode, label, and traversal command.
+export const TRANSITION_LEGEND = TRANSITIONS.map((t) => ({
+  mode: t.mode,
+  label: t.label,
+  command: t.command,
+}));
+
+// [axis, mode] pairs for detectTransition, derived from TRANSITIONS. A
+// transition is detected by diffing a reality axis between snapshots, so the
 // ripple fires on the actual state change (button or typed command) and never
 // on a failed command or on plain physical travel. Checked most-exotic-first.
-export const AXIS_MODE = [
-  ["Universe", "universe"],
-  ["Timeline", "timeline"],
-  ["Quantum", "quantum"],
-  ["Mathematics", "math"],
-  ["Simulation", "simulation"],
-  ["Consensus", "consensus"],
-  ["Observer", "observer"],
-  ["Time", "time"],
-];
+export const AXIS_MODE = TRANSITIONS.map((t) => [t.axis, t.mode]);
 
 export function detectTransition(prev, next) {
   if (!prev || !next) return null;
   for (const [axis, mode] of AXIS_MODE) {
     if (String(prev[axis]) !== String(next[axis])) return mode;
+  }
+  return null;
+}
+
+// requiredTransition reports which reality transition would move `session`'s
+// reality to match a target `node`'s — the first axis that differs, checked
+// most-exotic-first. Axes the node doesn't carry (e.g. a NodeSnapshot has no
+// Time) are skipped, so they never register as a spurious difference. Returns
+// the matching TRANSITIONS entry, or null when the realities already match
+// (the node is in the same reality, reachable by ordinary travel).
+export function requiredTransition(session, node) {
+  if (!session || !node) return null;
+  for (const t of TRANSITIONS) {
+    const want = node[t.axis];
+    if (want === undefined || want === null || want === "") continue;
+    if (String(session[t.axis]) !== String(want)) return t;
   }
   return null;
 }

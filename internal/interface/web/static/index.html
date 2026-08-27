@@ -61,7 +61,7 @@
         </div>
         <div class="control-group journey-group" data-label="journey">
           <button data-cmd="home">home</button>
-          <button data-cmd="save" class="save">save</button>
+          <button data-cmd="save" id="save-btn" class="save">save<span class="save-dot"></span></button>
           <button id="reset-map" class="reset-map" title="Remove every explored reality and return to the starting map">reset map ⌫</button>
         </div>
         <div class="control-group" data-label="view">
@@ -86,6 +86,8 @@
         </div>
       </div>
 
+      <div id="inspector" class="inspector"></div>
+      <div id="trail" class="trail"></div>
       <div id="log" class="log"></div>
 
       <div id="confirm" class="confirm hidden">

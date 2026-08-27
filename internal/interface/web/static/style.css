@@ -114,7 +114,7 @@ main { display: flex; height: calc(100% - 53px); }
   right: 16px;
   top: 16px;
   bottom: auto;
-  max-width: 200px;
+  max-width: 240px;
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
@@ -122,6 +122,9 @@ main { display: flex; height: calc(100% - 53px); }
 }
 .legend-title { text-transform: uppercase; letter-spacing: 1px; font-size: 10px; opacity: 0.75; }
 .legend .line { width: 16px; height: 3px; border-radius: 2px; flex: 0 0 auto; }
+/* The traversal command for each transition, so every legend row consistently
+   shows how that reality shift is made (e.g. quantum · shift). */
+.legend-cmd { font-family: ui-monospace, monospace; opacity: 0.7; margin-left: 4px; }
 
 .resizer {
   flex: 0 0 6px;
@@ -207,6 +210,60 @@ button.reset-map:hover { border-color: var(--hot); background: rgba(255,95,176,0
 }
 .log .entry { white-space: pre-wrap; border-bottom: 1px dashed var(--line); padding: 8px 0; color: var(--dim); }
 .log .entry:last-child { color: var(--ink); }
+
+/* Node inspector: compact details for the hovered (or current) location, above
+   the log. Hidden until populated so it takes no space on an empty selection. */
+.inspector {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.inspector:empty { display: none; }
+.insp-title { font-weight: 700; color: var(--ink); font-size: 13px; }
+.insp-desc { color: var(--dim); margin-top: 4px; }
+.insp-addr { color: var(--accent); margin-top: 4px; overflow-wrap: anywhere; font-size: 11px; }
+.insp-foot { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.insp-status { color: var(--dim); }
+.insp-status.here { color: var(--good); font-weight: 600; }
+.insp-status.go { color: var(--accent); font-weight: 600; }
+.insp-status.blocked { color: var(--hot); }
+.insp-status.dim { opacity: 0.7; }
+.cmd-chip {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Journey trail: the session's move history (SessionSnapshot.History), newest
+   last. Scrolls on its own so a long journey doesn't push the log off-screen. */
+.trail {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  max-height: 22vh;
+  overflow-y: auto;
+}
+.trail:empty { display: none; }
+.trail-title { text-transform: uppercase; letter-spacing: 1px; font-size: 10px; color: var(--dim); }
+.trail-list { margin: 6px 0 0; padding-left: 20px; color: var(--dim); }
+.trail-list li { padding: 1px 0; overflow-wrap: anywhere; }
+.trail-list li:last-child { color: var(--ink); }
+
+/* Unsaved-changes indicator on the save button. */
+.save-dot { display: none; }
+.save.dirty .save-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--warm);
+  vertical-align: middle;
+  box-shadow: 0 0 6px var(--warm);
+}
 
 .hidden { display: none !important; }
 

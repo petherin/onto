@@ -15,6 +15,10 @@ import {
   EFFECT_DURATION,
   DEFAULT_EFFECT_KIND,
   detectTransition,
+  TRANSITIONS,
+  TRANSITION_LEGEND,
+  AXIS_MODE,
+  requiredTransition,
   colorFor,
   NODE_REACHABLE,
   NODE_QUANTUM,
@@ -113,6 +117,57 @@ test("detectTransition prefers the most-exotic axis when several change", () => 
   // Universe is checked before Quantum, so it wins.
   const next = { Universe: "Alt", Quantum: "Q1" };
   assert.equal(detectTransition(base, next), "universe");
+});
+
+test("AXIS_MODE and TRANSITION_LEGEND derive from the one TRANSITIONS source", () => {
+  // Same length and order as the single source of truth.
+  assert.equal(AXIS_MODE.length, TRANSITIONS.length);
+  assert.equal(TRANSITION_LEGEND.length, TRANSITIONS.length);
+  TRANSITIONS.forEach((t, i) => {
+    assert.deepEqual(AXIS_MODE[i], [t.axis, t.mode]);
+    assert.deepEqual(TRANSITION_LEGEND[i], { mode: t.mode, label: t.label, command: t.command });
+  });
+});
+
+test("every legend row carries a command, so the legend is consistent", () => {
+  // The bug this fixes: some legend rows showed the traversal command, some
+  // didn't. Now every transition has a non-empty command.
+  for (const row of TRANSITION_LEGEND) {
+    assert.ok(row.command && row.command.length > 0, `missing command for ${row.mode}`);
+    assert.ok(row.label && row.label.length > 0, `missing label for ${row.mode}`);
+  }
+});
+
+test("requiredTransition returns null when a snapshot is missing", () => {
+  assert.equal(requiredTransition(null, { Quantum: "Q1" }), null);
+  assert.equal(requiredTransition({ Quantum: "Q0" }, null), null);
+});
+
+test("requiredTransition returns null when the node is in the same reality", () => {
+  const sess = { Universe: "Origin", Timeline: "Prime", Quantum: "Q0", Mathematics: "Classical", Simulation: 0, Consensus: 0, Observer: "Human" };
+  // Same reality, different physical place — reachable by ordinary travel.
+  const node = { ...sess, Location: "park" };
+  assert.equal(requiredTransition(sess, node), null);
+});
+
+test("requiredTransition names the transition and command for the differing axis", () => {
+  const sess = { Quantum: "Q0", Observer: "Human", Simulation: 0 };
+  assert.equal(requiredTransition(sess, { Quantum: "Q1" }).command, "shift");
+  assert.equal(requiredTransition(sess, { Observer: "Bat" }).command, "observe");
+  assert.equal(requiredTransition(sess, { Simulation: 1 }).mode, "simulation");
+});
+
+test("requiredTransition skips axes the node does not carry", () => {
+  // A NodeSnapshot has no Time field, so a Time-only session difference must
+  // not register as a required transition.
+  const sess = { Quantum: "Q0", Time: "t5" };
+  assert.equal(requiredTransition(sess, { Quantum: "Q0" }), null);
+});
+
+test("requiredTransition prefers the most-exotic axis when several differ", () => {
+  const sess = { Universe: "Origin", Quantum: "Q0" };
+  const node = { Universe: "Alt", Quantum: "Q1" };
+  assert.equal(requiredTransition(sess, node).mode, "universe");
 });
 
 test("colorFor: reachable nodes are blue", () => {
