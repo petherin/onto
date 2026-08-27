@@ -491,6 +491,8 @@ Environment variables can be set in `.env` (copy `.env.example` to get started) 
 | `ONTO_DATA_FILE` | `data/locations.json` | Path to the universe JSON file |
 | `ONTO_START_LOCATION` | `home` | Location ID the app starts at |
 | `ONTO_WEB_ADDR` | `:8090` | Listen address for the browser Reality Map (`make web`) |
+| `ONTO_GAME` | `1` (on) | [Game mode](#game-mode) toggle; set to `0`/`false`/`off` to disable the budget and objective |
+| `ONTO_BUDGET` | `1000` | Starting budget when game mode is on; a positive value overrides the default pool |
 
 ```bash
 ONTO_START_LOCATION=station make docker-run

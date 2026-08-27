@@ -14,7 +14,8 @@ import (
 )
 
 func main() {
-	state, err := bootstrap.Bootstrap(bootstrap.DefaultConfig())
+	cfg := bootstrap.DefaultConfig()
+	state, err := bootstrap.Bootstrap(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -25,22 +26,11 @@ func main() {
 		state.StartID,
 		navigation.NewBFSPathfinder(),
 		universe.NewSequentialLocationGenerator(),
-		gameOptions(state)...,
+		bootstrap.GameOptions(cfg, state)...,
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	cli.New(f).Run()
-}
-
-// gameOptions configures the standard game: a starting budget and an objective
-// derived from the start coordinate. If the start location is missing (it is
-// validated again inside facade.New) only the budget is applied.
-func gameOptions(state bootstrap.State) []facade.Option {
-	opts := []facade.Option{facade.WithBudget(facade.DefaultBudget)}
-	if loc, ok := state.Universe.GetLocation(state.StartID); ok {
-		opts = append(opts, facade.WithTarget(facade.DefaultTarget(loc.Coordinate)))
-	}
-	return opts
 }

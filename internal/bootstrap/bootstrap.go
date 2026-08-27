@@ -9,7 +9,10 @@ package bootstrap
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
+	"github.com/petherin/onto/internal/application/facade"
 	"github.com/petherin/onto/internal/domain/universe"
 	"github.com/petherin/onto/internal/infrastructure/persistence"
 )
@@ -23,10 +26,16 @@ const (
 type Config struct {
 	DataFile      string
 	StartLocation string
+	// Game enables game mode (a spending budget and a win objective). It is on
+	// by default; set ONTO_GAME to a falsey value to disable it. Budget is the
+	// starting spending pool; 0 means use facade.DefaultBudget.
+	Game   bool
+	Budget float64
 }
 
 // DefaultConfig builds a Config from environment variables, falling back to
-// sensible defaults. Override with ONTO_DATA_FILE and ONTO_START_LOCATION.
+// sensible defaults. Override with ONTO_DATA_FILE, ONTO_START_LOCATION,
+// ONTO_GAME and ONTO_BUDGET.
 func DefaultConfig() Config {
 	dataFile := os.Getenv("ONTO_DATA_FILE")
 	if dataFile == "" {
@@ -36,7 +45,53 @@ func DefaultConfig() Config {
 	if startLoc == "" {
 		startLoc = defaultStartLocation
 	}
-	return Config{DataFile: dataFile, StartLocation: startLoc}
+	return Config{
+		DataFile:      dataFile,
+		StartLocation: startLoc,
+		Game:          gameEnabled(os.Getenv("ONTO_GAME")),
+		Budget:        budgetOverride(os.Getenv("ONTO_BUDGET")),
+	}
+}
+
+// gameEnabled interprets ONTO_GAME. Game mode is on by default (empty value);
+// only an explicit falsey value (0, false, no, off) turns it off.
+func gameEnabled(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return true
+	}
+}
+
+// budgetOverride parses ONTO_BUDGET. An unset, unparseable, or non-positive
+// value yields 0, which GameOptions treats as "use facade.DefaultBudget".
+func budgetOverride(v string) float64 {
+	budget, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+	if err != nil || budget <= 0 {
+		return 0
+	}
+	return budget
+}
+
+// GameOptions turns the resolved game configuration into facade options. It
+// returns no options when game mode is disabled (so the session runs with
+// unlimited spending and no objective), and otherwise applies the budget and an
+// objective derived from the start coordinate. Both cmd/ entry points share
+// this so the CLI and web enable the game identically.
+func GameOptions(cfg Config, state State) []facade.Option {
+	if !cfg.Game {
+		return nil
+	}
+	budget := cfg.Budget
+	if budget <= 0 {
+		budget = facade.DefaultBudget
+	}
+	opts := []facade.Option{facade.WithBudget(budget)}
+	if loc, ok := state.Universe.GetLocation(state.StartID); ok {
+		opts = append(opts, facade.WithTarget(facade.DefaultTarget(loc.Coordinate)))
+	}
+	return opts
 }
 
 // State is the fully-assembled domain state returned by Bootstrap.
