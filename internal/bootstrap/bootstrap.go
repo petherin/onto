@@ -76,9 +76,9 @@ func budgetOverride(v string) float64 {
 
 // GameOptions turns the resolved game configuration into facade options. It
 // returns no options when game mode is disabled (so the session runs with
-// unlimited spending and no objective), and otherwise applies the budget and an
-// objective derived from the start coordinate. Both cmd/ entry points share
-// this so the CLI and web enable the game identically.
+// unlimited spending and no objective), and otherwise applies the budget and the
+// default multi-objective quest chain derived from the start coordinate. Both
+// cmd/ entry points share this so the CLI and web enable the game identically.
 func GameOptions(cfg Config, state State) []facade.Option {
 	if !cfg.Game {
 		return nil
@@ -89,7 +89,7 @@ func GameOptions(cfg Config, state State) []facade.Option {
 	}
 	opts := []facade.Option{facade.WithBudget(budget)}
 	if loc, ok := state.Universe.GetLocation(state.StartID); ok {
-		opts = append(opts, facade.WithTarget(facade.DefaultTarget(loc.Coordinate)))
+		opts = append(opts, facade.WithTargets(facade.DefaultQuestChain(loc.Coordinate)...))
 	}
 	return opts
 }

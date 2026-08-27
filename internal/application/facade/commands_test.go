@@ -181,3 +181,45 @@ func TestWin_BannerFiresOnlyOnce(t *testing.T) {
 	assert.False(t, strings.Contains(out, WinMessage), "win is announced once, not on every later command")
 	assert.True(t, app.Snapshot().Won)
 }
+
+// The default multi-objective quest chain (Q2 then sim:1) must be reached in
+// order: reaching the first waypoint announces the next, reaching the last
+// announces the return-home step, and being home mid-chain is not a win. Playing
+// it optimally (out to Q2 and back, then one simulation layer in and out) matches
+// par (140) and earns three stars.
+func TestQuestChain_DefaultChainOptimalRun(t *testing.T) {
+	chain := DefaultQuestChain(universe.DefaultCoordinateVO())
+	app := newGameApp(t, WithBudget(DefaultBudget), WithTargets(chain...))
+
+	// Par is the whole round trip: two shifts out (40) + two back (40) + one
+	// simulation layer in (10) and out (50) = 140.
+	assert.Equal(t, 140.0, app.Snapshot().Par)
+	assert.Equal(t, 2, app.Snapshot().ObjectiveCount)
+	assert.Equal(t, 0, app.Snapshot().ObjectivesDone)
+
+	app.Execute("shift")        // -> Q1
+	out := app.Execute("shift") // -> Q2 (first waypoint)
+	assert.Contains(t, out, "Objective 1 of 2 reached", "reaching a mid-chain waypoint names the next")
+	assert.NotContains(t, out, TargetReachedMessage, "the chain is not fully reached yet")
+	assert.Equal(t, 1, app.Snapshot().ObjectivesDone)
+	assert.False(t, app.Snapshot().ReachedTarget)
+
+	app.Execute("shift back")       // -> Q1
+	out = app.Execute("shift back") // -> home (but chain not finished)
+	assert.NotContains(t, out, WinMessage, "being home before the chain is done is not a win")
+	assert.False(t, app.Snapshot().Won)
+
+	out = app.Execute("simulate") // -> sim:1 (second and final waypoint)
+	assert.Contains(t, out, TargetReachedMessage, "the last waypoint announces the return-home step")
+	assert.True(t, app.Snapshot().ReachedTarget)
+	assert.False(t, app.Snapshot().Won)
+
+	out = app.Execute("simulate back") // -> home; chain complete, wins at par
+	assert.Contains(t, out, WinMessage)
+	assert.Contains(t, out, "Rating:")
+	snap := app.Snapshot()
+	assert.True(t, snap.Won)
+	assert.Equal(t, "home", app.SessionEntity().Location())
+	assert.Equal(t, 140.0, snap.CumulativeCost)
+	assert.Equal(t, MaxStars, snap.Stars, "an at-par chain run earns three stars")
+}

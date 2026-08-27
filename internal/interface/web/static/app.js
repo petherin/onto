@@ -232,15 +232,17 @@ function renderGame(sess) {
   objectiveEl.style.display = "";
   const target = (sess.TargetShortAddress || "").replace(/^onto:\/\//, "");
   const par = Math.round(sess.Par || 0);
+  const count = sess.ObjectiveCount || 0;
+  const done = sess.ObjectivesDone || 0;
   if (sess.Won) {
     objectiveEl.className = "objective won";
     objectiveEl.textContent = `✓ you win — ${stars(sess.Stars)} (${Math.round(sess.CumulativeCost || 0)} / par ${par})`;
   } else if (sess.ReachedTarget) {
     objectiveEl.className = "objective reached";
-    objectiveEl.textContent = `target reached — return home to win (par ${par})`;
+    objectiveEl.textContent = `all objectives reached (${done}/${count}) — return home to win (par ${par})`;
   } else {
     objectiveEl.className = "objective";
-    objectiveEl.textContent = `objective: reach ${target} & return home (par ${par})`;
+    objectiveEl.textContent = `objective ${done + 1}/${count}: reach ${target} & return home (par ${par})`;
   }
 }
 

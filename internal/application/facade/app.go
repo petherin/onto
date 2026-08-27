@@ -37,7 +37,7 @@ const WinMessage = "You reached your objective and returned home. You win!"
 // played at or under par.
 const MaxStars = 3
 
-// DefaultTarget derives the standard objective coordinate from the start
+// DefaultTarget derives the standard single-objective coordinate from the start
 // coordinate: the second quantum branch (Q2) of home. Reaching it requires two
 // quantum shifts, and winning requires shifting back home again.
 func DefaultTarget(start universe.CoordinateVO) universe.CoordinateVO {
@@ -46,9 +46,22 @@ func DefaultTarget(start universe.CoordinateVO) universe.CoordinateVO {
 	return target
 }
 
+// DefaultQuestChain derives the standard multi-objective quest from the start
+// coordinate: first the second quantum branch (Q2), then one simulation layer
+// deep (sim:1) back on the prime branch. The two waypoints sit on different
+// reality axes, so completing the chain exercises more than one kind of
+// transition, and the optimal round trip stays within DefaultBudget.
+func DefaultQuestChain(start universe.CoordinateVO) []universe.CoordinateVO {
+	first := start
+	first.Quantum = "Q2"
+	second := start
+	second.Simulation = 1
+	return []universe.CoordinateVO{first, second}
+}
+
 // Option configures optional App behaviour (currently the game rules) at
 // construction. Options are applied before the session is built so budget and
-// target take effect immediately.
+// objectives take effect immediately.
 type Option func(*App)
 
 // WithBudget installs a finite spending pool that blocks unaffordable moves.
@@ -56,11 +69,17 @@ func WithBudget(budget float64) Option {
 	return func(a *App) { a.budget = budget }
 }
 
-// WithTarget installs the objective coordinate for the win condition.
+// WithTarget installs a single objective coordinate for the win condition. It is
+// shorthand for a quest chain of length one.
 func WithTarget(target universe.CoordinateVO) Option {
+	return WithTargets(target)
+}
+
+// WithTargets installs an ordered quest chain of objective coordinates. The
+// waypoints must be reached in order before returning home wins.
+func WithTargets(targets ...universe.CoordinateVO) Option {
 	return func(a *App) {
-		a.target = target
-		a.hasTarget = true
+		a.targets = append([]universe.CoordinateVO(nil), targets...)
 	}
 }
 
@@ -113,12 +132,13 @@ type App struct {
 	homeID            string
 	dirty             bool
 
-	// Game configuration, captured at construction and reapplied on Reset so a
-	// reset session starts a fresh game. budget of 0 means unlimited; hasTarget
-	// gates the win condition.
-	budget    float64
-	target    universe.CoordinateVO
-	hasTarget bool
+	// Game configuration seed, captured at construction and reapplied on Reset so
+	// a reset session starts a fresh game. budget of 0 means unlimited; a non-empty
+	// targets chain gates the win condition. These are construction/reset config
+	// only — the live game state is the session, so read a.session (not these
+	// fields) when reporting current progress or objectives.
+	budget  float64
+	targets []universe.CoordinateVO
 
 	// initialLocations/initialEdges snapshot the universe as it was at
 	// construction (startup), so Reset can rebuild the starting map after
@@ -160,14 +180,14 @@ func New(
 }
 
 // newSession builds a session at the given position and applies the configured
-// game rules (budget and target), so New and Reset stay consistent.
+// game rules (budget and quest chain), so New and Reset stay consistent.
 func (a *App) newSession(location string, coord universe.CoordinateVO) *exploration.Entity {
 	s := exploration.NewEntity(location, coord)
 	if a.budget > 0 {
 		s.SetBudget(a.budget)
 	}
-	if a.hasTarget {
-		s.SetTarget(a.target)
+	if len(a.targets) > 0 {
+		s.SetTargets(a.targets)
 	}
 	return s
 }
@@ -202,19 +222,29 @@ func (a *App) Reset() string {
 // Execute dispatches a raw input string to the appropriate command handler and
 // appends any objective-reached or win banner triggered by the command.
 func (a *App) Execute(input string) string {
-	reached, won := a.session.ReachedTarget(), a.session.Won()
+	doneBefore, wonBefore := a.session.ObjectiveIndex(), a.session.Won()
 	out := a.dispatch(input)
-	return out + a.goalBanner(reached, won)
+	return out + a.goalBanner(doneBefore, wonBefore)
 }
 
-// goalBanner returns the messages for goal-state transitions that happened
-// since the given prior flags: the target being reached for the first time and
-// the objective being completed. Delivery mechanisms that move the session
-// outside Execute (e.g. the two-step home confirmation) call this too.
-func (a *App) goalBanner(reachedBefore, wonBefore bool) string {
+// goalBanner returns the messages for goal-state transitions since the given
+// prior state: one line for each objective reached (naming the next objective in
+// a multi-step chain, or announcing the chain complete on the last), and the win
+// banner with its rating once the objective is complete. doneBefore is the
+// number of chain objectives reached before the action. Delivery mechanisms that
+// move the session outside Execute (e.g. the two-step home confirmation) call
+// this too.
+func (a *App) goalBanner(doneBefore int, wonBefore bool) string {
 	var b strings.Builder
-	if a.session.ReachedTarget() && !reachedBefore {
-		b.WriteString("\n\n" + TargetReachedMessage)
+	doneNow := a.session.ObjectiveIndex()
+	count := a.session.ObjectiveCount()
+	targets := a.session.Targets()
+	for i := doneBefore; i < doneNow; i++ {
+		if i+1 < count {
+			fmt.Fprintf(&b, "\n\nObjective %d of %d reached — next: reach %s.", i+1, count, targets[i+1].ShortOntoAddress())
+		} else {
+			b.WriteString("\n\n" + TargetReachedMessage)
+		}
 	}
 	if a.session.Won() && !wonBefore {
 		b.WriteString("\n\n" + WinMessage)
@@ -224,19 +254,28 @@ func (a *App) goalBanner(reachedBefore, wonBefore bool) string {
 }
 
 // objectivePar returns the optimal cost for the current objective: the minimal
-// reality-axis cost to reach the target from the start coordinate and return.
-// It is 0 when no target is set. Objectives that move physical location are not
+// reality-axis cost to visit every quest-chain waypoint in order from the start
+// coordinate and return. It reads the live session's chain (the single source of
+// truth for the running game) so par and progress can never drift apart. It is 0
+// when no objective is set. Objectives that move physical location are not
 // accounted for, since objectives currently vary only reality axes.
 func (a *App) objectivePar() float64 {
-	if !a.hasTarget {
+	targets := a.session.Targets()
+	if len(targets) == 0 {
 		return 0
 	}
 	start, ok := a.univ.GetLocation(a.homeID)
 	if !ok {
 		return 0
 	}
-	return universe.TransitionCost(start.Coordinate, a.target) +
-		universe.TransitionCost(a.target, start.Coordinate)
+	prev := start.Coordinate
+	var total float64
+	for _, t := range targets {
+		total += universe.TransitionCost(prev, t)
+		prev = t
+	}
+	total += universe.TransitionCost(prev, start.Coordinate)
+	return total
 }
 
 // starsForCost rates a completed run against par: three stars for playing at or

@@ -395,7 +395,7 @@ func (a *App) GoHome() string {
 
 // GoHomeConfirm executes the home journey produced by GoHome.
 func (a *App) GoHomeConfirm() string {
-	reached, won := a.session.ReachedTarget(), a.session.Won()
+	doneBefore, won := a.session.ObjectiveIndex(), a.session.Won()
 	cmd := &commands.ReturnHomeCommand{
 		Universe:   a.univ,
 		Session:    a.session,
@@ -419,5 +419,5 @@ func (a *App) GoHomeConfirm() string {
 		}
 	}
 	return fmt.Sprintf("Heading home...\n\nSteps taken\n%s\n\nYou are home.\n\nCumulative journey cost\n%.0f",
-		strings.Join(lines, "\n"), a.session.CumulativeCost()) + a.goalBanner(reached, won)
+		strings.Join(lines, "\n"), a.session.CumulativeCost()) + a.goalBanner(doneBefore, won)
 }

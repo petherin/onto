@@ -274,3 +274,49 @@ func TestWinCondition_ReturnHomeWithoutReachingDoesNotWin(t *testing.T) {
 	assert.False(t, e.ReachedTarget())
 	assert.False(t, e.Won())
 }
+
+// A multi-objective quest chain must be completed in order: a later waypoint
+// reached out of order does not advance the chain, returning home before the
+// whole chain is done does not win, and finishing the chain then coming home
+// does. The chain here is Q2 then one simulation layer deep (sim:1).
+func TestQuestChain_OrderedProgressThenReturnHome(t *testing.T) {
+	q1 := defaultCoord()
+	q1.Quantum = "Q1"
+	q2 := defaultCoord()
+	q2.Quantum = "Q2"
+	sim1 := defaultCoord()
+	sim1.Simulation = 1
+
+	e := exploration.NewEntity("home", defaultCoord())
+	e.SetTargets([]universe.CoordinateVO{q2, sim1})
+	assert.True(t, e.HasTarget())
+	assert.Equal(t, 2, e.ObjectiveCount())
+	assert.Equal(t, 0, e.ObjectiveIndex())
+	assert.False(t, e.ReachedTarget())
+	assert.Equal(t, q2.OntoAddress(), e.Target().OntoAddress(), "the current target is the first waypoint")
+
+	// Reaching the second waypoint out of order must not advance the chain.
+	e.TransitionTo(universe.LocationEntity{ID: "home-sim1", Coordinate: sim1}, 10, universe.SimulationEntry, false)
+	assert.Equal(t, 0, e.ObjectiveIndex(), "waypoints must be reached in order")
+	e.TransitionTo(universe.LocationEntity{ID: "home", Coordinate: defaultCoord()}, 50, universe.SimulationEntry, true)
+
+	// Reach the first waypoint (via Q1): the chain advances to the second.
+	e.TransitionTo(universe.LocationEntity{ID: "home-q1", Coordinate: q1}, 20, universe.QuantumShift, false)
+	e.TransitionTo(universe.LocationEntity{ID: "home-q2", Coordinate: q2}, 20, universe.QuantumShift, false)
+	assert.Equal(t, 1, e.ObjectiveIndex())
+	assert.False(t, e.ReachedTarget(), "one of two waypoints is not the whole chain")
+	assert.Equal(t, sim1.OntoAddress(), e.Target().OntoAddress(), "the current target advances to the second waypoint")
+
+	// Returning home after only the first waypoint must not win.
+	e.TransitionTo(universe.LocationEntity{ID: "home-q1", Coordinate: q1}, 20, universe.QuantumShift, true)
+	e.TransitionTo(universe.LocationEntity{ID: "home", Coordinate: defaultCoord()}, 20, universe.QuantumShift, true)
+	assert.False(t, e.Won(), "home before finishing the chain does not win")
+
+	// Reach the second waypoint, then return home: the chain is complete and won.
+	e.TransitionTo(universe.LocationEntity{ID: "home-sim1", Coordinate: sim1}, 10, universe.SimulationEntry, false)
+	assert.Equal(t, 2, e.ObjectiveIndex())
+	assert.True(t, e.ReachedTarget(), "both waypoints reached")
+	assert.False(t, e.Won(), "still inside the simulation, away from home")
+	e.TransitionTo(universe.LocationEntity{ID: "home", Coordinate: defaultCoord()}, 50, universe.SimulationEntry, true)
+	assert.True(t, e.Won(), "whole chain reached and returned home wins")
+}

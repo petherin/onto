@@ -281,7 +281,7 @@ func TestState_GameFieldsSerialized(t *testing.T) {
 	}
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&keyed))
 	_ = resp.Body.Close()
-	for _, key := range []string{"HasBudget", "Budget", "RemainingBudget", "HasTarget", "TargetAddress", "TargetShortAddress", "ReachedTarget", "Won", "Par", "Stars"} {
+	for _, key := range []string{"HasBudget", "Budget", "RemainingBudget", "HasTarget", "TargetAddress", "TargetShortAddress", "ReachedTarget", "Won", "ObjectiveCount", "ObjectivesDone", "Objectives", "Par", "Stars"} {
 		assert.Containsf(t, keyed.Session, key, "session JSON must expose %q for the game HUD", key)
 	}
 
@@ -294,9 +294,12 @@ func TestState_GameFieldsSerialized(t *testing.T) {
 	assert.False(t, initial.Session.ReachedTarget)
 	assert.False(t, initial.Session.Won)
 	// Par is the optimal round trip to the Q2 objective (2 shifts out + 2 back);
-	// no stars are awarded until the objective is complete.
+	// no stars are awarded until the objective is complete. This server runs a
+	// single-objective quest, so the chain has one waypoint, none yet reached.
 	assert.Equal(t, 80.0, initial.Session.Par)
 	assert.Equal(t, 0, initial.Session.Stars)
+	assert.Equal(t, 1, initial.Session.ObjectiveCount)
+	assert.Equal(t, 0, initial.Session.ObjectivesDone)
 
 	// Two quantum shifts reach the Q2 objective: reached but not yet won, and the
 	// budget has drawn down below its start.

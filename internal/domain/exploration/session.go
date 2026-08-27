@@ -23,15 +23,16 @@ type Entity struct {
 	contextStack      []ContextTransition
 
 	// Game state. budget is the spending pool: a value of 0 means unlimited
-	// (no budget in force). target is the objective coordinate; hasTarget marks
-	// whether one is set. reachedTarget records that the target has been visited
-	// at least once, and won records that the objective is complete (target
-	// reached and the traveller has since returned to the start location).
-	budget        float64
-	target        universe.CoordinateVO
-	hasTarget     bool
-	reachedTarget bool
-	won           bool
+	// (no budget in force). targets is the ordered quest chain of objective
+	// coordinates; an empty chain means no objective. objectiveIndex counts how
+	// many chain waypoints have been reached so far, in order, so the chain is
+	// fully reached once it equals len(targets). won records that the objective
+	// is complete (every waypoint reached and the traveller has since returned to
+	// the start location).
+	budget         float64
+	targets        []universe.CoordinateVO
+	objectiveIndex int
+	won            bool
 }
 
 // ContextTransition records one entered contextual branch so it can be
@@ -45,8 +46,8 @@ type ContextTransition struct {
 
 // NewEntity creates an Entity positioned at the given location and coordinate.
 // The start location is recorded so a win condition can detect a return home.
-// No budget or target is set by default (unlimited spending, no objective);
-// use SetBudget and SetTarget to enable game rules.
+// No budget or objective is set by default (unlimited spending, no objective);
+// use SetBudget and SetTarget/SetTargets to enable game rules.
 func NewEntity(location string, coord universe.CoordinateVO) *Entity {
 	return &Entity{
 		currentLocation:   location,
@@ -60,12 +61,22 @@ func NewEntity(location string, coord universe.CoordinateVO) *Entity {
 // spending is unlimited and CanAfford always succeeds.
 func (s *Entity) SetBudget(budget float64) { s.budget = budget }
 
-// SetTarget installs the objective coordinate and re-evaluates the goal against
-// the current position (so a target set at the start location is not counted as
-// already reached unless the traveller is genuinely there).
+// SetTarget installs a single-objective quest (a chain of length one) and
+// re-evaluates progress against the current position. It is preserved for
+// callers with one objective; SetTargets installs a multi-objective chain.
 func (s *Entity) SetTarget(target universe.CoordinateVO) {
-	s.target = target
-	s.hasTarget = true
+	s.SetTargets([]universe.CoordinateVO{target})
+}
+
+// SetTargets installs an ordered quest chain of objective coordinates and
+// re-evaluates progress against the current position (so a waypoint that
+// coincides with the start location is not counted as already reached unless the
+// traveller is genuinely there). Waypoints must be reached in order; the game is
+// won by reaching them all and returning to the start location.
+func (s *Entity) SetTargets(targets []universe.CoordinateVO) {
+	s.targets = append([]universe.CoordinateVO(nil), targets...)
+	s.objectiveIndex = 0
+	s.won = false
 	s.evaluateGoal()
 }
 
@@ -129,30 +140,61 @@ func (s *Entity) CanAfford(cost float64) bool {
 	return s.cumulativeCost+cost <= s.budget
 }
 
-// Target returns the objective coordinate.
-func (s *Entity) Target() universe.CoordinateVO { return s.target }
+// Target returns the current objective coordinate: the next waypoint still to
+// reach, or the final waypoint once the whole chain has been reached. It returns
+// the zero coordinate when no chain is set.
+func (s *Entity) Target() universe.CoordinateVO {
+	if len(s.targets) == 0 {
+		return universe.CoordinateVO{}
+	}
+	if s.objectiveIndex >= len(s.targets) {
+		return s.targets[len(s.targets)-1]
+	}
+	return s.targets[s.objectiveIndex]
+}
 
-// HasTarget reports whether an objective coordinate is set.
-func (s *Entity) HasTarget() bool { return s.hasTarget }
+// Targets returns a snapshot of the ordered objective chain.
+func (s *Entity) Targets() []universe.CoordinateVO {
+	out := make([]universe.CoordinateVO, len(s.targets))
+	copy(out, s.targets)
+	return out
+}
 
-// ReachedTarget reports whether the objective coordinate has been visited.
-func (s *Entity) ReachedTarget() bool { return s.reachedTarget }
+// ObjectiveCount returns the number of objectives in the quest chain.
+func (s *Entity) ObjectiveCount() int { return len(s.targets) }
 
-// Won reports whether the objective is complete: the target was reached and the
-// traveller has since returned to the start location.
+// ObjectiveIndex returns how many chain objectives have been reached so far.
+func (s *Entity) ObjectiveIndex() int { return s.objectiveIndex }
+
+// HasTarget reports whether an objective (a quest chain of one or more
+// waypoints) is set.
+func (s *Entity) HasTarget() bool { return len(s.targets) > 0 }
+
+// ReachedTarget reports whether every objective in the chain has been reached,
+// so the only remaining step to win is returning to the start location.
+func (s *Entity) ReachedTarget() bool {
+	return len(s.targets) > 0 && s.objectiveIndex >= len(s.targets)
+}
+
+// Won reports whether the objective is complete: every waypoint was reached and
+// the traveller has since returned to the start location.
 func (s *Entity) Won() bool { return s.won }
 
-// evaluateGoal updates reachedTarget and won against the current position. It is
-// called after every movement. Coordinates are compared by canonical Onto
-// Address so a position reached via any route counts as the same target.
+// evaluateGoal advances the quest chain against the current position and marks a
+// win once the whole chain has been reached and the traveller is back at the
+// start. It is called after every movement. Objectives must be reached in order:
+// only the next unreached waypoint is checked, so arriving at a later waypoint
+// early does not count. Coordinates are compared by canonical Onto Address so a
+// position reached via any route counts as the same waypoint.
 func (s *Entity) evaluateGoal() {
-	if !s.hasTarget {
+	if len(s.targets) == 0 {
 		return
 	}
-	if !s.reachedTarget && s.currentCoordinate.OntoAddress() == s.target.OntoAddress() {
-		s.reachedTarget = true
+	if s.objectiveIndex < len(s.targets) &&
+		s.currentCoordinate.OntoAddress() == s.targets[s.objectiveIndex].OntoAddress() {
+		s.objectiveIndex++
 	}
-	if s.reachedTarget && s.currentLocation == s.startLocation {
+	if s.objectiveIndex >= len(s.targets) && s.currentLocation == s.startLocation {
 		s.won = true
 	}
 }

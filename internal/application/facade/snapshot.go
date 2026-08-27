@@ -31,11 +31,15 @@ type SessionSnapshot struct {
 
 	// Game state. HasBudget reports whether a finite spending pool is in force;
 	// when true, Budget is the pool and RemainingBudget is what is left.
-	// HasTarget reports whether an objective is set; when true, TargetAddress /
-	// TargetShortAddress locate it, ReachedTarget marks that it has been
-	// visited, and Won marks the objective complete (reached and back home).
-	// Par is the optimal cost for the objective (reach the target and return);
-	// Stars is the efficiency rating awarded on a win (0 until won, then 1..3).
+	// HasTarget reports whether an objective (a quest chain of one or more
+	// waypoints) is set; when true, TargetAddress / TargetShortAddress locate the
+	// current waypoint still to reach, ReachedTarget marks that every waypoint has
+	// been reached, and Won marks the objective complete (all reached and back
+	// home). ObjectiveCount is the chain length, ObjectivesDone is how many
+	// waypoints have been reached in order, and Objectives lists them with their
+	// per-waypoint reached state. Par is the optimal cost for the whole chain
+	// (visit every waypoint in order and return); Stars is the efficiency rating
+	// awarded on a win (0 until won, then 1..3).
 	HasBudget          bool
 	Budget             float64
 	RemainingBudget    float64
@@ -44,8 +48,18 @@ type SessionSnapshot struct {
 	TargetShortAddress string
 	ReachedTarget      bool
 	Won                bool
+	ObjectiveCount     int
+	ObjectivesDone     int
+	Objectives         []ObjectiveSnapshot
 	Par                float64
 	Stars              int
+}
+
+// ObjectiveSnapshot is a read-only view of one waypoint in the quest chain.
+type ObjectiveSnapshot struct {
+	Address      string
+	ShortAddress string
+	Reached      bool
 }
 
 // Snapshot returns a read-only view of the current session state.
@@ -55,6 +69,16 @@ func (a *App) Snapshot() SessionSnapshot {
 	stars := 0
 	if a.session.Won() {
 		stars = starsForCost(a.session.CumulativeCost(), par)
+	}
+	targets := a.session.Targets()
+	done := a.session.ObjectiveIndex()
+	objectives := make([]ObjectiveSnapshot, len(targets))
+	for i, t := range targets {
+		objectives[i] = ObjectiveSnapshot{
+			Address:      t.OntoAddress(),
+			ShortAddress: t.ShortOntoAddress(),
+			Reached:      i < done,
+		}
 	}
 	return SessionSnapshot{
 		Location:         a.session.Location(),
@@ -81,6 +105,9 @@ func (a *App) Snapshot() SessionSnapshot {
 		TargetShortAddress: a.session.Target().ShortOntoAddress(),
 		ReachedTarget:      a.session.ReachedTarget(),
 		Won:                a.session.Won(),
+		ObjectiveCount:     a.session.ObjectiveCount(),
+		ObjectivesDone:     done,
+		Objectives:         objectives,
 		Par:                par,
 		Stars:              stars,
 	}

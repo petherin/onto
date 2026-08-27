@@ -36,15 +36,26 @@ func (a *App) objectiveStatus() string {
 		fmt.Fprintf(&b, "\n\nBudget remaining\n%.0f of %.0f", s.RemainingBudget(), s.Budget())
 	}
 	if s.HasTarget() {
-		status := "not yet reached"
+		par := a.objectivePar()
+		done := s.ObjectiveIndex()
+		targets := s.Targets()
+		fmt.Fprintf(&b, "\n\nObjective (%d of %d reached)", done, len(targets))
+		for i, t := range targets {
+			mark := " "
+			if i < done {
+				mark = "x"
+			}
+			fmt.Fprintf(&b, "\n  [%s] %d. Reach %s", mark, i+1, t.ShortOntoAddress())
+		}
 		switch {
 		case s.Won():
-			status = "complete — reached and returned home"
+			b.WriteString("\nComplete — every objective reached and returned home.")
 		case s.ReachedTarget():
-			status = "reached — return home to win"
+			b.WriteString("\nAll objectives reached — return home to win.")
+		default:
+			b.WriteString("\nReach each objective in order, then return home to win.")
 		}
-		par := a.objectivePar()
-		fmt.Fprintf(&b, "\n\nObjective\nReach %s and return home (%s)\nPar %.0f", s.Target().ShortOntoAddress(), status, par)
+		fmt.Fprintf(&b, "\nPar %.0f", par)
 		if s.Won() {
 			fmt.Fprintf(&b, "\nRating %s (%.0f cost)", starBar(starsForCost(s.CumulativeCost(), par)), s.CumulativeCost())
 		}
