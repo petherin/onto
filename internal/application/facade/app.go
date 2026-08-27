@@ -33,6 +33,10 @@ const TargetReachedMessage = "Objective reached — now return home to win."
 // completed (target reached and back at the start location).
 const WinMessage = "You reached your objective and returned home. You win!"
 
+// MaxStars is the top efficiency rating awarded on a win: three stars for a run
+// played at or under par.
+const MaxStars = 3
+
 // DefaultTarget derives the standard objective coordinate from the start
 // coordinate: the second quantum branch (Q2) of home. Reaching it requires two
 // quantum shifts, and winning requires shifting back home again.
@@ -214,8 +218,60 @@ func (a *App) goalBanner(reachedBefore, wonBefore bool) string {
 	}
 	if a.session.Won() && !wonBefore {
 		b.WriteString("\n\n" + WinMessage)
+		b.WriteString("\n" + a.ratingLine())
 	}
 	return b.String()
+}
+
+// objectivePar returns the optimal cost for the current objective: the minimal
+// reality-axis cost to reach the target from the start coordinate and return.
+// It is 0 when no target is set. Objectives that move physical location are not
+// accounted for, since objectives currently vary only reality axes.
+func (a *App) objectivePar() float64 {
+	if !a.hasTarget {
+		return 0
+	}
+	start, ok := a.univ.GetLocation(a.homeID)
+	if !ok {
+		return 0
+	}
+	return universe.TransitionCost(start.Coordinate, a.target) +
+		universe.TransitionCost(a.target, start.Coordinate)
+}
+
+// starsForCost rates a completed run against par: three stars for playing at or
+// under par (optimal), two for finishing within twice par, and one for any
+// slower win. A non-positive par (no meaningful objective) yields 0.
+func starsForCost(cost, par float64) int {
+	switch {
+	case par <= 0:
+		return 0
+	case cost <= par:
+		return MaxStars
+	case cost <= par*2:
+		return 2
+	default:
+		return 1
+	}
+}
+
+// starBar renders a 0..MaxStars rating as filled and empty stars.
+func starBar(n int) string {
+	if n < 0 {
+		n = 0
+	}
+	if n > MaxStars {
+		n = MaxStars
+	}
+	return strings.Repeat("★", n) + strings.Repeat("☆", MaxStars-n)
+}
+
+// ratingLine reports the efficiency rating for a completed run: the star bar
+// alongside the actual cost and par.
+func (a *App) ratingLine() string {
+	par := a.objectivePar()
+	cost := a.session.CumulativeCost()
+	return fmt.Sprintf("Rating: %s  (%.0f cost / par %.0f)", starBar(starsForCost(cost, par)), cost, par)
 }
 
 // dispatch routes a raw input string to the appropriate command handler.

@@ -122,6 +122,50 @@ func TestWin_ReachTargetThenReturnHome(t *testing.T) {
 	assert.Equal(t, "home", app.SessionEntity().Location())
 }
 
+// A win reports par and an efficiency rating: playing the objective optimally
+// (straight out to Q2 and straight back) matches par and earns three stars, and
+// the win banner carries the rating line.
+func TestWin_StarRatingOptimalRun(t *testing.T) {
+	target := DefaultTarget(universe.DefaultCoordinateVO())
+	app := newGameApp(t, WithBudget(DefaultBudget), WithTarget(target))
+
+	// Par is known and shown before any win.
+	assert.Equal(t, 80.0, app.Snapshot().Par)
+	assert.Equal(t, 0, app.Snapshot().Stars)
+
+	app.Execute("shift")
+	app.Execute("shift")
+	app.Execute("shift back")
+	out := app.Execute("shift back") // wins at par (cost 80)
+
+	assert.Contains(t, out, "Rating:")
+	snap := app.Snapshot()
+	assert.True(t, snap.Won)
+	assert.Equal(t, 80.0, snap.CumulativeCost)
+	assert.Equal(t, MaxStars, snap.Stars, "an at-par run earns three stars")
+}
+
+// A wasteful win (extra detours that overspend par) earns fewer stars. A large
+// budget lets the detour complete so the rating, not the budget gate, is what is
+// exercised.
+func TestWin_StarRatingDetourEarnsFewerStars(t *testing.T) {
+	target := DefaultTarget(universe.DefaultCoordinateVO())
+	app := newGameApp(t, WithBudget(10000), WithTarget(target))
+
+	app.Execute("shift")
+	app.Execute("shift") // at target Q2 (cost 40)
+	// Waste cost without changing the win path: jump out and back (2 x 800).
+	app.Execute("jump")
+	app.Execute("jump back")
+	app.Execute("shift back")
+	app.Execute("shift back") // home; total cost 80 + 1600 = 1680, far over par
+
+	snap := app.Snapshot()
+	require.True(t, snap.Won)
+	assert.Greater(t, snap.CumulativeCost, snap.Par*2)
+	assert.Equal(t, 1, snap.Stars, "a run over twice par earns one star")
+}
+
 // The win banner must fire only once, on the transition into the won state.
 func TestWin_BannerFiresOnlyOnce(t *testing.T) {
 	target := DefaultTarget(universe.DefaultCoordinateVO())

@@ -43,7 +43,11 @@ func (a *App) objectiveStatus() string {
 		case s.ReachedTarget():
 			status = "reached — return home to win"
 		}
-		fmt.Fprintf(&b, "\n\nObjective\nReach %s and return home (%s)", s.Target().ShortOntoAddress(), status)
+		par := a.objectivePar()
+		fmt.Fprintf(&b, "\n\nObjective\nReach %s and return home (%s)\nPar %.0f", s.Target().ShortOntoAddress(), status, par)
+		if s.Won() {
+			fmt.Fprintf(&b, "\nRating %s (%.0f cost)", starBar(starsForCost(s.CumulativeCost(), par)), s.CumulativeCost())
+		}
 	}
 	return b.String()
 }

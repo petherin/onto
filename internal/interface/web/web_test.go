@@ -281,7 +281,7 @@ func TestState_GameFieldsSerialized(t *testing.T) {
 	}
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&keyed))
 	_ = resp.Body.Close()
-	for _, key := range []string{"HasBudget", "Budget", "RemainingBudget", "HasTarget", "TargetAddress", "TargetShortAddress", "ReachedTarget", "Won"} {
+	for _, key := range []string{"HasBudget", "Budget", "RemainingBudget", "HasTarget", "TargetAddress", "TargetShortAddress", "ReachedTarget", "Won", "Par", "Stars"} {
 		assert.Containsf(t, keyed.Session, key, "session JSON must expose %q for the game HUD", key)
 	}
 
@@ -293,6 +293,10 @@ func TestState_GameFieldsSerialized(t *testing.T) {
 	assert.True(t, initial.Session.HasTarget)
 	assert.False(t, initial.Session.ReachedTarget)
 	assert.False(t, initial.Session.Won)
+	// Par is the optimal round trip to the Q2 objective (2 shifts out + 2 back);
+	// no stars are awarded until the objective is complete.
+	assert.Equal(t, 80.0, initial.Session.Par)
+	assert.Equal(t, 0, initial.Session.Stars)
 
 	// Two quantum shifts reach the Q2 objective: reached but not yet won, and the
 	// budget has drawn down below its start.
@@ -309,4 +313,6 @@ func TestState_GameFieldsSerialized(t *testing.T) {
 	postJSON(t, srv.URL+"/api/execute", `{"command":"shift back"}`, &won)
 	assert.True(t, won.Session.Won, "reached target and returned home wins")
 	assert.Equal(t, "home", won.Session.Location)
+	// The four-shift run is optimal (cost equals par), so it earns full marks.
+	assert.Equal(t, 3, won.Session.Stars, "an at-par win earns three stars")
 }

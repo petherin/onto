@@ -34,6 +34,8 @@ type SessionSnapshot struct {
 	// HasTarget reports whether an objective is set; when true, TargetAddress /
 	// TargetShortAddress locate it, ReachedTarget marks that it has been
 	// visited, and Won marks the objective complete (reached and back home).
+	// Par is the optimal cost for the objective (reach the target and return);
+	// Stars is the efficiency rating awarded on a win (0 until won, then 1..3).
 	HasBudget          bool
 	Budget             float64
 	RemainingBudget    float64
@@ -42,11 +44,18 @@ type SessionSnapshot struct {
 	TargetShortAddress string
 	ReachedTarget      bool
 	Won                bool
+	Par                float64
+	Stars              int
 }
 
 // Snapshot returns a read-only view of the current session state.
 func (a *App) Snapshot() SessionSnapshot {
 	coord := a.session.Coordinate()
+	par := a.objectivePar()
+	stars := 0
+	if a.session.Won() {
+		stars = starsForCost(a.session.CumulativeCost(), par)
+	}
 	return SessionSnapshot{
 		Location:         a.session.Location(),
 		OntoAddress:      coord.OntoAddress(),
@@ -72,6 +81,8 @@ func (a *App) Snapshot() SessionSnapshot {
 		TargetShortAddress: a.session.Target().ShortOntoAddress(),
 		ReachedTarget:      a.session.ReachedTarget(),
 		Won:                a.session.Won(),
+		Par:                par,
+		Stars:              stars,
 	}
 }
 

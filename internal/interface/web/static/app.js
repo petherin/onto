@@ -231,16 +231,24 @@ function renderGame(sess) {
   if (!sess.HasTarget) { objectiveEl.style.display = "none"; return; }
   objectiveEl.style.display = "";
   const target = (sess.TargetShortAddress || "").replace(/^onto:\/\//, "");
+  const par = Math.round(sess.Par || 0);
   if (sess.Won) {
     objectiveEl.className = "objective won";
-    objectiveEl.textContent = "✓ objective complete — you win";
+    objectiveEl.textContent = `✓ you win — ${stars(sess.Stars)} (${Math.round(sess.CumulativeCost || 0)} / par ${par})`;
   } else if (sess.ReachedTarget) {
     objectiveEl.className = "objective reached";
-    objectiveEl.textContent = "target reached — return home to win";
+    objectiveEl.textContent = `target reached — return home to win (par ${par})`;
   } else {
     objectiveEl.className = "objective";
-    objectiveEl.textContent = `objective: reach ${target} & return home`;
+    objectiveEl.textContent = `objective: reach ${target} & return home (par ${par})`;
   }
+}
+
+// stars renders a 0..3 efficiency rating as filled and empty stars, matching
+// the CLI win banner.
+function stars(n) {
+  n = Math.max(0, Math.min(3, n | 0));
+  return "★".repeat(n) + "☆".repeat(3 - n);
 }
 
 // currentNodeSnapshot finds the graph node the session is currently at, so
