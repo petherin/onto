@@ -64,7 +64,7 @@ func NewNearbyLocation(u *Aggregate, originID string, coordinate CoordinateVO) (
 		location := LocationEntity{
 			ID:          id,
 			Name:        coordinate.Location,
-			Description: "Auto-generated nearby location",
+			Description: GenerateDescription(coordinate),
 			Coordinate:  coordinate,
 		}
 		outbound := EdgeVO{From: originID, To: id, Mode: Walk, Distance: 1, Cost: 1, Description: "Auto-generated path"}

@@ -2,6 +2,7 @@ package universe_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/petherin/onto/internal/domain/universe"
@@ -170,4 +171,53 @@ func TestNewNearbyLocation_UnknownOrigin_Errors(t *testing.T) {
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, universe.ErrUnknownEdgeEndpoint))
+}
+
+// TestNewNearbyLocation_GeneratesRichDescription confirms auto-generated nearby
+// nodes no longer share a flat placeholder: the description is non-empty, drops
+// the old "Auto-generated nearby location" string, and anchors on the spatial
+// setting so it reads as a real place.
+func TestNewNearbyLocation_GeneratesRichDescription(t *testing.T) {
+	u := universe.NewAggregate()
+	coord := universe.DefaultCoordinateVO()
+	coord.Location = "Park"
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: coord}))
+
+	loc := addNearby(t, u, "park", coord)
+
+	assert.NotEmpty(t, loc.Description)
+	assert.NotEqual(t, "Auto-generated nearby location", loc.Description)
+	assert.Contains(t, loc.Description, "Leeds", "base-reality description anchors on the city")
+}
+
+// TestGenerateDescription_Deterministic confirms the generator is a pure
+// function of the coordinate: the same coordinate always yields identical text,
+// so descriptions are stable across reloads and reproducible in tests.
+func TestGenerateDescription_Deterministic(t *testing.T) {
+	coord := universe.DefaultCoordinateVO()
+	coord.Location = "Nearby 7"
+
+	assert.Equal(t, universe.GenerateDescription(coord), universe.GenerateDescription(coord))
+}
+
+// TestGenerateDescription_ReflectsActiveAxes confirms each active non-default
+// axis contributes an atmospheric clause naming its token, so a node deep in a
+// branch reads differently from a plain base-reality one.
+func TestGenerateDescription_ReflectsActiveAxes(t *testing.T) {
+	coord := universe.DefaultCoordinateVO()
+	coord.Location = "Nearby 3"
+	coord.Quantum = "Q2"
+	coord.Observer = "Bat"
+
+	desc := universe.GenerateDescription(coord)
+
+	assert.Contains(t, desc, "Q2", "quantum branch token appears in the description")
+	assert.Contains(t, desc, "Bat", "observer frame appears in the description")
+
+	// A plain base-reality coordinate produces none of those axis clauses.
+	base := universe.DefaultCoordinateVO()
+	base.Location = "Nearby 3"
+	plain := universe.GenerateDescription(base)
+	assert.False(t, strings.Contains(plain, "Q2") || strings.Contains(plain, "Bat"),
+		"base-reality description carries no exotic-axis clauses")
 }
