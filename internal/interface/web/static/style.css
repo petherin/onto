@@ -9,6 +9,34 @@
   --hot: #ff5fb0;
   --warm: #ffce6a;
   --good: #57e2a5;
+  /* Depth-badge tint on the map, and the colour scheme for native controls
+     (date/time pickers, text inputs). Both are read by the light theme below. */
+  --depth: #5a6699;
+  --scheme: dark;
+  /* Ambient glow washes for the page background, swapped for the light theme. */
+  --glow1: #14173a;
+  --glow2: #1a0f2e;
+}
+
+/* Light theme: toggled by the palette button (app.js adds body.light and
+   persists the choice). Only the design tokens change — every rule below reads
+   these variables, and the canvas reads --ink/--dim/--good/--depth too, so the
+   whole UI and map follow along. */
+body.light {
+  --bg: #eef1f8;
+  --bg2: #ffffff;
+  --panel: rgba(255, 255, 255, 0.82);
+  --line: #c7d0e6;
+  --ink: #1b2340;
+  --dim: #5a668f;
+  --accent: #2b6fff;
+  --hot: #d6247e;
+  --warm: #b06d00;
+  --good: #1f9d63;
+  --depth: #8390b8;
+  --scheme: light;
+  --glow1: #dbe4ff;
+  --glow2: #f3e4f5;
 }
 
 * { box-sizing: border-box; }
@@ -19,31 +47,60 @@ html, body {
   font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
   color: var(--ink);
   background:
-    radial-gradient(1200px 800px at 70% -10%, #14173a 0%, transparent 60%),
-    radial-gradient(900px 700px at -10% 110%, #1a0f2e 0%, transparent 55%),
+    radial-gradient(1200px 800px at 70% -10%, var(--glow1) 0%, transparent 60%),
+    radial-gradient(900px 700px at -10% 110%, var(--glow2) 0%, transparent 55%),
     var(--bg);
   overflow: hidden;
 }
 
+/* Body is a column: header on top, main taking the rest. main fills whatever
+   height is left rather than assuming a fixed header height, so a HUD that wraps
+   to two rows never pushes the stage (and its bottom-left hint) off-screen. */
+body { display: flex; flex-direction: column; }
+
+/* The HUD stacks two rows: the brand, axis badges and the compact cost / budget
+   / sound chips on top, and the (long) objective text on its own row below so it
+   never squashes the axis badges. The objective is a direct column child so when
+   it is hidden (non-game session) it is removed from layout and leaves no gap. */
 #hud {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
+  align-items: stretch;
+  flex: 0 0 auto;
+  gap: 8px;
   padding: 10px 16px;
   border-bottom: 1px solid var(--line);
   background: var(--bg2);
 }
+.hud-row { display: flex; align-items: center; gap: 16px; }
+/* Top-row chips keep their natural size; the axes (flex:1, min-width:0) shrink
+   around them so cost / budget / sound sit to the right. The objective sits left
+   at its natural pill width on its own row below. */
+.hud-axes-row .cost, .hud-axes-row .mute { flex: 0 0 auto; }
+#hud > .objective { align-self: flex-start; }
 
 /* The brand holds the full onto:// address; truncate with an ellipsis so a long
-   address never wraps the header (which would break the map height calc). The
-   full address is available on hover via the title attribute. */
-.brand { font-weight: 700; letter-spacing: 1px; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50%; flex: 0 1 auto; }
+   address never wraps the header (which would break the map height calc). It is
+   kept small (badge-sized) and capped narrow so populated axis badges keep to the
+   same row rather than wrapping. The full address is available on hover via the
+   title attribute. */
+.brand { font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34%; flex: 0 1 auto; }
 .brand span { color: var(--dim); }
 .brand .brand-addr { letter-spacing: 0; color: var(--ink); font-weight: 600; }
 
-.axes { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+/* Axis badges get the full width of their own row and wrap onto extra lines as
+   needed, so they are never squashed by the status chips (which now live on a
+   separate row below). */
+.axes {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
 
 .badge {
+  flex: 0 0 auto;
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 3px 10px;
@@ -62,11 +119,12 @@ html, body {
 #budget .cost-value { color: var(--accent); }
 #budget.low .cost-value { color: #ff5f5f; }
 
-/* Objective badge sits at the right of the HUD. It recolours as the goal
+/* Objective badge sits on its own row below the axes. It recolours as the goal
    progresses: neutral while pending, warm once the target is reached, and green
-   on a win. */
+   on a win. It wraps (rather than overflowing) if the text is long, and is
+   capped at the header width. */
 .objective {
-  white-space: nowrap; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+  max-width: 100%; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
   padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line);
   color: var(--dim); background: var(--bg2);
 }
@@ -74,11 +132,73 @@ html, body {
 .objective.won { color: var(--good); border-color: var(--good); }
 
 /* Sound toggle sits at the far right of the HUD. It opts out of the global
-   button flex-grow so it stays a compact square rather than stretching. */
-.mute { flex: 0 0 auto; width: 34px; padding: 6px 0; font-size: 16px; line-height: 1; }
+   button flex-grow so it stays compact rather than stretching. A simple bell
+   glyph (🔔 on / 🔕 off) swapped via app.js. */
+.mute { flex: 0 0 auto; padding: 6px 10px; font-size: 12px; line-height: 1; }
 .mute.muted { color: var(--dim); }
 
-main { display: flex; height: calc(100% - 53px); }
+/* Palette toggle sits beside the sound toggle at the far right of the HUD. Like
+   the mute button it stays compact rather than stretching with the button flex.
+   The glyph swaps (moon in dark, sun in light) via app.js. */
+.theme { flex: 0 0 auto; padding: 6px 10px; font-size: 12px; line-height: 1; }
+
+/* Label-mode toggle sits beside the sound and palette toggles. Compact like
+   them; its glyph reflects the current mode (app.js). */
+.labels { flex: 0 0 auto; padding: 6px 10px; font-size: 12px; line-height: 1; }
+
+/* Help toggle sits at the far right of the HUD toggles. A round "?" that opens
+   the reality-transitions documentation modal. */
+.help-btn { flex: 0 0 auto; padding: 6px 11px; font-size: 12px; font-weight: 700; line-height: 1; border-radius: 999px; color: var(--accent); }
+
+/* Help/About modal: a centred overlay explaining reality transitions, opened
+   from the "?" HUD button. The backdrop dims the app; the panel scrolls if the
+   content is taller than the viewport. */
+.help-modal { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.help-backdrop { position: absolute; inset: 0; background: rgba(3, 5, 12, 0.66); backdrop-filter: blur(3px); }
+.help-panel {
+  position: relative;
+  width: min(640px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 20px 22px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg2);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.help-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.help-head h2 { margin: 0; font-size: 16px; color: var(--ink); }
+.help-close { flex: 0 0 auto; padding: 4px 9px; font-size: 12px; line-height: 1; color: var(--dim); }
+.help-body { font-size: 13px; line-height: 1.5; color: var(--dim); }
+.help-body p { margin: 0 0 10px; }
+.help-body h3 { margin: 16px 0 8px; font-size: 13px; color: var(--ink); }
+.help-body b { color: var(--ink); font-weight: 600; }
+.help-body code { font-family: ui-monospace, monospace; font-size: 12px; color: var(--accent); }
+
+/* Axis table inside the modal: each row shows the transition's colour swatch,
+   name, traversal command, cost, and a plain-language description. */
+.help-axes { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 6px; }
+.help-axis {
+  display: grid;
+  grid-template-columns: 16px minmax(64px, auto) auto auto;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.015);
+}
+.help-axis .line { width: 16px; height: 3px; border-radius: 2px; flex: 0 0 auto; }
+.help-axis-name { font-weight: 600; color: var(--ink); }
+.help-axis-cost { font-family: ui-monospace, monospace; font-size: 11px; color: var(--warm); white-space: nowrap; }
+.help-axis-what { grid-column: 1 / -1; color: var(--dim); font-size: 12px; }
+/* Authoritative further-reading links (Wikipedia, etc.) for the more exotic
+   concepts. They open in a new tab; the ↗ glyph marks them as external. */
+.help-axis-refs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.help-ref { font-size: 11px; color: var(--accent); text-decoration: none; border-bottom: 1px dotted currentColor; }
+.help-ref:hover { color: var(--ink); }
+
+main { display: flex; flex: 1; min-height: 0; }
 
 #stage { position: relative; flex: 1; min-width: 0; }
 #map { width: 100%; height: 100%; display: block; cursor: grab; }
@@ -154,53 +274,85 @@ main { display: flex; height: calc(100% - 53px); }
 }
 
 .controls {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
   border-bottom: 1px solid var(--line);
 }
 
-.control-group { display: flex; gap: 6px; align-items: center; }
-.control-group::before {
-  content: attr(data-label);
-  position: absolute;
-  margin-top: -16px;
-  font-size: 10px;
-  color: var(--dim);
-  text-transform: uppercase;
-  letter-spacing: 1px;
+/* Controls are grouped into function panels (reality / perspective / session /
+   view): compact, unlabelled two-column grids of control groups. Kept as tight
+   as stays legible so the log pane below gets the most room for the numbered
+   journey options. */
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.015);
 }
+.panel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 6px;
+  row-gap: 6px;
+}
+
+.control-group { display: flex; gap: 5px; align-items: center; }
 
 button {
   flex: 1;
-  padding: 8px 6px;
+  padding: 5px 6px;
   font: inherit;
   font-size: 12px;
   color: var(--ink);
   background: rgba(110, 168, 255, 0.08);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   transition: 0.12s;
 }
 button:hover { border-color: var(--accent); background: rgba(110,168,255,0.18); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button:disabled:hover { border-color: var(--line); background: rgba(110, 168, 255, 0.08); }
 button.save { color: var(--good); border-color: rgba(87,226,165,0.4); }
 button.reset-map { color: var(--hot); border-color: rgba(255,95,176,0.4); background: rgba(255,95,176,0.08); }
 button.reset-map:hover { border-color: var(--hot); background: rgba(255,95,176,0.18); }
 
-.journey-group, .observer-group, .time-group { grid-column: 1 / -1; }
+/* Control buttons carry a text label and an icon glyph in separate spans. The
+   labels toggle (app.js) sets a mode class on .controls to show both (default),
+   just the text, or just the icon. The icon's leading gap is a margin so it
+   collapses cleanly when the text is hidden. */
+.btn-icon { margin-left: 0.4em; }
+.controls.labels-text .btn-icon { display: none; }
+.controls.labels-icons .btn-label { display: none; }
+.controls.labels-icons .btn-icon { margin-left: 0; }
+
+/* A refused control press pulses hot and shakes to say "no" — armed by
+   flashBlocked() in app.js after runMove() detects the session didn't move. The
+   class is removed on animationend, so a rapid repeat press replays it. */
+@keyframes blocked-flash {
+  0%   { border-color: var(--hot); background: rgba(255,95,176,0.35); transform: translateX(0); }
+  20%  { transform: translateX(-3px); }
+  40%  { transform: translateX(3px); }
+  60%  { transform: translateX(-2px); }
+  80%  { transform: translateX(2px); }
+  100% { transform: translateX(0); }
+}
+button.blocked-flash { animation: blocked-flash 0.4s ease-in-out; }
+
+.journey-group, .observer-group, .time-group, .view-group { grid-column: 1 / -1; }
 .time-input, .observer-input {
   flex: 2;
   min-width: 0;
-  padding: 7px 6px;
+  padding: 5px 6px;
   font: inherit;
   font-size: 12px;
   color: var(--ink);
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 8px;
-  color-scheme: dark;
+  color-scheme: var(--scheme);
 }
 .time-input:focus, .observer-input:focus { outline: none; border-color: var(--accent); }
 #time-go { color: var(--warm); border-color: rgba(255, 206, 106, 0.4); }
@@ -284,11 +436,7 @@ button.reset-map:hover { border-color: var(--hot); background: rgba(255,95,176,0
 .confirm-yes { color: var(--good); border-color: rgba(87, 226, 165, 0.5); }
 .confirm-no { color: var(--hot); border-color: rgba(255, 95, 176, 0.5); }
 
-/* Stack the address prompt above the input rather than beside it: the address
-   grows with each transition and would squash the input if they shared a row.
-   Column layout gives the input a full-width line of its own, and the prompt is
-   free to wrap and show the whole address (anywhere, since it has no spaces). */
-.cmdform { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-top: 1px solid var(--line); align-items: stretch; }
-.prompt { color: var(--accent); overflow-wrap: anywhere; }
-#cmd { width: 100%; padding: 8px 10px; font: inherit; color: var(--ink); background: #05060d; border: 1px solid var(--line); border-radius: 8px; outline: none; }
+/* The command input gets a full-width line of its own along the foot of the panel. */
+.cmdform { display: flex; padding: 12px; border-top: 1px solid var(--line); align-items: stretch; }
+#cmd { width: 100%; padding: 8px 10px; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; outline: none; color-scheme: var(--scheme); }
 #cmd:focus { border-color: var(--accent); }

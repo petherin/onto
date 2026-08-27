@@ -9,18 +9,23 @@
 </head>
 <body>
   <header id="hud">
-    <div class="brand" id="brand" title="Current onto address">onto<span>://</span></div>
-    <div id="axes" class="axes"></div>
-    <div id="cost" class="cost" title="Cumulative journey cost">
-      <span class="cost-label">cost</span>
-      <span id="cost-value" class="cost-value">0</span>
-    </div>
-    <div id="budget" class="cost" title="Budget remaining">
-      <span class="cost-label">budget</span>
-      <span id="budget-value" class="cost-value">—</span>
+    <div class="hud-row hud-axes-row">
+      <div class="brand" id="brand" title="Current onto address">onto<span>://</span></div>
+      <div id="axes" class="axes"></div>
+      <div id="cost" class="cost" title="Cumulative journey cost">
+        <span class="cost-label">cost</span>
+        <span id="cost-value" class="cost-value">0</span>
+      </div>
+      <div id="budget" class="cost" title="Budget remaining">
+        <span class="cost-label">budget</span>
+        <span id="budget-value" class="cost-value">—</span>
+      </div>
+      <button id="mute" class="mute" type="button" title="Transition sounds">🔔</button>
+      <button id="theme" class="theme" type="button" title="Toggle light / dark colour scheme">🌙</button>
+      <button id="labels" class="labels" type="button" title="Button labels">Aa🙂</button>
+      <button id="help-btn" class="help-btn" type="button" title="What is all this? Reality transitions explained">?</button>
     </div>
     <div id="objective" class="objective" title="Objective"></div>
-    <button id="mute" class="mute" type="button" title="Transition sounds">🔊</button>
   </header>
 
   <main>
@@ -41,72 +46,129 @@
 
     <aside id="side">
       <div class="controls">
-        <div class="control-group" data-label="quantum">
-          <button data-cmd="shift">shift ⟳</button>
-          <button data-cmd="shift back">back</button>
-        </div>
-        <div class="control-group" data-label="timeline">
-          <button data-cmd="jump">jump ⤴</button>
-          <button data-cmd="jump back">back</button>
-        </div>
-        <div class="control-group" data-label="consensus">
-          <button data-cmd="drift">drift 🌀</button>
-          <button data-cmd="align">align</button>
-        </div>
-        <div class="control-group" data-label="simulation">
-          <button data-cmd="simulate">simulate ⤵</button>
-          <button data-cmd="simulate back">back</button>
-        </div>
-        <div class="control-group" data-label="universe">
-          <button data-cmd="universe">universe</button>
-          <button data-cmd="universe back">back</button>
-        </div>
-        <div class="control-group" data-label="structure">
-          <button data-cmd="structure">structure</button>
-          <button data-cmd="structure back">back</button>
-        </div>
-        <div class="control-group journey-group" data-label="journey">
-          <button data-cmd="home">home</button>
-          <button data-cmd="save" id="save-btn" class="save">save<span class="save-dot"></span></button>
-          <button id="reset-map" class="reset-map" title="Remove every explored reality and return to the starting map">reset map ⌫</button>
-        </div>
-        <div class="control-group" data-label="view">
-          <button id="view-vertical" title="Stack realities top-to-bottom: base at the top, deepest at the bottom">vertical ⭳</button>
-          <button id="view-reset" title="Restore the free three-quarter view">reset ⟲</button>
-          <button id="view-fit" title="Keep the current angle but zoom and pan so every node fits on screen">best fit ⤢</button>
-        </div>
-        <div class="control-group observer-group" data-label="observer">
-          <input id="observer-input" class="observer-input" list="observer-list" placeholder="observer, e.g. Bat" title="Type any observer perspective, then press observe" />
-          <datalist id="observer-list">
-            <option value="Bat"></option>
-            <option value="Dog"></option>
-            <option value="Machine"></option>
-            <option value="Alien"></option>
-          </datalist>
-          <button id="observe-go">observe 👁</button>
-          <button data-cmd="observe back">back</button>
-        </div>
-        <div class="control-group time-group" data-label="time">
-          <input id="time-input" class="time-input" type="datetime-local" step="1" title="Pick any date and time to branch to" />
-          <button id="time-go">time ⏱</button>
-          <button data-cmd="time back">back</button>
-        </div>
+        <section class="panel">
+          <div class="panel-grid">
+            <div class="control-group">
+              <button data-cmd="shift" title="Jump forward to the next quantum branch"><span class="btn-label">shift</span><span class="btn-icon">⟳</span></button>
+              <button data-cmd="shift back" title="Return to the previous quantum branch"><span class="btn-label">back</span><span class="btn-icon">↩</span></button>
+            </div>
+            <div class="control-group">
+              <button data-cmd="jump" title="Jump forward to the next timeline branch"><span class="btn-label">jump</span><span class="btn-icon">⤴</span></button>
+              <button data-cmd="jump back" title="Return to the previous timeline branch"><span class="btn-label">back</span><span class="btn-icon">↩</span></button>
+            </div>
+            <div class="control-group">
+              <button data-cmd="drift" title="Enter the next consensus divergence"><span class="btn-label">drift</span><span class="btn-icon">🌀</span></button>
+              <button data-cmd="align" title="Return one level toward shared consensus"><span class="btn-label">align</span><span class="btn-icon">🎯</span></button>
+            </div>
+            <div class="control-group">
+              <button data-cmd="simulate" title="Enter the next nested simulation layer"><span class="btn-label">simulate</span><span class="btn-icon">⤵</span></button>
+              <button data-cmd="simulate back" title="Exit one simulation layer toward base reality"><span class="btn-label">back</span><span class="btn-icon">↩</span></button>
+            </div>
+            <div class="control-group">
+              <button data-cmd="universe" title="Shift forward to the next bubble universe"><span class="btn-label">universe</span><span class="btn-icon">🌌</span></button>
+              <button data-cmd="universe back" title="Return to the previous bubble universe"><span class="btn-label">back</span><span class="btn-icon">↩</span></button>
+            </div>
+            <div class="control-group">
+              <button data-cmd="structure" title="Shift forward to the next mathematical structure"><span class="btn-label">structure</span><span class="btn-icon">📐</span></button>
+              <button data-cmd="structure back" title="Return to the previous mathematical structure"><span class="btn-label">back</span><span class="btn-icon">↩</span></button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-grid">
+            <div class="control-group observer-group">
+              <input id="observer-input" class="observer-input" list="observer-list" placeholder="observer, e.g. Bat" title="Type any observer perspective, then press observe" />
+              <datalist id="observer-list">
+                <option value="Bat"></option>
+                <option value="Dog"></option>
+                <option value="Cat"></option>
+                <option value="Bee"></option>
+                <option value="Eagle"></option>
+                <option value="Owl"></option>
+                <option value="Snake"></option>
+                <option value="Octopus"></option>
+                <option value="Dolphin"></option>
+                <option value="Mantis Shrimp"></option>
+                <option value="Spider"></option>
+                <option value="Machine"></option>
+                <option value="Alien"></option>
+                <option value="Child"></option>
+              </datalist>
+              <button id="observe-go" title="Change to the observer perspective typed on the left"><span class="btn-label">observe</span><span class="btn-icon">👁</span></button>
+              <button data-cmd="observe back" title="Return to the previous observer perspective"><span class="btn-label">back</span><span class="btn-icon">↩</span></button>
+            </div>
+            <div class="control-group time-group">
+              <input id="time-input" class="time-input" type="datetime-local" step="1" title="Pick any date and time to branch to" />
+              <button id="time-go" title="Branch to the date and time picked on the left"><span class="btn-label">time</span><span class="btn-icon">⏱</span></button>
+              <button data-cmd="time back" title="Return to the previous temporal branch"><span class="btn-label">back</span><span class="btn-icon">↩</span></button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-grid">
+            <div class="control-group journey-group">
+              <button data-cmd="home" title="Return home, unwinding quantum and timeline branches as needed"><span class="btn-label">home</span><span class="btn-icon">🏠</span></button>
+              <button data-cmd="quest" id="quest-btn" title="Roll a fresh random quest from the objective pool"><span class="btn-label">new quest</span><span class="btn-icon">🎲</span></button>
+              <button data-cmd="save" id="save-btn" class="save" title="Persist the current universe graph to disk"><span class="btn-label">save</span><span class="btn-icon">💾</span><span class="save-dot"></span></button>
+              <button id="reset-map" class="reset-map" title="Remove every explored reality and return to the starting map"><span class="btn-label">reset map</span><span class="btn-icon">⌫</span></button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-grid">
+            <div class="control-group view-group">
+              <button id="view-vertical" title="Stack realities top-to-bottom: base at the top, deepest at the bottom"><span class="btn-label">vertical</span><span class="btn-icon">⭳</span></button>
+              <button id="view-reset" title="Restore the free three-quarter view"><span class="btn-label">reset</span><span class="btn-icon">⟲</span></button>
+              <button id="view-fit" title="Keep the current angle but zoom and pan so every node fits on screen"><span class="btn-label">best fit</span><span class="btn-icon">⤢</span></button>
+            </div>
+          </div>
+        </section>
       </div>
 
       <div id="log" class="log"></div>
 
       <div id="confirm" class="confirm hidden">
         <span class="confirm-msg">Return home?</span>
-        <button id="confirm-yes" class="confirm-yes">Confirm (y)</button>
-        <button id="confirm-no" class="confirm-no">Cancel (n)</button>
+        <button id="confirm-yes" class="confirm-yes" title="Confirm returning home (or press y)">Confirm (y) ✓</button>
+        <button id="confirm-no" class="confirm-no" title="Cancel and stay where you are (or press n)">Cancel (n) ✗</button>
       </div>
 
       <form id="cmdform" class="cmdform" autocomplete="off">
-        <span id="prompt" class="prompt">[ ] &gt;</span>
         <input id="cmd" name="cmd" placeholder="type a command, e.g. help, look, travel park" />
       </form>
     </aside>
   </main>
+
+  <div id="help-modal" class="help-modal hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div class="help-backdrop" id="help-backdrop"></div>
+    <div class="help-panel" role="document">
+      <div class="help-head">
+        <h2 id="help-title">Reality transitions</h2>
+        <button id="help-close" class="help-close" type="button" title="Close (Esc)" aria-label="Close">✕</button>
+      </div>
+      <div class="help-body">
+        <p>Every place you visit has an <b>onto address</b> — a coordinate not just in
+          space but across several axes of reality. Ordinary <b>travel</b> (solid blue
+          links) moves you within one reality. A <b>reality transition</b> shifts you
+          sideways or deeper into a different version of it, spawning a fresh copy of
+          the map to explore.</p>
+        <p>Each axis below has a forward command and a matching <code>back</code> to undo it.
+          Colours match the transition links on the map, and costs are what each hop
+          spends against your budget when a game is in force.</p>
+        <div id="help-axes" class="help-axes"></div>
+        <h3>Playing the game</h3>
+        <p>When a game is in force you start with a finite <b>budget</b> that every move
+          spends against. A move you cannot afford is refused and costs nothing. Your
+          goal is a <b>quest</b> of round trips: reach each target coordinate in order
+          and return home after each — the last return home wins. Returning home is
+          always allowed even if it overspends. Your score is a 1–3 star rating for how
+          close to <b>par</b> (the optimal cost) you played.</p>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>

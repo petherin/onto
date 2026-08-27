@@ -1,12 +1,13 @@
 // Package facade provides the application facade: a single App type that
 // dispatches user commands to the application and domain layers and formats
 // results as strings. It is delivery-mechanism agnostic — no readline, no I/O,
-// no terminal assumptions. CLI, TUI, web, and test code all depend on this
+// no terminal assumptions. CLI, web, and test code all depend on this
 // package rather than on each other.
 package facade
 
 import (
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
 
@@ -16,7 +17,7 @@ import (
 )
 
 // AppVersion is the human-readable application version string, shown at
-// startup by every delivery mechanism (CLI, TUI, web).
+// startup by every delivery mechanism (CLI, web).
 const AppVersion = "Onto Explorer v0.1"
 
 // DefaultBudget is the starting spending pool used by the standard game. It
@@ -25,13 +26,20 @@ const AppVersion = "Onto Explorer v0.1"
 // out of reach, so the budget is felt.
 const DefaultBudget = 1000.0
 
-// TargetReachedMessage is appended to command output the moment the objective
-// coordinate is first visited.
-const TargetReachedMessage = "Objective reached — now return home to win."
+// TargetReachedMessage is appended to command output the moment an objective's
+// coordinate is first reached; the objective is only banked once the traveller
+// returns home.
+const TargetReachedMessage = "Objective reached — now return home to complete it."
 
 // WinMessage is appended to command output the moment the objective is
 // completed (target reached and back at the start location).
 const WinMessage = "You reached your objective and returned home. You win!"
+
+// BudgetExhaustedMarker labels a finite budget that has been spent down to
+// nothing. It distinguishes an exhausted budget (a limit is in force but no
+// money is left) from an unlimited one (no limit in force at all), which is
+// simply not shown.
+const BudgetExhaustedMarker = "exhausted"
 
 // MaxStars is the top efficiency rating awarded on a win: three stars for a run
 // played at or under par.
@@ -75,6 +83,14 @@ func WithTarget(target universe.CoordinateVO) Option {
 	return WithTargets(target)
 }
 
+// QuestSizeMin and QuestSizeMax bound how many objectives a randomly-built quest
+// draws from the objective pool (see WithObjectivePool). Fewer are used when the
+// pool itself is smaller than QuestSizeMin.
+const (
+	QuestSizeMin = 2
+	QuestSizeMax = 4
+)
+
 // WithTargets installs an ordered quest chain of objective coordinates. The
 // waypoints must be reached in order before returning home wins.
 func WithTargets(targets ...universe.CoordinateVO) Option {
@@ -83,8 +99,18 @@ func WithTargets(targets ...universe.CoordinateVO) Option {
 	}
 }
 
+// WithObjectivePool installs a pool of candidate objectives from which a random
+// quest chain is built on session start (and re-rolled by NewQuest). It only has
+// an effect when no explicit chain is set via WithTargets, which takes
+// precedence. An empty pool is ignored.
+func WithObjectivePool(pool ...universe.CoordinateVO) Option {
+	return func(a *App) {
+		a.objectivePool = append([]universe.CoordinateVO(nil), pool...)
+	}
+}
+
 // SessionEntity returns the underlying exploration session.
-// Intended for test introspection and TUI/web state access.
+// Intended for test introspection and web state access.
 func (a *App) SessionEntity() *exploration.Entity { return a.session }
 
 // Aggregate returns the underlying universe aggregate.
@@ -122,7 +148,7 @@ func (a *App) PhysicalDestinationIDs() []string {
 // App is the application facade. It owns the wired-up universe, session,
 // repository, and domain services and exposes one method per user command.
 // All methods return plain strings; formatting is done here so every delivery
-// mechanism (CLI, TUI, web) sees the same output without duplication.
+// mechanism (CLI, web) sees the same output without duplication.
 type App struct {
 	univ              *universe.Aggregate
 	session           *exploration.Entity
@@ -133,12 +159,18 @@ type App struct {
 	dirty             bool
 
 	// Game configuration seed, captured at construction and reapplied on Reset so
-	// a reset session starts a fresh game. budget of 0 means unlimited; a non-empty
-	// targets chain gates the win condition. These are construction/reset config
-	// only — the live game state is the session, so read a.session (not these
-	// fields) when reporting current progress or objectives.
+	// a reset session starts a fresh game. budget of 0 means unlimited (no limit in
+	// force — distinct from a finite budget later spent down to nothing, which is
+	// still in force but exhausted); see budgetInForce. A non-empty targets chain
+	// gates the win condition. These are construction/reset config only — the live
+	// game state is the session, so read a.session (not these fields) when
+	// reporting current progress or objectives.
 	budget  float64
 	targets []universe.CoordinateVO
+	// objectivePool is the set of candidate objectives from which a random quest
+	// chain is built when no explicit targets are configured, and re-rolled by
+	// NewQuest. Empty means quests are fixed (targets or the default chain).
+	objectivePool []universe.CoordinateVO
 
 	// initialLocations/initialEdges snapshot the universe as it was at
 	// construction (startup), so Reset can rebuild the starting map after
@@ -179,17 +211,110 @@ func New(
 	return a, nil
 }
 
+// QuestBuildAttempts bounds how many random quests buildRandomQuest draws while
+// looking for one completable within the budget. If none of these attempts fits,
+// generation gives up rather than looping forever.
+const QuestBuildAttempts = 50
+
+// NoAffordableQuestMessage is returned by NewQuest when no quest the objective
+// pool can produce fits within the budget.
+const NoAffordableQuestMessage = "No quest in the objective pool fits the current budget — try a larger budget (ONTO_BUDGET) or cheaper objectives (ONTO_OBJECTIVES)."
+
+// budgetInForce reports whether a finite spending limit constrains this game. A
+// configured budget of zero (the default) means unlimited spending — no limit is
+// in force — as opposed to a finite budget that has been spent down to nothing,
+// which is still "in force" but exhausted. Quest affordability keys off this so
+// "no limit" is never confused with "no money left".
+func (a *App) budgetInForce() bool { return a.budget > 0 }
+
 // newSession builds a session at the given position and applies the configured
-// game rules (budget and quest chain), so New and Reset stay consistent.
+// game rules (budget and quest chain), so New and Reset stay consistent. An
+// explicit targets chain wins; failing that, a random affordable quest is drawn
+// from the objective pool when one is configured. If no pooled quest fits the
+// budget the session simply starts with no objective.
 func (a *App) newSession(location string, coord universe.CoordinateVO) *exploration.Entity {
 	s := exploration.NewEntity(location, coord)
-	if a.budget > 0 {
+	if a.budgetInForce() {
 		s.SetBudget(a.budget)
 	}
-	if len(a.targets) > 0 {
+	switch {
+	case len(a.targets) > 0:
 		s.SetTargets(a.targets)
+	case len(a.objectivePool) > 0:
+		if chain, ok := a.buildRandomQuest(a.budget); ok {
+			s.SetTargets(chain)
+		}
 	}
 	return s
+}
+
+// NewQuest re-rolls the quest chain from the configured objective pool, resetting
+// objective progress (and the win flag) while keeping the current position and
+// running cost — so re-rolling mid-journey starts a fresh objective without a
+// full reset. With no pool configured (a fixed quest, or game mode off) it is a
+// no-op that reports the quest is fixed. Affordability is measured against the
+// budget still remaining (not the original pool), so once a finite budget has
+// been spent down to nothing no quest fits and the current quest is left
+// unchanged with the reason reported.
+func (a *App) NewQuest() string {
+	if len(a.objectivePool) == 0 {
+		return "No objective pool configured — the quest is fixed."
+	}
+	chain, ok := a.buildRandomQuest(a.session.RemainingBudget())
+	if !ok {
+		return NoAffordableQuestMessage
+	}
+	a.session.SetTargets(chain)
+	var b strings.Builder
+	fmt.Fprintf(&b, "New quest — %d objectives:", len(chain))
+	for i, t := range chain {
+		fmt.Fprintf(&b, "\n  %d. %s", i+1, t.ShortOntoAddress())
+	}
+	b.WriteString("\nReach each in order, returning home after each; the last return home wins.")
+	return b.String()
+}
+
+// buildRandomQuest samples a quest chain from the objective pool that can be
+// completed within the given budget: between QuestSizeMin and QuestSizeMax
+// distinct objectives (fewer when the pool is smaller), in random order, without
+// replacement. It draws up to QuestBuildAttempts candidates and returns the first
+// whose round-trip par is within budget. When no finite budget is in force
+// (unlimited spending — see budgetInForce) affordability never binds, so the
+// first draw is always accepted; this is distinct from a finite budget under
+// which no draw fits. Callers pass the budget affordability should key off — the
+// full budget for a fresh session, the remaining budget for a mid-game re-roll —
+// so an exhausted budget (0 remaining) accepts nothing. It returns ok=false when
+// the pool is empty or, with a budget in force, no attempt fits it — so the
+// caller can report that no affordable quest exists rather than installing an
+// impossible one.
+func (a *App) buildRandomQuest(budget float64) ([]universe.CoordinateVO, bool) {
+	if len(a.objectivePool) == 0 {
+		return nil, false
+	}
+	for attempt := 0; attempt < QuestBuildAttempts; attempt++ {
+		chain := sampleQuest(a.objectivePool)
+		if !a.budgetInForce() || a.chainPar(chain) <= budget {
+			return chain, true
+		}
+	}
+	return nil, false
+}
+
+// sampleQuest draws one random quest chain from the pool: between QuestSizeMin and
+// QuestSizeMax distinct objectives (fewer when the pool is smaller), in random
+// order. Sampling is without replacement, so no objective repeats within a chain.
+func sampleQuest(pool []universe.CoordinateVO) []universe.CoordinateVO {
+	n := len(pool)
+	if n == 0 {
+		return nil
+	}
+	shuffled := append([]universe.CoordinateVO(nil), pool...)
+	rand.Shuffle(n, func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
+	size := QuestSizeMin + rand.Intn(QuestSizeMax-QuestSizeMin+1)
+	if size > n {
+		size = n
+	}
+	return shuffled[:size]
 }
 
 // Reset rebuilds the universe to the state captured at construction (the
@@ -222,28 +347,30 @@ func (a *App) Reset() string {
 // Execute dispatches a raw input string to the appropriate command handler and
 // appends any objective-reached or win banner triggered by the command.
 func (a *App) Execute(input string) string {
-	doneBefore, wonBefore := a.session.ObjectiveIndex(), a.session.Won()
+	doneBefore, reachedBefore, wonBefore := a.session.ObjectiveIndex(), a.session.ReachedTarget(), a.session.Won()
 	out := a.dispatch(input)
-	return out + a.goalBanner(doneBefore, wonBefore)
+	return out + a.goalBanner(doneBefore, reachedBefore, wonBefore)
 }
 
 // goalBanner returns the messages for goal-state transitions since the given
-// prior state: one line for each objective reached (naming the next objective in
-// a multi-step chain, or announcing the chain complete on the last), and the win
-// banner with its rating once the objective is complete. doneBefore is the
-// number of chain objectives reached before the action. Delivery mechanisms that
-// move the session outside Execute (e.g. the two-step home confirmation) call
-// this too.
-func (a *App) goalBanner(doneBefore int, wonBefore bool) string {
+// prior state. Each objective is a round trip, so reaching its waypoint prompts
+// the return-home step, and only returning home banks it: that announces the
+// next objective (in a multi-step chain) or, on the last, the win banner with
+// its rating. doneBefore/reachedBefore/wonBefore capture the completed-objective
+// count, current-objective-reached flag, and win state before the action.
+// Delivery mechanisms that move the session outside Execute (e.g. the two-step
+// home confirmation) call this too.
+func (a *App) goalBanner(doneBefore int, reachedBefore, wonBefore bool) string {
 	var b strings.Builder
 	doneNow := a.session.ObjectiveIndex()
 	count := a.session.ObjectiveCount()
 	targets := a.session.Targets()
+	if a.session.ReachedTarget() && !reachedBefore {
+		b.WriteString("\n\n" + TargetReachedMessage)
+	}
 	for i := doneBefore; i < doneNow; i++ {
 		if i+1 < count {
-			fmt.Fprintf(&b, "\n\nObjective %d of %d reached — next: reach %s.", i+1, count, targets[i+1].ShortOntoAddress())
-		} else {
-			b.WriteString("\n\n" + TargetReachedMessage)
+			fmt.Fprintf(&b, "\n\nObjective %d of %d complete — next: reach %s.", i+1, count, targets[i+1].ShortOntoAddress())
 		}
 	}
 	if a.session.Won() && !wonBefore {
@@ -253,29 +380,58 @@ func (a *App) goalBanner(doneBefore int, wonBefore bool) string {
 	return b.String()
 }
 
-// objectivePar returns the optimal cost for the current objective: the minimal
-// reality-axis cost to visit every quest-chain waypoint in order from the start
-// coordinate and return. It reads the live session's chain (the single source of
-// truth for the running game) so par and progress can never drift apart. It is 0
-// when no objective is set. Objectives that move physical location are not
-// accounted for, since objectives currently vary only reality axes.
+// objectivePar returns the optimal cost for the live session's objective. It
+// reads the session's chain (the single source of truth for the running game) so
+// par and progress can never drift apart, and delegates to chainPar. It is 0 when
+// no objective is set.
 func (a *App) objectivePar() float64 {
-	targets := a.session.Targets()
-	if len(targets) == 0 {
+	return a.chainPar(a.session.Targets())
+}
+
+// chainPar returns the optimal cost for an arbitrary quest chain. Each objective
+// is an independent round trip, so par is the sum, over every waypoint, of the
+// cost to travel out to it from the start and back. Each leg costs its
+// reality-axis transitions (TransitionCost) plus the physical-travel distance
+// between the two locations (physicalLegCost); the two are orthogonal and
+// additive. It is used both to report the live par and to score candidate quests
+// before they are installed (so generation can reject chains that cannot be
+// completed within the budget). It is 0 for an empty chain.
+func (a *App) chainPar(chain []universe.CoordinateVO) float64 {
+	if len(chain) == 0 {
 		return 0
 	}
 	start, ok := a.univ.GetLocation(a.homeID)
 	if !ok {
 		return 0
 	}
-	prev := start.Coordinate
+	base := start.Coordinate
 	var total float64
-	for _, t := range targets {
-		total += universe.TransitionCost(prev, t)
-		prev = t
+	for _, t := range chain {
+		total += universe.TransitionCost(base, t) + a.physicalLegCost(base, base.Location, t.Location)
+		total += universe.TransitionCost(t, base) + a.physicalLegCost(base, t.Location, base.Location)
 	}
-	total += universe.TransitionCost(prev, start.Coordinate)
 	return total
+}
+
+// physicalLegCost returns the optimal physical-travel cost between two physical
+// locations (named by their Location field) within the base reality slice, using
+// the same pathfinder the travel command uses. Physical travel and reality
+// transitions are orthogonal — reality shifts preserve physical location and
+// physical edges never cross a reality boundary — and every reality slice mirrors
+// the base physical graph, so measuring a leg in the base slice gives its cost in
+// any slice. It is 0 when the endpoints resolve to the same node, either cannot be
+// resolved to a graph node, or no route connects them.
+func (a *App) physicalLegCost(base universe.CoordinateVO, fromName, toName string) float64 {
+	from, okFrom := a.univ.FindInReality(base, fromName)
+	to, okTo := a.univ.FindInReality(base, toName)
+	if !okFrom || !okTo || from.ID == to.ID {
+		return 0
+	}
+	path, ok := a.pathfinder.FindRoute(a.univ, from.ID, to.ID)
+	if !ok {
+		return 0
+	}
+	return navigation.PathCost(path)
 }
 
 // starsForCost rates a completed run against par: three stars for playing at or
@@ -410,6 +566,11 @@ func (a *App) dispatch(input string) string {
 			return err.Error()
 		}
 		return msg
+	case "quest":
+		if args != "" {
+			return "Usage: quest"
+		}
+		return a.NewQuest()
 	case "exit":
 		return "Goodbye."
 	default:

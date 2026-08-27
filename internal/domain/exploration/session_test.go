@@ -298,25 +298,33 @@ func TestQuestChain_OrderedProgressThenReturnHome(t *testing.T) {
 	// Reaching the second waypoint out of order must not advance the chain.
 	e.TransitionTo(universe.LocationEntity{ID: "home-sim1", Coordinate: sim1}, 10, universe.SimulationEntry, false)
 	assert.Equal(t, 0, e.ObjectiveIndex(), "waypoints must be reached in order")
+	assert.False(t, e.ReachedTarget(), "reaching a later waypoint out of order does not count")
 	e.TransitionTo(universe.LocationEntity{ID: "home", Coordinate: defaultCoord()}, 50, universe.SimulationEntry, true)
 
-	// Reach the first waypoint (via Q1): the chain advances to the second.
+	// Reach the first waypoint (via Q1): it is reached but not yet banked; the
+	// return home is still required and the current target stays the first.
 	e.TransitionTo(universe.LocationEntity{ID: "home-q1", Coordinate: q1}, 20, universe.QuantumShift, false)
 	e.TransitionTo(universe.LocationEntity{ID: "home-q2", Coordinate: q2}, 20, universe.QuantumShift, false)
-	assert.Equal(t, 1, e.ObjectiveIndex())
-	assert.False(t, e.ReachedTarget(), "one of two waypoints is not the whole chain")
-	assert.Equal(t, sim1.OntoAddress(), e.Target().OntoAddress(), "the current target advances to the second waypoint")
+	assert.Equal(t, 0, e.ObjectiveIndex(), "reaching a waypoint does not bank it until home")
+	assert.True(t, e.ReachedTarget(), "the first waypoint is reached, awaiting the return home")
+	assert.Equal(t, q2.OntoAddress(), e.Target().OntoAddress(), "the current target stays the first waypoint until home")
 
-	// Returning home after only the first waypoint must not win.
+	// Return home: the first objective is banked and the target advances to the
+	// second waypoint. The chain is not won yet.
 	e.TransitionTo(universe.LocationEntity{ID: "home-q1", Coordinate: q1}, 20, universe.QuantumShift, true)
 	e.TransitionTo(universe.LocationEntity{ID: "home", Coordinate: defaultCoord()}, 20, universe.QuantumShift, true)
-	assert.False(t, e.Won(), "home before finishing the chain does not win")
+	assert.Equal(t, 1, e.ObjectiveIndex(), "returning home after the first waypoint banks it")
+	assert.False(t, e.ReachedTarget(), "the next objective has not been reached yet")
+	assert.False(t, e.Won(), "one of two objectives complete is not a win")
+	assert.Equal(t, sim1.OntoAddress(), e.Target().OntoAddress(), "the current target advances to the second waypoint")
 
 	// Reach the second waypoint, then return home: the chain is complete and won.
 	e.TransitionTo(universe.LocationEntity{ID: "home-sim1", Coordinate: sim1}, 10, universe.SimulationEntry, false)
-	assert.Equal(t, 2, e.ObjectiveIndex())
-	assert.True(t, e.ReachedTarget(), "both waypoints reached")
+	assert.Equal(t, 1, e.ObjectiveIndex(), "the last waypoint is not banked until home")
+	assert.True(t, e.ReachedTarget(), "the second waypoint is reached, awaiting the return home")
 	assert.False(t, e.Won(), "still inside the simulation, away from home")
 	e.TransitionTo(universe.LocationEntity{ID: "home", Coordinate: defaultCoord()}, 50, universe.SimulationEntry, true)
-	assert.True(t, e.Won(), "whole chain reached and returned home wins")
+	assert.Equal(t, 2, e.ObjectiveIndex())
+	assert.False(t, e.ReachedTarget(), "after the final return home there is no pending objective")
+	assert.True(t, e.Won(), "every objective reached and returned home from wins")
 }

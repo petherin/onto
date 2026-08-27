@@ -1,7 +1,7 @@
 // Package bootstrap is the application bootstrap layer. It is the only place
 // that knows about both the infrastructure implementations and the domain types
 // — it wires them together and hands the assembled state to a delivery
-// mechanism (CLI, TUI, web, …). Delivery-mechanism packages must not import
+// mechanism (CLI, web, …). Delivery-mechanism packages must not import
 // this package; only cmd/ entry points (the Composition Root) should call
 // Bootstrap.
 package bootstrap
@@ -31,12 +31,24 @@ type Config struct {
 	// starting spending pool; 0 means use facade.DefaultBudget.
 	Game   bool
 	Budget float64
+	// Quest is the fixed, ordered quest chain parsed from ONTO_QUEST
+	// (comma-separated Onto Addresses). When set it overrides Objectives and the
+	// default chain.
+	Quest []universe.CoordinateVO
+	// Objectives is the pool of candidate objectives parsed from ONTO_OBJECTIVES
+	// (comma-separated Onto Addresses). When ONTO_QUEST is unset, a random quest
+	// (2-4 distinct objectives) is built from this pool on start and re-rolled by
+	// the 'quest' command. Empty means fall back to the default chain.
+	Objectives []universe.CoordinateVO
 }
 
 // DefaultConfig builds a Config from environment variables, falling back to
-// sensible defaults. Override with ONTO_DATA_FILE, ONTO_START_LOCATION,
-// ONTO_GAME and ONTO_BUDGET.
+// sensible defaults. It first loads a .env file from the working directory (if
+// present) for any variables not already set in the real environment, so real
+// environment variables always take precedence. Override with ONTO_DATA_FILE,
+// ONTO_START_LOCATION, ONTO_GAME, ONTO_BUDGET, ONTO_QUEST and ONTO_OBJECTIVES.
 func DefaultConfig() Config {
+	loadDotEnv(".env")
 	dataFile := os.Getenv("ONTO_DATA_FILE")
 	if dataFile == "" {
 		dataFile = defaultDataFile
@@ -50,6 +62,46 @@ func DefaultConfig() Config {
 		StartLocation: startLoc,
 		Game:          gameEnabled(os.Getenv("ONTO_GAME")),
 		Budget:        budgetOverride(os.Getenv("ONTO_BUDGET")),
+		Quest:         parseAddressList(os.Getenv("ONTO_QUEST")),
+		Objectives:    parseAddressList(os.Getenv("ONTO_OBJECTIVES")),
+	}
+}
+
+// loadDotEnv reads simple KEY=VALUE lines from a .env file and sets any variable
+// not already present in the environment (so real environment variables always
+// win). A missing file is not an error. Blank lines and lines beginning with '#'
+// are ignored; surrounding whitespace and a single pair of matching quotes
+// around the value are stripped. Only the first '=' splits key from value, so
+// values may themselves contain '='.
+func loadDotEnv(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, val, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if _, exists := os.LookupEnv(key); exists {
+			continue
+		}
+		val = strings.TrimSpace(val)
+		if len(val) >= 2 {
+			if (val[0] == '"' && val[len(val)-1] == '"') ||
+				(val[0] == '\'' && val[len(val)-1] == '\'') {
+				val = val[1 : len(val)-1]
+			}
+		}
+		_ = os.Setenv(key, val)
 	}
 }
 
@@ -74,11 +126,38 @@ func budgetOverride(v string) float64 {
 	return budget
 }
 
-// GameOptions turns the resolved game configuration into facade options. It
-// returns no options when game mode is disabled (so the session runs with
-// unlimited spending and no objective), and otherwise applies the budget and the
-// default multi-objective quest chain derived from the start coordinate. Both
-// cmd/ entry points share this so the CLI and web enable the game identically.
+// parseAddressList parses a comma-separated list of Onto Addresses (used for
+// both ONTO_QUEST and ONTO_OBJECTIVES) into coordinates. Blank entries are
+// skipped and an entry that fails to parse is dropped (the rest are kept). An
+// unset value, or one with no usable addresses, yields nil.
+func parseAddressList(v string) []universe.CoordinateVO {
+	if strings.TrimSpace(v) == "" {
+		return nil
+	}
+	var targets []universe.CoordinateVO
+	for _, part := range strings.Split(v, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		coord, err := universe.ParseOntoAddress(part)
+		if err != nil {
+			continue
+		}
+		targets = append(targets, coord)
+	}
+	return targets
+}
+
+// GameOptions turns the resolved game configuration into facade options. When
+// game mode is disabled it returns no options at all — no budget, no objective,
+// and no objective pool — so quest generation is skipped entirely and the
+// session runs with unlimited spending. When game mode is on it applies the
+// budget and resolves the objective in precedence order: a fixed chain from
+// cfg.Quest (ONTO_QUEST); else a random quest built from the cfg.Objectives pool
+// (ONTO_OBJECTIVES), which the 'quest' command can re-roll; else the default
+// chain derived from the start coordinate. Both cmd/ entry points share this so
+// the CLI and web enable the game identically.
 func GameOptions(cfg Config, state State) []facade.Option {
 	if !cfg.Game {
 		return nil
@@ -88,8 +167,15 @@ func GameOptions(cfg Config, state State) []facade.Option {
 		budget = facade.DefaultBudget
 	}
 	opts := []facade.Option{facade.WithBudget(budget)}
-	if loc, ok := state.Universe.GetLocation(state.StartID); ok {
-		opts = append(opts, facade.WithTargets(facade.DefaultQuestChain(loc.Coordinate)...))
+	switch {
+	case len(cfg.Quest) > 0:
+		opts = append(opts, facade.WithTargets(cfg.Quest...))
+	case len(cfg.Objectives) > 0:
+		opts = append(opts, facade.WithObjectivePool(cfg.Objectives...))
+	default:
+		if loc, ok := state.Universe.GetLocation(state.StartID); ok {
+			opts = append(opts, facade.WithTargets(facade.DefaultQuestChain(loc.Coordinate)...))
+		}
 	}
 	return opts
 }
@@ -102,7 +188,7 @@ type State struct {
 }
 
 // Bootstrap loads (or initialises) the universe from disk and returns a State
-// ready to be handed to a delivery-mechanism constructor (cli.New, tui.Run, …).
+// ready to be handed to a delivery-mechanism constructor (cli.New, web.Run, …).
 func Bootstrap(cfg Config) (State, error) {
 	repo := persistence.NewJSONRepository(cfg.DataFile)
 	u, err := repo.Load()

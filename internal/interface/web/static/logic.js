@@ -200,16 +200,38 @@ export const DEFAULT_SOUND = [
   { type: "sine", freq: 440, freqEnd: 330, gain: 0.4, attack: 0.01, release: 0.5, filter: { freq: 2000, freqEnd: 600, q: 1 } },
 ];
 
+// BLOCKED_SOUND is the short, harsh cue played when an action is refused (a
+// transition or travel that can't happen — out of budget, already at the base of
+// an axis, no route). It is deliberately unlike the transition cues: a curt,
+// driven, ring-modulated buzz that falls rather than blooms, so a blocked press
+// reads instantly as "no". Kept out of SOUND_SPEC so it never counts as a
+// reality transition; soundSpec serves it under the "blocked" mode.
+export const BLOCKED_SOUND = [
+  { type: "square", freq: 150, freqEnd: 90, gain: 0.5, attack: 0.005, release: 0.18, drive: 0.7, detune: 9, filter: { type: "lowpass", freq: 1200, freqEnd: 480, q: 3 } },
+  { type: "square", freq: 72, gain: 0.4, attack: 0.005, release: 0.16, drive: 0.6, ring: { freq: 57, depth: 0.9 } },
+];
+
 // soundSpec returns the voices for a mode (falling back to DEFAULT_SOUND) plus
 // the total duration (s) the sound occupies — the latest voice's delay + attack
-// + release — so the player and any caller agree on when it has finished.
+// + release — so the player and any caller agree on when it has finished. The
+// "blocked" mode is special-cased to the refusal cue.
 export function soundSpec(mode) {
-  const voices = SOUND_SPEC[mode] || DEFAULT_SOUND;
+  const voices = mode === "blocked" ? BLOCKED_SOUND : SOUND_SPEC[mode] || DEFAULT_SOUND;
   const duration = voices.reduce(
     (max, v) => Math.max(max, (v.delay || 0) + v.attack + v.release),
     0,
   );
   return { voices, duration };
+}
+
+// sessionMoved reports whether a command actually advanced the world: a genuine
+// move changes the location or spends budget (every transition and travel costs
+// something). When neither changes the action was refused, which the UI uses to
+// flash the button and play the blocked cue. With no prior session (the first
+// apply) it returns true so the opening state is never mistaken for a block.
+export function sessionMoved(prev, next) {
+  if (!prev || !next) return true;
+  return prev.Location !== next.Location || prev.CumulativeCost !== next.CumulativeCost;
 }
 
 // A node that a reality transition has just revealed gets a brief faint halo, so
@@ -228,21 +250,38 @@ export function spawnHalo(elapsed, duration = SPAWN_HALO_MS) {
 }
 
 // TRANSITIONS is the single source of truth for reality transitions: each entry
-// ties a coordinate axis to its edge/effect `mode`, a human `label`, and the
-// `command` that traverses it. The legend, the axis-diff detector, and the
-// "how to reach" hint all derive from this one list, so they can never drift
-// apart. Order is most-exotic-first — the priority the detector and the hint
-// resolve ties in. Physical (same-reality) travel is not a transition and is
-// intentionally absent.
+// ties a coordinate axis to its edge/effect `mode`, a human `label`, the
+// `command` that traverses it, a plain-language `what`/`cost`, and any `refs`
+// (authoritative further reading) for the help modal. The legend, the axis-diff
+// detector, the "how to reach" hint, and the in-app documentation all derive
+// from this one list, so they can never drift apart. Order is most-exotic-first
+// — the priority the detector and the hint resolve ties in. Physical
+// (same-reality) travel is not a transition and is intentionally absent. The
+// `cost` strings mirror the per-step constants in internal/domain/universe/edge.go.
 export const TRANSITIONS = [
-  { mode: "universe",   axis: "Universe",    label: "universe",   command: "universe" },
-  { mode: "timeline",   axis: "Timeline",    label: "timeline",   command: "jump" },
-  { mode: "quantum",    axis: "Quantum",     label: "quantum",    command: "shift" },
-  { mode: "math",       axis: "Mathematics", label: "structure",  command: "structure" },
-  { mode: "simulation", axis: "Simulation",  label: "simulation", command: "simulate" },
-  { mode: "consensus",  axis: "Consensus",   label: "consensus",  command: "drift" },
-  { mode: "observer",   axis: "Observer",    label: "observer",   command: "observe" },
-  { mode: "time",       axis: "Time",        label: "time",       command: "time" },
+  { mode: "universe",   axis: "Universe",    label: "universe",   command: "universe",  cost: "5,000 / hop",
+    what: "A parallel bubble universe with different physical constants (Tegmark Level II).",
+    refs: [{ label: "Tegmark multiverse", url: "https://en.wikipedia.org/wiki/Multiverse#Max_Tegmark's_four_levels" }] },
+  { mode: "timeline",   axis: "Timeline",    label: "timeline",   command: "jump",      cost: "800 / hop",
+    what: "An alternate timeline where history diverged — the differences may be subtle or catastrophic." },
+  { mode: "quantum",    axis: "Quantum",     label: "quantum",    command: "shift",     cost: "20 / hop",
+    what: "A neighbouring quantum branch: almost identical, but something is subtly different (Everett many-worlds).",
+    refs: [{ label: "Many-worlds interpretation", url: "https://en.wikipedia.org/wiki/Many-worlds_interpretation" }] },
+  { mode: "math",       axis: "Mathematics", label: "structure",  command: "structure", cost: "50,000 / hop",
+    what: "A different mathematical structure — dimensions, logic, or physical law need not match (Tegmark Level IV).",
+    refs: [{ label: "Mathematical universe hypothesis", url: "https://en.wikipedia.org/wiki/Mathematical_universe_hypothesis" }] },
+  { mode: "simulation", axis: "Simulation",  label: "simulation", command: "simulate",  cost: "10 in · 50 out",
+    what: "A nested simulation whose rules can be rewritten. Entering is cheap; leaving means finding an exit.",
+    refs: [{ label: "Simulation hypothesis", url: "https://en.wikipedia.org/wiki/Simulation_hypothesis" }] },
+  { mode: "consensus",  axis: "Consensus",   label: "consensus",  command: "drift",     cost: "5 / level",
+    what: "A reality that has drifted from shared consensus; its rules may no longer match the world you left.",
+    refs: [{ label: "Consensus reality", url: "https://en.wikipedia.org/wiki/Consensus_reality" }] },
+  { mode: "observer",   axis: "Observer",    label: "observer",   command: "observe",   cost: "2 / shift",
+    what: "The same reality perceived through another observer (e.g. Bat, Octopus, Machine).",
+    refs: [{ label: "Umwelt", url: "https://en.wikipedia.org/wiki/Umwelt" },
+           { label: "What Is It Like to Be a Bat?", url: "https://en.wikipedia.org/wiki/What_Is_It_Like_to_Be_a_Bat%3F" }] },
+  { mode: "time",       axis: "Time",        label: "time",       command: "time",      cost: "100 / shift",
+    what: "The same reality at another point in time." },
 ];
 
 // Reality-transition legend for the top-right key, derived from TRANSITIONS so
@@ -305,7 +344,7 @@ export function colorFor(node) {
 // giving stacked shells of increasing depth. Base reality (depth 0) sits on the
 // z = 0 plane; missing or non-finite depth falls back to base so a node is never
 // flung out of view.
-export const LAYER_GAP = 110;
+export const LAYER_GAP = 80;
 export function layerZ(depth) {
   const d = Number(depth);
   if (!Number.isFinite(d)) return 0;
@@ -376,9 +415,10 @@ export const AXIS_DIR = {
 // level); PHYS_RADIUS is the radius of the physical ring within a group. The
 // spread must clear the ring on the shallowest downward axis (min downward
 // component 0.5, timeline/quantum) so a new reality always lands below base:
-// REALITY_SPREAD * 0.5 > PHYS_RADIUS.
-export const REALITY_SPREAD = 110;
-export const PHYS_RADIUS = 45;
+// REALITY_SPREAD * 0.5 > PHYS_RADIUS. Kept compact so groups sit close together
+// rather than drifting far apart as the map grows.
+export const REALITY_SPREAD = 80;
+export const PHYS_RADIUS = 34;
 
 // realityCenter sums each axis's direction × its level × REALITY_SPREAD, giving
 // the x/y anchor for a node's whole reality. Base reality resolves to {0,0}.
@@ -513,6 +553,11 @@ export function panToScreen(p, view, width, height, tx, ty) {
 // which is where project() also centres at persp≈1. An empty set leaves the map
 // centred at scale 1.
 export const FIT_MARGIN = 0.12;
+// FIT_GROUP_MARGIN frames a single group (the nodes a move just revealed) as the
+// hero: a much larger margin than FIT_MARGIN so the group is centred and sits in
+// the middle ~40% of the canvas rather than filling it, leaving the surrounding
+// old realities visible around the edges for context. Used by frameToGroup.
+export const FIT_GROUP_MARGIN = 0.6;
 export function fitView(nodes, view, width, height, margin = FIT_MARGIN) {
   const arr = [...nodes];
   if (!arr.length || !(width > 0) || !(height > 0)) {
@@ -522,6 +567,9 @@ export function fitView(nodes, view, width, height, margin = FIT_MARGIN) {
   const cpit = Math.cos(view.rotX), spit = Math.sin(view.rotX);
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   let maxPersp = 0;
+  // Also accumulate the perspective-projected offsets so the frame can centre on
+  // where project() actually draws the nodes, not their orthographic midpoint.
+  let sumPX = 0, sumPY = 0;
   for (const n of arr) {
     const nx = n.x || 0, ny = n.y || 0, nz = n.z || 0;
     const x1 = nx * cyaw - nz * syaw;
@@ -534,8 +582,9 @@ export function fitView(nodes, view, width, height, margin = FIT_MARGIN) {
     if (y1 > maxY) maxY = y1;
     const persp = FOCAL / Math.max(FOCAL + z2, 1);
     if (persp > maxPersp) maxPersp = persp;
+    sumPX += x1 * persp;
+    sumPY += y1 * persp;
   }
-  const midX = (minX + maxX) / 2, midY = (minY + maxY) / 2;
   // Grow the box by the strongest magnification so magnified near nodes still
   // fit; guard against a degenerate/non-finite factor.
   const grow = Number.isFinite(maxPersp) && maxPersp > 1 ? maxPersp : 1;
@@ -547,8 +596,16 @@ export function fitView(nodes, view, width, height, margin = FIT_MARGIN) {
     const sy = boxH > 0 ? availH / boxH : Infinity;
     scale = clampScale(Math.min(sx, sy));
   }
-  // Centre the orthographic midpoint on the canvas centre.
-  return { scale, ox: -midX * scale, oy: -midY * scale };
+  // Centre on the mean *projected* position (perspective included), so a group
+  // seen at a steep pitch — where a node's screen-y is y1*scale*persp, not just
+  // y1*scale — lands on the canvas centre. Centring on the orthographic midpoint
+  // (persp ignored) drifted deeper groups off the bottom as journeys stacked up.
+  // A mean is used rather than the box midpoint so no single far node (large,
+  // unstable persp) can throw the centre off. Falls back to the orthographic
+  // midpoint if the sums are non-finite.
+  const px = Number.isFinite(sumPX) ? sumPX / arr.length : (minX + maxX) / 2;
+  const py = Number.isFinite(sumPY) ? sumPY / arr.length : (minY + maxY) / 2;
+  return { scale, ox: -px * scale, oy: -py * scale };
 }
 
 // depthAlpha maps a node's projected depth to an opacity so nodes further from

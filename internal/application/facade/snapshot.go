@@ -7,7 +7,7 @@ import (
 )
 
 // SessionSnapshot is a read-only view of the current session state,
-// used by delivery mechanisms (web, TUI) that need structured data. It
+// used by delivery mechanisms (web) that need structured data. It
 // carries every navigable axis so a GUI can render a coordinate HUD without
 // re-parsing formatted command output.
 type SessionSnapshot struct {
@@ -33,13 +33,15 @@ type SessionSnapshot struct {
 	// when true, Budget is the pool and RemainingBudget is what is left.
 	// HasTarget reports whether an objective (a quest chain of one or more
 	// waypoints) is set; when true, TargetAddress / TargetShortAddress locate the
-	// current waypoint still to reach, ReachedTarget marks that every waypoint has
-	// been reached, and Won marks the objective complete (all reached and back
-	// home). ObjectiveCount is the chain length, ObjectivesDone is how many
-	// waypoints have been reached in order, and Objectives lists them with their
-	// per-waypoint reached state. Par is the optimal cost for the whole chain
-	// (visit every waypoint in order and return); Stars is the efficiency rating
-	// awarded on a win (0 until won, then 1..3).
+	// current objective's waypoint still to reach. Each objective is a round trip:
+	// ReachedTarget marks that the current objective's waypoint has been reached
+	// this trip and only the return home remains, and Won marks every objective
+	// complete (each reached and returned home from). ObjectiveCount is the chain
+	// length, ObjectivesDone is how many objectives have been completed (reached
+	// and returned home from) in order, and Objectives lists them with their
+	// per-waypoint completed state. Par is the optimal cost for the whole chain
+	// (the sum, per waypoint, of the round trip out and back); Stars is the
+	// efficiency rating awarded on a win (0 until won, then 1..3).
 	HasBudget          bool
 	Budget             float64
 	RemainingBudget    float64
@@ -55,7 +57,9 @@ type SessionSnapshot struct {
 	Stars              int
 }
 
-// ObjectiveSnapshot is a read-only view of one waypoint in the quest chain.
+// ObjectiveSnapshot is a read-only view of one objective in the quest chain.
+// Reached reports whether this objective has been completed (its waypoint
+// reached and then returned home from).
 type ObjectiveSnapshot struct {
 	Address      string
 	ShortAddress string

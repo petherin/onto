@@ -1,8 +1,8 @@
 // Package web implements an optional browser-based delivery mechanism for the
 // Onto application: a small HTTP server that serves a single-page "Reality
-// Map" and exposes the application facade over JSON. Like the CLI and TUI
-// packages, it delegates all command execution and state to *facade.App and
-// contains no domain logic of its own.
+// Map" and exposes the application facade over JSON. Like the CLI package, it
+// delegates all command execution and state to *facade.App and contains no
+// domain logic of its own.
 package web
 
 import (
@@ -33,7 +33,7 @@ type Server struct {
 	app *facade.App
 	mu  sync.Mutex
 
-	// awaitingHomeConfirm mirrors the CLI/TUI two-step 'home' flow: GoHome
+	// awaitingHomeConfirm mirrors the CLI two-step 'home' flow: GoHome
 	// shows the plan, and the next 'y' confirms via GoHomeConfirm.
 	awaitingHomeConfirm bool
 }
@@ -96,9 +96,17 @@ func (s *Server) handleState(w http.ResponseWriter, _ *http.Request) {
 	s.writeState(w, "")
 }
 
-func (s *Server) handleExecute(w http.ResponseWriter, r *http.Request) {
+// requirePost writes a 405 and returns false when the request is not a POST.
+func requirePost(w http.ResponseWriter, r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return false
+	}
+	return true
+}
+
+func (s *Server) handleExecute(w http.ResponseWriter, r *http.Request) {
+	if !requirePost(w, r) {
 		return
 	}
 	var body struct {
@@ -114,8 +122,7 @@ func (s *Server) handleExecute(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+	if !requirePost(w, r) {
 		return
 	}
 	s.mu.Lock()
@@ -131,8 +138,7 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 // discarding every branch reality transitions created. It also clears any
 // pending home confirmation, since the session is being returned to base.
 func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+	if !requirePost(w, r) {
 		return
 	}
 	s.mu.Lock()
@@ -141,7 +147,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	s.writeState(w, s.app.Reset())
 }
 
-// execute runs one command line, mirroring the TUI's two-step 'home' flow.
+// execute runs one command line, mirroring the CLI's two-step 'home' flow.
 // It never terminates the process; an 'exit' command just saves and reports.
 func (s *Server) execute(line string) string {
 	line = strings.TrimSpace(line)

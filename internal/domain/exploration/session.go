@@ -24,14 +24,17 @@ type Entity struct {
 
 	// Game state. budget is the spending pool: a value of 0 means unlimited
 	// (no budget in force). targets is the ordered quest chain of objective
-	// coordinates; an empty chain means no objective. objectiveIndex counts how
-	// many chain waypoints have been reached so far, in order, so the chain is
-	// fully reached once it equals len(targets). won records that the objective
-	// is complete (every waypoint reached and the traveller has since returned to
-	// the start location).
+	// coordinates; an empty chain means no objective. Each objective is a round
+	// trip: it is only complete once its waypoint has been reached AND the
+	// traveller has since returned to the start location. objectiveIndex counts
+	// how many objectives have been completed that way, in order, and also indexes
+	// the current objective still to do. reachedCurrent records that the current
+	// objective's waypoint has been reached this trip and only the return home
+	// remains. won records that every objective has been completed.
 	budget         float64
 	targets        []universe.CoordinateVO
 	objectiveIndex int
+	reachedCurrent bool
 	won            bool
 }
 
@@ -69,13 +72,15 @@ func (s *Entity) SetTarget(target universe.CoordinateVO) {
 }
 
 // SetTargets installs an ordered quest chain of objective coordinates and
-// re-evaluates progress against the current position (so a waypoint that
+// re-evaluates progress against the current position (so an objective that
 // coincides with the start location is not counted as already reached unless the
-// traveller is genuinely there). Waypoints must be reached in order; the game is
-// won by reaching them all and returning to the start location.
+// traveller is genuinely there). Objectives are done in order and each is a
+// round trip: reach its waypoint, then return to the start location before the
+// next objective begins. The game is won once every objective is completed.
 func (s *Entity) SetTargets(targets []universe.CoordinateVO) {
 	s.targets = append([]universe.CoordinateVO(nil), targets...)
 	s.objectiveIndex = 0
+	s.reachedCurrent = false
 	s.won = false
 	s.evaluateGoal()
 }
@@ -163,39 +168,49 @@ func (s *Entity) Targets() []universe.CoordinateVO {
 // ObjectiveCount returns the number of objectives in the quest chain.
 func (s *Entity) ObjectiveCount() int { return len(s.targets) }
 
-// ObjectiveIndex returns how many chain objectives have been reached so far.
+// ObjectiveIndex returns how many objectives have been completed so far (each
+// reached and then returned home from), which also indexes the current objective
+// still to do.
 func (s *Entity) ObjectiveIndex() int { return s.objectiveIndex }
 
 // HasTarget reports whether an objective (a quest chain of one or more
 // waypoints) is set.
 func (s *Entity) HasTarget() bool { return len(s.targets) > 0 }
 
-// ReachedTarget reports whether every objective in the chain has been reached,
-// so the only remaining step to win is returning to the start location.
+// ReachedTarget reports whether the current objective's waypoint has been
+// reached this trip, so the only remaining step to complete it is returning to
+// the start location. It is false once the objective is banked (on return home)
+// and false again while heading out to the next one.
 func (s *Entity) ReachedTarget() bool {
-	return len(s.targets) > 0 && s.objectiveIndex >= len(s.targets)
+	return s.reachedCurrent
 }
 
-// Won reports whether the objective is complete: every waypoint was reached and
-// the traveller has since returned to the start location.
+// Won reports whether every objective is complete: each waypoint reached and
+// returned home from, in order.
 func (s *Entity) Won() bool { return s.won }
 
-// evaluateGoal advances the quest chain against the current position and marks a
-// win once the whole chain has been reached and the traveller is back at the
-// start. It is called after every movement. Objectives must be reached in order:
-// only the next unreached waypoint is checked, so arriving at a later waypoint
+// evaluateGoal advances the quest against the current position after every
+// movement. Each objective is a round trip completed in order: the current
+// objective's waypoint must be reached first (marking reachedCurrent), and only
+// once the traveller is back at the start location does that objective count as
+// done — advancing objectiveIndex to the next one, or winning after the last.
+// Only the current objective's waypoint is checked, so reaching a later one
 // early does not count. Coordinates are compared by canonical Onto Address so a
 // position reached via any route counts as the same waypoint.
 func (s *Entity) evaluateGoal() {
-	if len(s.targets) == 0 {
+	if len(s.targets) == 0 || s.objectiveIndex >= len(s.targets) {
 		return
 	}
-	if s.objectiveIndex < len(s.targets) &&
+	if !s.reachedCurrent &&
 		s.currentCoordinate.OntoAddress() == s.targets[s.objectiveIndex].OntoAddress() {
-		s.objectiveIndex++
+		s.reachedCurrent = true
 	}
-	if s.objectiveIndex >= len(s.targets) && s.currentLocation == s.startLocation {
-		s.won = true
+	if s.reachedCurrent && s.currentLocation == s.startLocation {
+		s.objectiveIndex++
+		s.reachedCurrent = false
+		if s.objectiveIndex >= len(s.targets) {
+			s.won = true
+		}
 	}
 }
 

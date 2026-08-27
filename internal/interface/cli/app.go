@@ -43,6 +43,37 @@ func (a *App) warnIfSaveBeforeExitFails() {
 	}
 }
 
+// handleHome runs the two-step 'home' confirmation flow shared by both REPLs.
+// readConfirm reads the user's y/n answer; the two loops differ only in how they
+// read it (readline vs bufio), so that is passed in as a closure.
+func (a *App) handleHome(readConfirm func() string) {
+	plan := a.app.GoHome()
+	fmt.Println(plan)
+	if !facade.NeedsHomeConfirm(plan) {
+		return
+	}
+	if strings.ToLower(strings.TrimSpace(readConfirm())) == "y" {
+		fmt.Println(a.app.GoHomeConfirm())
+	} else {
+		fmt.Println("Cancelled.")
+	}
+}
+
+// runCommand executes one command line and prints its response. It returns true
+// when the REPL should exit (the user asked to quit).
+func (a *App) runCommand(trimmed string) bool {
+	response := a.app.Execute(trimmed)
+	if response == msgGoodbye {
+		a.warnIfSaveBeforeExitFails()
+		fmt.Println(response)
+		return true
+	}
+	if response != "" {
+		fmt.Println(response)
+	}
+	return false
+}
+
 // Run starts the interactive readline REPL. Falls back to plain bufio when
 // stdout is not a TTY (e.g. in tests or pipes).
 func (a *App) Run() {
@@ -73,28 +104,16 @@ func (a *App) Run() {
 		trimmed := strings.TrimSpace(line)
 
 		if fields := strings.Fields(trimmed); len(fields) > 0 && fields[0] == "home" {
-			plan := a.app.GoHome()
-			fmt.Println(plan)
-			if facade.NeedsHomeConfirm(plan) {
+			a.handleHome(func() string {
 				rl.SetPrompt("")
 				confirm, _ := rl.Readline()
-				if strings.ToLower(strings.TrimSpace(confirm)) == "y" {
-					fmt.Println(a.app.GoHomeConfirm())
-				} else {
-					fmt.Println("Cancelled.")
-				}
-			}
+				return confirm
+			})
 			continue
 		}
 
-		response := a.app.Execute(trimmed)
-		if response == msgGoodbye {
-			a.warnIfSaveBeforeExitFails()
-			fmt.Println(response)
+		if a.runCommand(trimmed) {
 			break
-		}
-		if response != "" {
-			fmt.Println(response)
 		}
 	}
 }
@@ -113,27 +132,15 @@ func (a *App) runPlain() {
 		trimmed := strings.TrimSpace(input)
 
 		if fields := strings.Fields(trimmed); len(fields) > 0 && fields[0] == "home" {
-			plan := a.app.GoHome()
-			fmt.Println(plan)
-			if facade.NeedsHomeConfirm(plan) {
+			a.handleHome(func() string {
 				confirm, _ := reader.ReadString('\n')
-				if strings.ToLower(strings.TrimSpace(confirm)) == "y" {
-					fmt.Println(a.app.GoHomeConfirm())
-				} else {
-					fmt.Println("Cancelled.")
-				}
-			}
+				return confirm
+			})
 			continue
 		}
 
-		response := a.app.Execute(trimmed)
-		if response == msgGoodbye {
-			a.warnIfSaveBeforeExitFails()
-			fmt.Println(response)
+		if a.runCommand(trimmed) {
 			break
-		}
-		if response != "" {
-			fmt.Println(response)
 		}
 	}
 }

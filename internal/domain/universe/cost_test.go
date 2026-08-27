@@ -2,6 +2,7 @@ package universe
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -19,6 +20,12 @@ func TestTransitionCost(t *testing.T) {
 	sim2 := base
 	sim2.Simulation = 2
 
+	machine := base
+	machine.Observer = "Machine"
+
+	future := base
+	future.Time = time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+
 	mixed := base
 	mixed.Quantum = "Q1"
 	mixed.Timeline = "T1"
@@ -33,6 +40,12 @@ func TestTransitionCost(t *testing.T) {
 		{name: "quantum two down", from: q2, to: base, want: 2 * QuantumShiftCost},
 		{name: "simulation entry (cheap inward)", from: base, to: sim2, want: 2 * SimulationEntryCost},
 		{name: "simulation exit (dear outward)", from: sim2, to: base, want: 2 * SimulationExitCost},
+		{name: "observer changed (flat, one shift)", from: base, to: machine, want: ObserverShiftCost},
+		{name: "observer restored (symmetric)", from: machine, to: base, want: ObserverShiftCost},
+		{name: "observer with another axis sums", from: base, to: func() CoordinateVO { c := machine; c.Quantum = "Q1"; return c }(), want: QuantumShiftCost + ObserverShiftCost},
+		{name: "time changed (flat, one shift)", from: base, to: future, want: TimeShiftCost},
+		{name: "time restored (symmetric)", from: future, to: base, want: TimeShiftCost},
+		{name: "time with another axis sums", from: base, to: func() CoordinateVO { c := future; c.Quantum = "Q1"; return c }(), want: QuantumShiftCost + TimeShiftCost},
 		{name: "mixed axes sum", from: base, to: mixed, want: QuantumShiftCost + TimelineShiftCost},
 	}
 	for _, tt := range tests {

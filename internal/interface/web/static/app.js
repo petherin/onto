@@ -8,16 +8,19 @@ import {
   DEFAULTS,
   modeStyle,
   TRANSITION_LEGEND,
+  TRANSITIONS,
   detectTransition,
   requiredTransition,
   effectSpec,
   soundSpec,
+  sessionMoved,
   colorFor,
   layerZ,
   layoutTarget,
   clampScale,
   zoomOffset,
   fitView,
+  FIT_GROUP_MARGIN,
   unproject,
   panToScreen,
   ROTATE_SPEED,
@@ -38,15 +41,31 @@ const budgetEl = document.getElementById("budget");
 const budgetValueEl = document.getElementById("budget-value");
 const objectiveEl = document.getElementById("objective");
 const logEl = document.getElementById("log");
-const promptEl = document.getElementById("prompt");
 const cmdInput = document.getElementById("cmd");
 const confirmEl = document.getElementById("confirm");
 const inspectorEl = document.getElementById("inspector");
 const saveBtn = document.getElementById("save-btn");
+const questBtn = document.getElementById("quest-btn");
 
 let state = null;
 let edges = [];
 const nodes = new Map(); // id -> {id, name, x, y, z, vx, vy, vz}
+
+// themeColors caches the theme-dependent canvas colours (the CSS handles the
+// DOM). They are read from the CSS custom properties so the map follows the
+// light/dark toggle without duplicating the palette here; refreshThemeColors()
+// re-reads them whenever the theme changes so we never call getComputedStyle per
+// frame. The reachable/quantum/transition hues (logic.js) read the same on both
+// themes, so only the label/current-node/depth tints need swapping.
+const themeColors = { ink: "#d7e0ff", dim: "#7a86b6", good: "#57e2a5", depth: "#5a6699" };
+function refreshThemeColors() {
+  const cs = getComputedStyle(document.body);
+  const read = (name, fallback) => cs.getPropertyValue(name).trim() || fallback;
+  themeColors.ink = read("--ink", themeColors.ink);
+  themeColors.dim = read("--dim", themeColors.dim);
+  themeColors.good = read("--good", themeColors.good);
+  themeColors.depth = read("--depth", themeColors.depth);
+}
 // view holds the camera. It's snapped to the vertical orientation at startup
 // (see setVerticalView and the boot call at the end of the file) so the
 // depth-layer stack reads as a ladder from the first frame; dragging, the wheel,
@@ -95,6 +114,39 @@ function frameToFit() {
     to: fit,
   };
 }
+// frameToGroup makes a freshly-revealed group of nodes the hero: it smoothly
+// centres and zooms the camera on just those nodes (FIT_GROUP_MARGIN leaves them
+// in the middle of the canvas with the surrounding old realities still visible
+// around the edges), so a travelled-to location is focused and never off-screen.
+// Falls back to frameToFit if the group is empty or somehow un-framable.
+function frameToGroup(ids) {
+  const group = ids.map((id) => nodes.get(id)).filter(Boolean);
+  if (!group.length) { frameToFit(); return; }
+  const fit = fitView(group, view, canvas.clientWidth, canvas.clientHeight, FIT_GROUP_MARGIN);
+  viewAnim = {
+    t0: performance.now(),
+    dur: 600,
+    from: { scale: view.scale, ox: view.ox, oy: view.oy },
+    to: fit,
+  };
+}
+// frameToNode smoothly pans the camera so a single node sits at the canvas
+// centre, keeping the current zoom and rotation. Used when a move changes the
+// current location without revealing new nodes — stepping back, or travelling to
+// an already-seen node — so the view always follows where you are, however you
+// got there, without the jarring rezoom a full re-fit would cause.
+function frameToNode(id) {
+  const n = nodes.get(id);
+  if (!n) return;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const pan = panToScreen(n, view, w, h, w / 2, h / 2);
+  viewAnim = {
+    t0: performance.now(),
+    dur: 600,
+    from: { scale: view.scale, ox: view.ox, oy: view.oy },
+    to: { scale: view.scale, ox: pan.ox, oy: pan.oy },
+  };
+}
 let logCount = 0;
 // Mirrors stateDTO.Dirty: true when the session has unsaved mutations. Drives
 // the save-button indicator and the beforeunload guard.
@@ -121,6 +173,30 @@ async function run(command) {
   catch (err) { console.error(`command failed: ${command}`, err); }
 }
 
+// runMove runs a world-changing command (a transition, travel, observe or time
+// branch) and, if it turns out to have been refused — the session neither moved
+// nor spent (sessionMoved) — gives blocked feedback: a short error cue and, when
+// the press came from a button, a flash on that button. Used for every control
+// that should advance the map, so a dead-end press is never silent.
+async function runMove(command, btn) {
+  const before = state && state.session;
+  await run(command);
+  if (!sessionMoved(before, state && state.session)) {
+    playSound("blocked");
+    if (btn) flashBlocked(btn);
+  }
+}
+
+// flashBlocked briefly pulses a button to show its action was refused. Removing
+// then re-adding the class (with a forced reflow between) restarts the CSS
+// animation even on rapid repeat presses; the class is cleared when it ends.
+function flashBlocked(btn) {
+  btn.classList.remove("blocked-flash");
+  void btn.offsetWidth;
+  btn.classList.add("blocked-flash");
+  btn.addEventListener("animationend", () => btn.classList.remove("blocked-flash"), { once: true });
+}
+
 function apply(s) {
   const prev = state && state.session;
   state = s;
@@ -130,13 +206,6 @@ function apply(s) {
   renderLog(s);
   renderInspector();
   renderDirty(s);
-  // Bottom-right prompt shows the current node's name (a short, shell-like
-  // cue); the full onto:// address lives in the loc badge in the header.
-  // Hovering the prompt still reveals the address.
-  const cur = currentNodeSnapshot(s);
-  const name = cur ? cur.Name : (s.session ? s.session.Location : "");
-  promptEl.textContent = `[${name}] > `;
-  promptEl.title = (s.session && s.session.ShortOntoAddress) || name;
   renderConfirm(s);
   const mode = detectTransition(prev, s.session);
   if (mode) {
@@ -152,11 +221,20 @@ function apply(s) {
       if (n) { n.spawn = now; n.spawnRgb = rgb; }
     }
   }
-  // Auto-frame the camera whenever a move reveals new locations, so new nodes are
-  // never off-screen. Skipped on the first population and after a reset-map (both
+  // Auto-frame the camera so it always follows where you are, however you got
+  // there. A move that reveals new locations focuses on the freshly-revealed
+  // group as the hero (frameToGroup), centred and never off-screen with the older
+  // realities still visible around it. A move that changes location without
+  // revealing anything — stepping back, or travelling to an already-seen node —
+  // pans to re-centre the current location (frameToNode), keeping the current
+  // zoom. Both are skipped on the first population and after a reset-map (both
   // start from an empty cache, hadNodes === false) so the deliberate boot framing
   // stands rather than being overridden.
-  if (added.length && hadNodes) frameToFit();
+  const locChanged = !prev || prev.Location !== s.session.Location;
+  if (hadNodes) {
+    if (added.length) frameToGroup(added);
+    else if (locChanged) frameToNode(s.session.Location);
+  }
 }
 
 // renderConfirm shows the Confirm/Cancel bar and locks the free-text input
@@ -225,7 +303,6 @@ function renderHUD(sess) {
   if (!sess) return;
   // The brand label carries the proper onto:// address of the current location
   // (URL form): "onto" and "://" keep their styling, the rest is the address.
-  // The node's plain name is shown in the command prompt instead.
   const rest = (sess.ShortOntoAddress || "").replace(/^onto:\/\//, "");
   brandEl.innerHTML = `onto<span>://</span><b class="brand-addr">${escapeHtml(rest)}</b>`;
   brandEl.title = sess.OntoAddress || sess.ShortOntoAddress || "";
@@ -247,11 +324,22 @@ function renderHUD(sess) {
 // game state. Both are hidden entirely when no budget/target is in force, so a
 // non-game session shows only the cost chip.
 function renderGame(sess) {
+  // The 'new quest' button only re-rolls a quest in game mode; outside game mode
+  // there is no budget or objective pool to draw from, so disable it. HasBudget
+  // is the game-mode signal — game mode always installs a budget, non-game
+  // sessions never do.
+  if (questBtn) questBtn.disabled = !sess.HasBudget;
   if (budgetEl) {
+    // A budget of zero is not shown at all: no limit is in force (unlimited
+    // spending). A finite budget that has been spent down to nothing is shown as
+    // "exhausted" — a limit is in force but no money is left — so the two are
+    // never confused.
     if (sess.HasBudget) {
       budgetEl.style.display = "";
-      budgetValueEl.textContent = Math.round(sess.RemainingBudget || 0);
-      budgetEl.classList.toggle("low", (sess.RemainingBudget || 0) <= 0);
+      const exhausted = (sess.RemainingBudget || 0) <= 0;
+      budgetValueEl.textContent = exhausted ? "exhausted" : Math.round(sess.RemainingBudget || 0);
+      budgetEl.classList.toggle("low", exhausted);
+      budgetEl.title = exhausted ? "Budget exhausted — no spending left" : "Budget remaining";
     } else {
       budgetEl.style.display = "none";
     }
@@ -268,7 +356,7 @@ function renderGame(sess) {
     objectiveEl.textContent = `✓ you win — ${stars(sess.Stars)} (${Math.round(sess.CumulativeCost || 0)} / par ${par})`;
   } else if (sess.ReachedTarget) {
     objectiveEl.className = "objective reached";
-    objectiveEl.textContent = `all objectives reached (${done}/${count}) — return home to win (par ${par})`;
+    objectiveEl.textContent = `objective ${done + 1}/${count} reached — return home to complete it (par ${par})`;
   } else {
     objectiveEl.className = "objective";
     objectiveEl.textContent = `objective ${done + 1}/${count}: reach ${target} & return home (par ${par})`;
@@ -280,13 +368,6 @@ function renderGame(sess) {
 function stars(n) {
   n = Math.max(0, Math.min(3, n | 0));
   return "★".repeat(n) + "☆".repeat(3 - n);
-}
-
-// currentNodeSnapshot finds the graph node the session is currently at, so
-// callers can read its display Name and Description.
-function currentNodeSnapshot(s) {
-  const id = s && s.session && s.session.Location;
-  return ((s.graph && s.graph.Nodes) || []).find((n) => n.ID === id) || null;
 }
 
 function renderLog(s) {
@@ -707,12 +788,12 @@ function playSound(mode) {
 }
 
 // Mute toggle: flips the preference, persists it, and reflects state in the
-// button label/title. Muting never touches the audio graph — playSound simply
+// button glyph/title. Muting never touches the audio graph — playSound simply
 // short-circuits — so an in-flight sound is left to finish naturally.
 const muteBtn = document.getElementById("mute");
 function renderMute() {
   if (!muteBtn) return;
-  muteBtn.textContent = muted ? "🔇" : "🔊";
+  muteBtn.textContent = muted ? "🔕" : "🔔";
   muteBtn.title = muted ? "Transition sounds off — click to unmute" : "Transition sounds on — click to mute";
   muteBtn.classList.toggle("muted", muted);
 }
@@ -724,6 +805,100 @@ if (muteBtn) {
   });
   renderMute();
 }
+
+// Theme toggle: flips the colour scheme, persists the choice, and re-reads the
+// canvas colours so the map follows the DOM. Dark is the default; the choice is
+// remembered across reloads. renderTheme() applies the current state, so calling
+// it on load restores a saved light preference before the first paint.
+const themeBtn = document.getElementById("theme");
+let light = localStorage.getItem("onto.theme") === "light";
+function renderTheme() {
+  document.body.classList.toggle("light", light);
+  refreshThemeColors();
+  if (themeBtn) {
+    themeBtn.textContent = light ? "☀️" : "🌙";
+    themeBtn.title = light ? "Light scheme — click for dark" : "Dark scheme — click for light";
+  }
+}
+if (themeBtn) {
+  themeBtn.addEventListener("click", () => {
+    light = !light;
+    localStorage.setItem("onto.theme", light ? "light" : "dark");
+    renderTheme();
+  });
+}
+renderTheme();
+
+// Label-mode toggle: cycles the control buttons between text + icons, text only,
+// and icons only, persisting the choice. A mode class on the controls container
+// drives the CSS that hides the label or the icon span; the toggle's own glyph
+// reflects the current mode.
+const LABEL_MODES = ["both", "text", "icons"];
+const controlsEl = document.querySelector(".controls");
+const labelsBtn = document.getElementById("labels");
+let labelMode = localStorage.getItem("onto.labels") || "both";
+if (!LABEL_MODES.includes(labelMode)) labelMode = "both";
+function renderLabels() {
+  if (controlsEl) {
+    controlsEl.classList.toggle("labels-text", labelMode === "text");
+    controlsEl.classList.toggle("labels-icons", labelMode === "icons");
+  }
+  if (labelsBtn) {
+    labelsBtn.textContent = labelMode === "both" ? "Aa🙂" : labelMode === "text" ? "Aa" : "🙂";
+    const desc = labelMode === "both" ? "text + icons" : labelMode === "text" ? "text only" : "icons only";
+    labelsBtn.title = `Button labels: ${desc} — click to cycle`;
+  }
+}
+if (labelsBtn) {
+  labelsBtn.addEventListener("click", () => {
+    labelMode = LABEL_MODES[(LABEL_MODES.indexOf(labelMode) + 1) % LABEL_MODES.length];
+    localStorage.setItem("onto.labels", labelMode);
+    renderLabels();
+  });
+}
+renderLabels();
+
+// Help modal: an About/Help overlay explaining reality transitions. Its axis
+// table is built from the same TRANSITIONS source of truth the legend uses, so
+// the colours, commands, and costs never drift from the map.
+(function initHelp() {
+  const modal = document.getElementById("help-modal");
+  const openBtn = document.getElementById("help-btn");
+  const closeBtn = document.getElementById("help-close");
+  const backdrop = document.getElementById("help-backdrop");
+  const axesBox = document.getElementById("help-axes");
+  if (!modal || !openBtn) return;
+  if (axesBox) {
+    axesBox.innerHTML = TRANSITIONS.map(({ mode, label, command, cost, what, refs }) => {
+      const st = modeStyle(mode);
+      const links = (refs || [])
+        .map((r) => `<a class="help-ref" href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.label)} ↗</a>`)
+        .join("");
+      const refsRow = links ? `<span class="help-axis-refs">${links}</span>` : "";
+      return (
+        '<div class="help-axis">' +
+        `<i class="line" style="background:rgb(${st.rgb})"></i>` +
+        `<span class="help-axis-name">${escapeHtml(label)}</span>` +
+        `<span class="cmd-chip" style="border-color:rgba(${st.rgb},0.5);color:rgb(${st.rgb})">${escapeHtml(command)}</span>` +
+        `<span class="help-axis-cost">${escapeHtml(cost || "")}</span>` +
+        `<span class="help-axis-what">${escapeHtml(what || "")}</span>` +
+        refsRow +
+        "</div>"
+      );
+    }).join("");
+  }
+  const open = () => modal.classList.remove("hidden");
+  const close = () => modal.classList.add("hidden");
+  openBtn.addEventListener("click", open);
+  if (closeBtn) closeBtn.addEventListener("click", close);
+  if (backdrop) backdrop.addEventListener("click", close);
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !modal.classList.contains("hidden")) {
+      e.preventDefault();
+      close();
+    }
+  });
+})();
 
 function draw() {
   const dpr = window.devicePixelRatio || 1;
@@ -793,11 +968,11 @@ function draw() {
       ctx.arc(p.x, p.y, r + 10, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.fillStyle = isCur ? "#57e2a5" : colorFor(n);
+    ctx.fillStyle = isCur ? themeColors.good : colorFor(n);
     ctx.beginPath();
     ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = isCur ? "#d7e0ff" : "#7a86b6";
+    ctx.fillStyle = isCur ? themeColors.ink : themeColors.dim;
     ctx.font = `${12 * Math.max(view.scale * p.persp, 0.7)}px ui-monospace, monospace`;
     // Labels grow long fast, so abbreviate them by default; reveal the full name
     // for the current location and whichever node the pointer is hovering.
@@ -806,7 +981,7 @@ function draw() {
     // Depth badge: the nesting-depth number to the left of each nested node, so
     // depth is legible without rotating. Base (depth 0) nodes are left unbadged.
     if (n.depth > 0) {
-      ctx.fillStyle = isCur ? "#d7e0ff" : "#5a6699";
+      ctx.fillStyle = isCur ? themeColors.ink : themeColors.depth;
       ctx.textAlign = "right";
       ctx.fillText(String(n.depth), p.x - r - 4, p.y + 4);
       ctx.textAlign = "left";
@@ -999,7 +1174,7 @@ let hoveredId = null;
 canvas.addEventListener("mousedown", (e) => {
   const hit = nodeAt(e.offsetX, e.offsetY);
   if (hit && state && hit.id !== state.session.Location) {
-    run("travel " + hit.id);
+    runMove("travel " + hit.id);
     return;
   }
   // A plain drag pans the map; Shift+drag orbits it in 3D. When starting an
@@ -1069,8 +1244,16 @@ canvas.addEventListener("wheel", (e) => {
   view.scale = newScale;
 }, { passive: false });
 
+// Commands that legitimately don't move the session (they manage the session or
+// map, not the position) are run plainly; everything else goes through runMove so
+// a refused transition/travel flashes the button and sounds the blocked cue.
+const NON_MOVE_CMDS = new Set(["save", "home", "quest"]);
 document.querySelectorAll("button[data-cmd]").forEach((b) => {
-  b.addEventListener("click", () => run(b.dataset.cmd));
+  b.addEventListener("click", () => {
+    const cmd = b.dataset.cmd;
+    if (NON_MOVE_CMDS.has(cmd.split(" ")[0])) run(cmd);
+    else runMove(cmd, b);
+  });
 });
 
 // View-orientation buttons (client-side only, no server round-trip). "vertical"
@@ -1105,22 +1288,24 @@ document.getElementById("cmdform").addEventListener("submit", (e) => {
 // Time picker: the datetime-local value is wall-clock local time; convert it to
 // a UTC RFC3339 timestamp (dropping milliseconds) so it matches the format the
 // facade's `time <RFC3339>` command expects.
-document.getElementById("time-go").addEventListener("click", () => {
+const timeGoBtn = document.getElementById("time-go");
+timeGoBtn.addEventListener("click", () => {
   const v = document.getElementById("time-input").value;
   if (!v) return;
   const d = new Date(v);
   if (isNaN(d.getTime())) return;
-  run("time " + d.toISOString().replace(/\.\d{3}Z$/, "Z"));
+  runMove("time " + d.toISOString().replace(/\.\d{3}Z$/, "Z"), timeGoBtn);
 });
 
 // Observer picker: send whatever perspective the user typed (free-form, e.g.
 // Bat, Dog, Machine); the facade creates the branch on demand. Enter submits.
 const observerInput = document.getElementById("observer-input");
+const observeGoBtn = document.getElementById("observe-go");
 function runObserve() {
   const v = observerInput.value.trim();
-  if (v) run("observe " + v);
+  if (v) runMove("observe " + v, observeGoBtn);
 }
-document.getElementById("observe-go").addEventListener("click", runObserve);
+observeGoBtn.addEventListener("click", runObserve);
 observerInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") { e.preventDefault(); runObserve(); }
 });

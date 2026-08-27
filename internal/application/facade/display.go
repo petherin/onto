@@ -34,16 +34,22 @@ func (a *App) objectiveStatus() string {
 	var b strings.Builder
 	if s.HasBudget() {
 		fmt.Fprintf(&b, "\n\nBudget remaining\n%.0f of %.0f", s.RemainingBudget(), s.Budget())
+		if s.RemainingBudget() <= 0 {
+			fmt.Fprintf(&b, " — %s", BudgetExhaustedMarker)
+		}
 	}
 	if s.HasTarget() {
 		par := a.objectivePar()
 		done := s.ObjectiveIndex()
 		targets := s.Targets()
-		fmt.Fprintf(&b, "\n\nObjective (%d of %d reached)", done, len(targets))
+		fmt.Fprintf(&b, "\n\nObjective (%d of %d complete)", done, len(targets))
 		for i, t := range targets {
 			mark := " "
-			if i < done {
+			switch {
+			case i < done:
 				mark = "x"
+			case i == done && s.ReachedTarget():
+				mark = "~"
 			}
 			fmt.Fprintf(&b, "\n  [%s] %d. Reach %s", mark, i+1, t.ShortOntoAddress())
 		}
@@ -51,9 +57,9 @@ func (a *App) objectiveStatus() string {
 		case s.Won():
 			b.WriteString("\nComplete — every objective reached and returned home.")
 		case s.ReachedTarget():
-			b.WriteString("\nAll objectives reached — return home to win.")
+			b.WriteString("\nObjective reached — return home to complete it.")
 		default:
-			b.WriteString("\nReach each objective in order, then return home to win.")
+			b.WriteString("\nReach the objective, then return home to complete it.")
 		}
 		fmt.Fprintf(&b, "\nPar %.0f", par)
 		if s.Won() {
@@ -183,8 +189,8 @@ func (a *App) formatEdges(edges []universe.EdgeVO) string {
 		lines = append(lines, fmt.Sprintf("%d. %s", i+1, option.Description))
 	}
 	if observerShiftAvailable {
-		lines = append(lines, "- observer perspective (2 cost — observe <observer>)")
-		lines = append(lines, "- temporal branch (100 cost — time <RFC3339>)")
+		lines = append(lines, fmt.Sprintf("- observer perspective (%.0f cost — observe <observer>)", universe.ObserverShiftCost))
+		lines = append(lines, fmt.Sprintf("- temporal branch (%.0f cost — time <RFC3339>)", universe.TimeShiftCost))
 	}
 	return strings.Join(lines, "\n")
 }

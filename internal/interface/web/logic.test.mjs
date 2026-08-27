@@ -17,6 +17,8 @@ import {
   soundSpec,
   SOUND_SPEC,
   DEFAULT_SOUND,
+  BLOCKED_SOUND,
+  sessionMoved,
   detectTransition,
   TRANSITIONS,
   TRANSITION_LEGEND,
@@ -51,6 +53,7 @@ import {
   FOCAL,
   fitView,
   FIT_MARGIN,
+  FIT_GROUP_MARGIN,
   depthAlpha,
   MIN_DEPTH_ALPHA,
   abbreviateLabel,
@@ -139,7 +142,7 @@ test("soundSpec duration spans the latest-finishing voice's delay, attack and re
 });
 
 test("every declared sound voice has a sane, playable envelope", () => {
-  const specs = [...Object.values(SOUND_SPEC), DEFAULT_SOUND];
+  const specs = [...Object.values(SOUND_SPEC), DEFAULT_SOUND, BLOCKED_SOUND];
   for (const voices of specs) {
     for (const v of voices) {
       // Pitched voices carry a frequency; noise voices are broadband, so they
@@ -186,6 +189,26 @@ test("the palette leans on organic, grungy techniques, not clean oscillators", (
   assert.ok(all.some((v) => v.ring), "some voice should be ring-modulated for metallic character");
   assert.ok(all.some((v) => v.fm), "some voice should use FM for inharmonic, organic timbres");
   assert.ok(all.some((v) => v.jitter), "some voice should jitter for organic imperfection");
+});
+
+test("soundSpec serves the blocked cue and it stays out of the transition palette", () => {
+  // A refused press must sound distinct from any transition, so the blocked cue
+  // is its own spec, reached only through the "blocked" mode.
+  const { voices, duration } = soundSpec("blocked");
+  assert.equal(voices, BLOCKED_SOUND, "the blocked mode must serve BLOCKED_SOUND");
+  assert.ok(duration > 0, "the blocked cue must have a positive duration");
+  assert.ok(!Object.values(SOUND_SPEC).includes(BLOCKED_SOUND), "the blocked cue must not be a transition sound");
+});
+
+test("sessionMoved tells a real move from a refused one", () => {
+  // A genuine move changes the location or spends budget; when neither changes
+  // the action was blocked. The very first apply (no prior session) counts as a
+  // move so the opening state is never mistaken for a block.
+  const base = { Location: "a", CumulativeCost: 10 };
+  assert.equal(sessionMoved(null, base), true, "first apply is never a block");
+  assert.equal(sessionMoved(base, base), false, "an identical snapshot is a block");
+  assert.equal(sessionMoved(base, { Location: "b", CumulativeCost: 10 }), true, "a new location is a move");
+  assert.equal(sessionMoved(base, { Location: "a", CumulativeCost: 12 }), true, "spent budget is a move");
 });
 
 test("detectTransition returns null when a snapshot is missing", () => {
@@ -666,4 +689,49 @@ test("fitView keeps a deep, rotated journey on screen (regression)", () => {
     assert.ok(p.x >= -1 && p.x <= w + 1, `x on screen: ${p.x}`);
     assert.ok(p.y >= -1 && p.y <= h + 1, `y on screen: ${p.y}`);
   }
+});
+
+test("FIT_GROUP_MARGIN frames a group as a centred hero, leaving room around it", () => {
+  // Framing a just-revealed group (frameToGroup uses fitView with the larger
+  // FIT_GROUP_MARGIN) must centre the group and keep it well inside the canvas,
+  // so the surrounding older realities stay visible around the edges.
+  assert.ok(FIT_GROUP_MARGIN > FIT_MARGIN, "the group margin must exceed the fit-everything margin");
+  const group = [
+    { x: -60, y: -40, z: 0 },
+    { x: 60, y: 40, z: 0 },
+  ];
+  const w = 800, h = 600;
+  const fit = fitView(group, IDENTITY_VIEW, w, h, FIT_GROUP_MARGIN);
+  const framed = { ...IDENTITY_VIEW, scale: fit.scale, ox: fit.ox, oy: fit.oy };
+  const pa = project(group[0], framed, w, h);
+  const pb = project(group[1], framed, w, h);
+  // Centred on the canvas.
+  assert.ok(Math.abs((pa.x + pb.x) / 2 - w / 2) < 1e-6, "group must centre horizontally");
+  assert.ok(Math.abs((pa.y + pb.y) / 2 - h / 2) < 1e-6, "group must centre vertically");
+  // The group spans only the inner (1 - margin) of the canvas, leaving context
+  // room around it — so it reads as a focused hero, not a full-bleed fill.
+  const spanX = Math.abs(pb.x - pa.x);
+  assert.ok(spanX <= w * (1 - FIT_GROUP_MARGIN) + 1e-6, "group must sit within the group margin");
+});
+
+test("fitView centres a deep group at a steep pitch on the canvas (no bottom drift)", () => {
+  // Regression: at the near-top-down vertical view, screen-y is y1*scale*persp,
+  // not just y1*scale. Centring on the orthographic midpoint (persp ignored) left
+  // deeper groups sitting progressively lower until, after a few journeys, they
+  // slid off the bottom. A group deep in z, framed at that pitch, must still land
+  // with its projected centre on the canvas centre.
+  const w = 900, h = 640;
+  const view = { rotX: -1.42, rotY: 0, scale: 1, ox: 0, oy: 0 };
+  const group = [
+    { x: -40, y: 600, z: 520 },
+    { x: 40, y: 660, z: 520 },
+    { x: 0, y: 630, z: 560 },
+  ];
+  const fit = fitView(group, view, w, h, FIT_GROUP_MARGIN);
+  const framed = { ...view, scale: fit.scale, ox: fit.ox, oy: fit.oy };
+  let cx = 0, cy = 0;
+  for (const n of group) { const p = project(n, framed, w, h); cx += p.x; cy += p.y; }
+  cx /= group.length; cy /= group.length;
+  assert.ok(Math.abs(cx - w / 2) < 1e-6, `deep group must centre horizontally, got ${cx}`);
+  assert.ok(Math.abs(cy - h / 2) < 1e-6, `deep group must centre vertically, got ${cy}`);
 });
