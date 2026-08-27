@@ -46,6 +46,8 @@ import {
   SPAWN_HALO_ALPHA,
   project,
   FOCAL,
+  fitView,
+  FIT_MARGIN,
   depthAlpha,
   MIN_DEPTH_ALPHA,
   abbreviateLabel,
@@ -497,4 +499,79 @@ test("layoutTarget: non-home places sit exactly PHYS_RADIUS from their reality c
 test("layoutTarget is deterministic for the same node", () => {
   const node = { Location: "City Centre", Quantum: "Q2", Timeline: "T1" };
   assert.deepEqual(layoutTarget(node), layoutTarget(node));
+});
+
+const IDENTITY_VIEW = { rotX: 0, rotY: 0, scale: 1, ox: 0, oy: 0 };
+
+test("fitView returns a centred, unit-scale frame for an empty set", () => {
+  assert.deepEqual(fitView([], IDENTITY_VIEW, 800, 600), { scale: 1, ox: 0, oy: 0 });
+});
+
+test("fitView centres the bounding box of the nodes", () => {
+  // Two nodes symmetric about the origin on a flat (z=0) map, at identity
+  // rotation, already centre on the canvas — so the pan is zero.
+  const nodes = [
+    { x: -100, y: -50, z: 0 },
+    { x: 100, y: 50, z: 0 },
+  ];
+  const fit = fitView(nodes, IDENTITY_VIEW, 800, 600);
+  assert.ok(Math.abs(fit.ox) < 1e-9);
+  assert.ok(Math.abs(fit.oy) < 1e-9);
+  assert.ok(fit.scale > 0);
+});
+
+test("fitView pans an off-centre cluster back to the middle", () => {
+  const nodes = [
+    { x: 200, y: 200, z: 0 },
+    { x: 260, y: 240, z: 0 },
+  ];
+  const w = 800, h = 600;
+  const fit = fitView(nodes, IDENTITY_VIEW, w, h);
+  // Applying the returned frame, the cluster's midpoint should land on centre.
+  const framed = { ...IDENTITY_VIEW, scale: fit.scale, ox: fit.ox, oy: fit.oy };
+  const pa = project(nodes[0], framed, w, h);
+  const pb = project(nodes[1], framed, w, h);
+  const midX = (pa.x + pb.x) / 2, midY = (pa.y + pb.y) / 2;
+  assert.ok(Math.abs(midX - w / 2) < 1e-6);
+  assert.ok(Math.abs(midY - h / 2) < 1e-6);
+});
+
+test("fitView frames a wide spread within the margin", () => {
+  const nodes = [
+    { x: -4000, y: 0, z: 0 },
+    { x: 4000, y: 0, z: 0 },
+  ];
+  const w = 800, h = 600;
+  const fit = fitView(nodes, IDENTITY_VIEW, w, h);
+  const framed = { ...IDENTITY_VIEW, scale: fit.scale, ox: fit.ox, oy: fit.oy };
+  const pa = project(nodes[0], framed, w, h);
+  const pb = project(nodes[1], framed, w, h);
+  const spanX = Math.abs(pb.x - pa.x);
+  // The span fits inside the available width (canvas minus the margin padding).
+  assert.ok(spanX <= w * (1 - FIT_MARGIN) + 1e-6);
+});
+
+test("fitView keeps a deep, rotated journey on screen (regression)", () => {
+  // Mimics a long journey: nodes spread across x/y and deep in z (nesting), seen
+  // through a tilted, yawed view. Some rotate to a large depth where the naive
+  // perspective-projected fit produced a wild outlier, collapsed the scale, and
+  // parked the whole map off-screen. Every node must land inside the canvas.
+  const w = 900, h = 640;
+  const view = { rotX: 0.5, rotY: 0.35, scale: 1, ox: 0, oy: 0 };
+  const nodes = [];
+  for (let i = 0; i < 26; i++) {
+    nodes.push({
+      x: (i - 13) * 160 + (i % 3) * 40,
+      y: ((i * 37) % 400) - 200,
+      z: (i % 8) * 110, // layerZ-style nesting depth up to ~770
+    });
+  }
+  const fit = fitView(nodes, view, w, h);
+  assert.ok(fit.scale > 0 && Number.isFinite(fit.scale));
+  const framed = { ...view, scale: fit.scale, ox: fit.ox, oy: fit.oy };
+  for (const n of nodes) {
+    const p = project(n, framed, w, h);
+    assert.ok(p.x >= -1 && p.x <= w + 1, `x on screen: ${p.x}`);
+    assert.ok(p.y >= -1 && p.y <= h + 1, `y on screen: ${p.y}`);
+  }
 });

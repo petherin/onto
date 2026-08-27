@@ -16,6 +16,7 @@ import {
   layoutTarget,
   clampScale,
   zoomOffset,
+  fitView,
   unproject,
   panToScreen,
   ROTATE_SPEED,
@@ -32,13 +33,11 @@ const ctx = canvas.getContext("2d");
 const brandEl = document.getElementById("brand");
 const axesEl = document.getElementById("axes");
 const costEl = document.getElementById("cost-value");
-const lookEl = document.getElementById("look");
 const logEl = document.getElementById("log");
 const promptEl = document.getElementById("prompt");
 const cmdInput = document.getElementById("cmd");
 const confirmEl = document.getElementById("confirm");
 const inspectorEl = document.getElementById("inspector");
-const trailEl = document.getElementById("trail");
 const saveBtn = document.getElementById("save-btn");
 
 let state = null;
@@ -63,6 +62,13 @@ function setVerticalView() {
 function setDefaultView() {
   view.rotX = 0.5; view.rotY = 0.35;
   view.ox = 0; view.oy = 0; view.scale = 1;
+}
+// setFitView keeps the current rotation but re-frames the map so every node fits
+// on screen at once (fitView computes the scale + pan). Use it to recover from a
+// map that has sprawled or zoomed off-frame without losing the current angle.
+function setFitView() {
+  const fit = fitView(nodes.values(), view, canvas.clientWidth, canvas.clientHeight);
+  view.scale = fit.scale; view.ox = fit.ox; view.oy = fit.oy;
 }
 let logCount = 0;
 // Mirrors stateDTO.Dirty: true when the session has unsaved mutations. Drives
@@ -95,10 +101,8 @@ function apply(s) {
   state = s;
   const added = syncNodes(s.graph);
   renderHUD(s.session);
-  renderLook(s);
   renderLog(s);
   renderInspector();
-  renderTrail(s);
   renderDirty(s);
   // Bottom-right prompt shows the current node's name (a short, shell-like
   // cue); the full onto:// address lives in the loc badge in the header.
@@ -213,8 +217,6 @@ function currentNodeSnapshot(s) {
   return ((s.graph && s.graph.Nodes) || []).find((n) => n.ID === id) || null;
 }
 
-function renderLook(s) { lookEl.textContent = s.look || ""; }
-
 function renderLog(s) {
   const hist = (s.session && s.session.History) || [];
   // Only re-render when something changed to avoid flicker/scroll resets.
@@ -252,11 +254,12 @@ function nodeInfo(n) {
   };
 }
 
-// renderInspector fills the side-panel inspector with the hovered node's
-// details, falling back to the current location when nothing is hovered. The
-// footer answers "how do I get there?": you-are-here, click-to-travel for a
-// reachable same-reality node, a command chip when a reality transition is
-// required (requiredTransition), or no-route when it's otherwise unreachable.
+// renderInspector fills the floating top-left inspector. It describes where you
+// are — the current node — by default, and switches to the hovered node's
+// details while the pointer is over one. The footer answers "how do I get
+// there?": you-are-here, click-to-travel for a reachable same-reality node, a
+// command chip when a reality transition is required (requiredTransition), or
+// no-route when it's otherwise unreachable.
 function renderInspector() {
   if (!inspectorEl) return;
   const sess = state && state.session;
@@ -287,23 +290,6 @@ function renderInspector() {
   inspectorEl.innerHTML =
     `<div class="insp-title">${escapeHtml(info.name)}</div>` + desc + addr +
     `<div class="insp-foot">${status}</div>`;
-}
-
-// renderTrail renders the session's journey history (SessionSnapshot.History)
-// as an ordered list, newest last. It re-renders only when the history changes
-// (length + last entry) so it doesn't churn on every unrelated state refresh.
-function renderTrail(s) {
-  if (!trailEl) return;
-  const hist = (s.session && s.session.History) || [];
-  const sig = hist.length + "|" + (hist[hist.length - 1] || "");
-  if (sig === trailEl.dataset.sig) return;
-  trailEl.dataset.sig = sig;
-  if (!hist.length) { trailEl.innerHTML = ""; return; }
-  const items = hist.map((h) => `<li>${escapeHtml(h)}</li>`).join("");
-  const label = hist.length === 1 ? "move" : "moves";
-  trailEl.innerHTML =
-    `<div class="trail-title">journey · ${hist.length} ${label}</div>` +
-    `<ol class="trail-list">${items}</ol>`;
 }
 
 // renderDirty mirrors stateDTO.Dirty onto the save button (a dot appears when
@@ -734,10 +720,12 @@ document.querySelectorAll("button[data-cmd]").forEach((b) => {
 });
 
 // View-orientation buttons (client-side only, no server round-trip). "vertical"
-// snaps to the depth-ladder view; "reset" restores the free three-quarter view.
-// The running tick() redraws automatically.
+// snaps to the depth-ladder view; "reset" restores the free three-quarter view;
+// "fit" keeps the current angle but re-frames so every node is on screen. The
+// running tick() redraws automatically.
 document.getElementById("view-vertical").addEventListener("click", setVerticalView);
 document.getElementById("view-reset").addEventListener("click", setDefaultView);
+document.getElementById("view-fit").addEventListener("click", setFitView);
 
 // Reset map: full server-side reset back to the starting realities. Distinct
 // from view-reset (which only moves the camera) — this discards every branch

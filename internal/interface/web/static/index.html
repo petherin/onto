@@ -20,7 +20,7 @@
   <main>
     <section id="stage">
       <canvas id="map"></canvas>
-      <div id="look" class="look"></div>
+      <div id="inspector" class="inspector"></div>
       <div id="legend" class="legend">
         <span class="legend-item"><i class="dot" style="background:#57e2a5"></i>you are here</span>
         <span class="legend-item"><i class="dot" style="background:#6ea8ff"></i>travel here</span>
@@ -67,6 +67,7 @@
         <div class="control-group" data-label="view">
           <button id="view-vertical" title="Stack realities top-to-bottom: base at the top, deepest at the bottom">vertical ⭳</button>
           <button id="view-reset" title="Restore the free three-quarter view">reset ⟲</button>
+          <button id="view-fit" title="Keep the current angle but zoom and pan so every node fits on screen">best fit ⤢</button>
         </div>
         <div class="control-group observer-group" data-label="observer">
           <input id="observer-input" class="observer-input" list="observer-list" placeholder="observer, e.g. Bat" title="Type any observer perspective, then press observe" />
@@ -86,8 +87,6 @@
         </div>
       </div>
 
-      <div id="inspector" class="inspector"></div>
-      <div id="trail" class="trail"></div>
       <div id="log" class="log"></div>
 
       <div id="confirm" class="confirm hidden">

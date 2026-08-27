@@ -45,8 +45,8 @@ export function modeStyle(mode) { return MODE_STYLE[mode] || DEFAULT_MODE_STYLE;
 // sub-graph away from the parent and nesting emerges from the layout itself. A
 // mode counts as a transition when its style is dashed (physical modes are the
 // only solid ones in MODE_STYLE), so unknown modes fall on the transition side.
-export const REST_PHYSICAL = 70;
-export const REST_TRANSITION = 170;
+export const REST_PHYSICAL = 50;
+export const REST_TRANSITION = 110;
 export function edgeRestLength(mode) {
   return modeStyle(mode).dash.length ? REST_TRANSITION : REST_PHYSICAL;
 }
@@ -248,8 +248,13 @@ export const AXIS_DIR = {
   observer:   [-0.643, 0.766], // 130°
   quantum:    [-0.866, 0.5],   // 150° — down and to the left
 };
-export const REALITY_SPREAD = 160;
-export const PHYS_RADIUS = 65;
+// REALITY_SPREAD sets the distance between reality group centres (per axis
+// level); PHYS_RADIUS is the radius of the physical ring within a group. The
+// spread must clear the ring on the shallowest downward axis (min downward
+// component 0.5, timeline/quantum) so a new reality always lands below base:
+// REALITY_SPREAD * 0.5 > PHYS_RADIUS.
+export const REALITY_SPREAD = 110;
+export const PHYS_RADIUS = 45;
 
 // realityCenter sums each axis's direction × its level × REALITY_SPREAD, giving
 // the x/y anchor for a node's whole reality. Base reality resolves to {0,0}.
@@ -362,6 +367,64 @@ export function unproject(sx, sy, view, width, height) {
 export function panToScreen(p, view, width, height, tx, ty) {
   const proj = project(p, { ...view, ox: 0, oy: 0 }, width, height);
   return { ox: tx - proj.x, oy: ty - proj.y };
+}
+
+// fitView computes the scale + pan ({scale, ox, oy}) that frames every node in
+// `nodes` within the canvas at the view's *current* rotation, so a "best fit"
+// button can show as many nodes as possible without changing the viewing angle.
+//
+// It deliberately frames on the *orthographic* rotated coordinates (x1, y1 —
+// before the perspective divide), not the perspective-projected screen points.
+// A big, deep journey pushes some nodes to a large rotated depth (z2); the
+// perspective factor FOCAL/(FOCAL+z2) then blows up (or clamps) for a node at or
+// behind the focal plane, which used to throw a single wild outlier into the
+// bounding box, collapse the scale to its floor, and skew the centre — so the
+// map vanished to a sub-pixel dot parked off-screen. Orthographic extents are
+// bounded and outlier-free, so every node is guaranteed inside the frame.
+//
+// Perspective is then accounted for conservatively: the box half-extents are
+// grown by the largest perspective magnification present among the nodes (near
+// nodes, with z2 < 0, render larger than their orthographic position), so those
+// magnified nodes still fit. The result is centred on the orthographic midpoint,
+// which is where project() also centres at persp≈1. An empty set leaves the map
+// centred at scale 1.
+export const FIT_MARGIN = 0.12;
+export function fitView(nodes, view, width, height, margin = FIT_MARGIN) {
+  const arr = [...nodes];
+  if (!arr.length || !(width > 0) || !(height > 0)) {
+    return { scale: 1, ox: 0, oy: 0 };
+  }
+  const cyaw = Math.cos(view.rotY), syaw = Math.sin(view.rotY);
+  const cpit = Math.cos(view.rotX), spit = Math.sin(view.rotX);
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let maxPersp = 0;
+  for (const n of arr) {
+    const nx = n.x || 0, ny = n.y || 0, nz = n.z || 0;
+    const x1 = nx * cyaw - nz * syaw;
+    const z1 = nx * syaw + nz * cyaw;
+    const y1 = ny * cpit - z1 * spit;
+    const z2 = ny * spit + z1 * cpit;
+    if (x1 < minX) minX = x1;
+    if (x1 > maxX) maxX = x1;
+    if (y1 < minY) minY = y1;
+    if (y1 > maxY) maxY = y1;
+    const persp = FOCAL / Math.max(FOCAL + z2, 1);
+    if (persp > maxPersp) maxPersp = persp;
+  }
+  const midX = (minX + maxX) / 2, midY = (minY + maxY) / 2;
+  // Grow the box by the strongest magnification so magnified near nodes still
+  // fit; guard against a degenerate/non-finite factor.
+  const grow = Number.isFinite(maxPersp) && maxPersp > 1 ? maxPersp : 1;
+  const boxW = (maxX - minX) * grow, boxH = (maxY - minY) * grow;
+  const availW = width * (1 - margin), availH = height * (1 - margin);
+  let scale = 1;
+  if (boxW > 0 || boxH > 0) {
+    const sx = boxW > 0 ? availW / boxW : Infinity;
+    const sy = boxH > 0 ? availH / boxH : Infinity;
+    scale = clampScale(Math.min(sx, sy));
+  }
+  // Centre the orthographic midpoint on the canvas centre.
+  return { scale, ox: -midX * scale, oy: -midY * scale };
 }
 
 // depthAlpha maps a node's projected depth to an opacity so nodes further from
