@@ -1,5 +1,5 @@
 {
-  // Run `make debug` (or `make debug-dashboard`) in a terminal first, then
+  // Run `make debug` in a terminal first, then
   // start this "Attach" configuration to connect VS Code's debugger to it.
   "version": "0.2.0",
   "configurations": [

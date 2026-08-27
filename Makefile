@@ -9,10 +9,6 @@ DEBUG_PORT := 2345
 run:                   ## Run the app natively (requires Go installed)
 	go run ./cmd/cli
 
-.PHONY: dashboard
-dashboard:             ## Run the multi-pane TUI dashboard natively (requires Go installed)
-	go run ./cmd/dashboard
-
 .PHONY: web
 web:                   ## Run the browser-based Reality Map at http://localhost:8090 (override with ONTO_WEB_ADDR)
 	go run ./cmd/web
@@ -25,15 +21,6 @@ debug:                 ## Start a headless Delve debug server on :2345 for VS Co
 	fi
 	@echo "Delve listening on :$(DEBUG_PORT) — attach your IDE debugger now (VS Code: 'Attach to Onto (Delve)')"
 	$(DLV_BIN) debug ./cmd/cli --headless --listen=:$(DEBUG_PORT) --api-version=2 --accept-multiclient
-
-.PHONY: debug-dashboard
-debug-dashboard:       ## Start a headless Delve debug server on :2345 for the dashboard binary
-	@if [ ! -f "$(DLV_BIN)" ]; then \
-		echo "Installing delve..."; \
-		go install github.com/go-delve/delve/cmd/dlv@latest; \
-	fi
-	@echo "Delve listening on :$(DEBUG_PORT) — attach your IDE debugger now (VS Code: 'Attach to Onto (Delve)')"
-	$(DLV_BIN) debug ./cmd/dashboard --headless --listen=:$(DEBUG_PORT) --api-version=2 --accept-multiclient
 
 .PHONY: debug-kill
 debug-kill:            ## Force-kill any stuck dlv/debug processes (use if a debug session hangs, e.g. paused at a breakpoint after the client disconnects)
@@ -54,10 +41,6 @@ docker-run: docker-build  ## Build (if needed) and run the app in Docker
 .PHONY: build
 build:                 ## Build the native binary to ./onto
 	go build -o onto ./cmd/cli
-
-.PHONY: build-dashboard
-build-dashboard:       ## Build the native dashboard binary to ./onto-dashboard
-	go build -o onto-dashboard ./cmd/dashboard
 
 .PHONY: build-web
 build-web:             ## Build the native web binary to ./onto-web (embeds static assets)

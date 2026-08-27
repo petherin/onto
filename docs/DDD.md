@@ -51,7 +51,7 @@ flowchart TB
 
     subgraph Interface["Interface layer — delivers the application"]
         CLI["CLI<br/>Readline REPL; thin wrapper around facade"]
-        TUI["TUI<br/>Bubble Tea dashboard; thin wrapper around facade"]
+        WEB["Web<br/>Browser Reality Map; thin wrapper around facade"]
     end
 
     subgraph Infrastructure["Infrastructure layer — implements technical details"]
@@ -61,9 +61,9 @@ flowchart TB
     end
 
     User[User] --> CLI
-    User --> TUI
+    User --> WEB
     CLI --> Facade
-    TUI --> Facade
+    WEB --> Facade
     Commands --> Aggregate
     Commands --> Services
     Commands --> Repository
@@ -78,7 +78,7 @@ Application code coordinates those concepts into use cases; it does not define
 reality-navigation rules. The application facade is the single entry point for
 all delivery mechanisms — it receives a plain string, dispatches to the
 appropriate command or query, and returns a formatted string. The interface
-packages (CLI and TUI) are thin wrappers that handle I/O and delegate
+packages (CLI and web) are thin wrappers that handle I/O and delegate
 everything else to the facade; neither knows the other exists. Infrastructure
 supplies the JSON persistence implementation. The dashed arrow is dependency
 inversion: the outer JSON repository implements the domain-defined repository
@@ -159,9 +159,9 @@ returned strings.
 
 Commands and queries each return a result struct. The facade formats that struct into a string; the application layer (commands and queries) never touches a string, and the interface layer never interprets the content of one.
 
-### Interface layer — `cli` and `tui`
+### Interface layer — `cli` and `web`
 
-`internal/interface/cli/` and `internal/interface/tui/` are the delivery mechanisms. Each is a thin wrapper that owns only I/O: the CLI manages a readline REPL and tab-completion; the TUI manages a Bubble Tea multi-pane dashboard. Both delegate all command dispatch and output formatting to `internal/application/facade/`. Neither knows the other exists. The domain has no knowledge that any delivery mechanism exists. Adding a new delivery mechanism (HTTP API, gRPC server, web UI) means writing a new `interface/` package and leaving everything else untouched.
+`internal/interface/cli/` and `internal/interface/web/` are the delivery mechanisms. Each is a thin wrapper that owns only I/O: the CLI manages a readline REPL and tab-completion; the web interface serves a browser-based Reality Map over a JSON API. Both delegate all command dispatch and output formatting to `internal/application/facade/`. Neither knows the other exists. The domain has no knowledge that any delivery mechanism exists. Adding a new delivery mechanism (HTTP API, gRPC server, another UI) means writing a new `interface/` package and leaving everything else untouched.
 
 ### Example: tracing a `travel station` command through the layers
 
@@ -169,7 +169,7 @@ Walking one request end-to-end shows how the layers hand off to each other
 without leaking responsibilities across boundaries.
 
 1. **Interface layer.** The user types `travel station`. The delivery mechanism
-   (CLI or TUI) passes the raw string to `facade.App.Execute` (in
+   (CLI or web) passes the raw string to `facade.App.Execute` (in
    `internal/application/facade/commands.go`). The interface layer's only job is
    I/O — it does not parse commands, validate arguments, or format output.
 2. **Interface → Application facade.** `facade.App.Execute` splits the input
@@ -213,10 +213,10 @@ without leaking responsibilities across boundaries.
    inside `TravelCommand`) separate from "expand the graph" (a distinct
    mutating use case), even though both are triggered by the same user input.
 
-At no point does the CLI or TUI decide what counts as a valid route. At no
+At no point does the CLI or web decide what counts as a valid route. At no
 point does the domain know it is being driven by a terminal. And at no point
-does the facade know whether the caller is a readline REPL, a Bubble Tea
-dashboard, or a test. That separation is the practical payoff of the layering
+does the facade know whether the caller is a readline REPL, a browser,
+or a test. That separation is the practical payoff of the layering
 described above.
 
 ### Type-name suffixes
