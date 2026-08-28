@@ -565,10 +565,20 @@ edge, builds the API image, and `terraform apply`s the S3/ECS/ALB/Route53 stack:
 
 ```bash
 make ministack        # one command: hosts + up + build + apply
-# open http://onto.world/       — the SPA + API
-# open http://localhost:8080/   — StackPort, browsing MiniStack's resources
+# http://onto.world/              — SPA + API (via the nginx edge)
+# http://api.onto.world/api/state — JSON API directly
+# http://localhost:8080/          — StackPort (browse MiniStack's resources)
+# http://localhost:4566           — MiniStack emulator endpoint
 make ministack-down   # terraform destroy + stop everything
 ```
+
+The `/etc/hosts` step needs sudo, and it's the first thing `make ministack` does —
+if it fails (no sudo rights, or you cancel the prompt) the run stops before
+anything starts. It only affects browser access to the two split-domain names: add
+them yourself (`127.0.0.1 onto.world` and `127.0.0.1 api.onto.world`) or re-run
+`make ministack-hosts`. StackPort (`:8080`) and MiniStack (`:4566`) go through
+`localhost` and work regardless, and the single-origin dev path (`make web` on
+`http://localhost:8090`) needs no `/etc/hosts` changes at all.
 
 ### Real AWS
 
