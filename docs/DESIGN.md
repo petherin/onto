@@ -57,6 +57,12 @@ Probability of successful return:
 92%
 ```
 
+**Status: not implemented.** The interaction above is speculative. Today `route`
+reports only the path, the physical distance in km, and the travel cost (see
+`formatRouteResult`). The σ (sigma) cost unit, the risk bar, and the
+probability-of-successful-return are design ideas, not current behaviour — see
+"Cost unit" and "Future gamification ideas" below.
+
 ## Recommended progression
 
 1. Start with only local navigation — a filesystem-like model. Keep the CLI small and familiar: `where`, `ls`, `cd`/`travel`, `route`, `look`, `scan`, `cost`.
@@ -186,6 +192,18 @@ mathematical-structure change is extreme. The exact, authoritative
 per-transition costs live in the README's "Contextual transition reference"
 table — they are not repeated here so the two can't drift.
 
+### Cost unit
+
+In the code, cost is a dimensionless `float64` — `TransitionCost` sums it, the
+session accumulates it as `cumulativeCost`, and it is displayed simply as
+"Cumulative journey cost" with no unit. Proposed name for that unit: **σ
+(sigma)**, read as "reality debt" — the accumulated instability of having moved
+away from your origin across one or more reality axes. This is a display-only
+naming suggestion: adopting it would mean rendering costs as e.g. `σ 140` in
+`where`, route output, and the budget HUD, without changing any of the
+underlying numbers. The speculative example at the top of this document already
+uses this σ notation.
+
 This model keeps the CLI surface stable (same commands) while the routing backend interprets edges and costs across axes.
 
 ## Observer axis and the umwelt
@@ -204,5 +222,37 @@ Cost implications:
 - Determining whether you are inside a simulation: undefined — this is left to the observer
 
 The simulation axis interacts with the observer axis: changing umwelt inside a simulation may be easier than in base reality, because the simulation's rules are malleable. Implementation uses `BranchSimulation` with asymmetric forward/reverse edge costs via `ContextualTransitionSpec.ReverseCost`.
+
+## Future gamification ideas
+
+Game mode today (documented in the README) gives a finite **budget**, an ordered
+**quest chain** of round trips, a **par** optimal cost, and a **1–3 star**
+efficiency rating. The following build on that base and on the σ / risk /
+return-probability sketch at the top of this document — none are implemented yet:
+
+- **Return probability & risk.** Give exotic transitions a chance of failing or
+  of stranding the traveller, and surface a per-route risk bar and
+  probability-of-successful-return. Deep simulation and mathematical-structure
+  jumps would be the riskiest.
+- **Reality debt / instability.** Let accumulated σ have consequences: past a
+  threshold the traveller is destabilised — random forced drifts, higher exit
+  costs, or edges that temporarily close until σ is paid down by going home.
+- **Seeded daily quest.** A deterministic quest from the objective pool keyed on
+  the date, so every player faces the same chain and can compare scores.
+- **Personal bests & leaderboards.** Persist the best star rating and lowest cost
+  per quest (or per seed), locally at first.
+- **Achievements.** Award badges for milestones: visit every Tegmark level, reach
+  simulation depth N, win under par with budget to spare, or restore every axis
+  by hand rather than via `home`.
+- **Fog of war.** Hide coordinates until first visited, making discovery — not
+  just routing — part of the game.
+- **Move or time limit.** Cap the number of moves (or wall-clock time) as an
+  alternative constraint to the spending budget.
+- **Regenerating energy.** Replace or complement the fixed budget with an energy
+  pool that refills slowly per move, rewarding patient, efficient routing.
+
+These would slot into the existing facade options (`WithBudget`, `WithTargets`,
+`WithObjectivePool`) and the session's cost/goal tracking without changing the
+coordinate or routing model.
 
 Use these notes as a guide when extending Onto beyond local navigation: they explain the address model, rendering choices, and the vector-based view that unifies walking and exotic reality transitions.
