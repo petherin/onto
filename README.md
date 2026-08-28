@@ -605,67 +605,74 @@ slow by nature).
 The Terraform under `deploy/terraform/envs/aws/` already describes the whole
 runtime stack (S3 + CloudFront + Origin Access Control, ALB + ECS/Fargate
 service, both ACM certificates, the Route53 records, the security groups, and the
-`onto-ecs-execution` Fargate role). What's left is the account setup, the image
-supply chain, and the CI wiring that Terraform deliberately doesn't own:
+`onto-ecs-execution` Fargate role). What's left splits into a **one-time
+bootstrap** you do by hand and the **ongoing build + deploy** that GitHub Actions
+runs on every merge to `main`.
 
-**1. AWS account access**
-- [ ] Have an AWS account and pick the region (`region` defaults to `eu-west-1`).
-- [ ] Create a deploy identity (user or role) with permissions for S3, CloudFront,
-      ACM, Route53, ECS, EC2 (VPC/subnet reads + security groups), ELB, ECR, and
-      IAM (it creates the `onto-ecs-execution` role).
-- [ ] Make credentials available to Terraform locally via the standard chain
-      (`aws configure` / `AWS_PROFILE` / env vars) — `providers.tf` hard-codes no
-      credentials.
+**1. Bootstrap once (manual)**
 
-**2. Domain name**
-- [ ] Register `onto.world` in the **Route53 console** — the one manual step.
-      Registration auto-creates the hosted zone that
-      `data "aws_route53_zone" "onto"` consumes and that ACM validates against.
-- [ ] Using a different domain? Register it, then set `domain`, `api_domain`, and
-      `api_base_url` in `terraform.tfvars`. If it's registered outside Route53,
-      create a hosted zone and point the registrar's NS records at it.
+The chicken-and-egg pieces CI can't create before it can authenticate or store
+state:
+- [ ] **AWS account + region.** Have an account; `region` defaults to `eu-west-1`.
+- [ ] **Domain.** Register `onto.world` in the **Route53 console** (inherently
+      manual). Registration auto-creates the hosted zone that
+      `data "aws_route53_zone" "onto"` consumes and ACM validates against. Using a
+      different domain? Register it and set `domain` / `api_domain` /
+      `api_base_url`; if it's registered outside Route53, create a hosted zone and
+      point the registrar's NS records at it.
+- [ ] **Remote Terraform state.** Local state won't work from ephemeral runners —
+      create an S3 state bucket + DynamoDB lock table and add a `backend "s3"`
+      block to `providers.tf`.
+- [ ] **GitHub OIDC + deploy role.** Add a GitHub OIDC provider and an IAM role
+      trusted for this repo, with permissions for S3, CloudFront, ACM, Route53,
+      ECS, EC2 (VPC/subnet reads + security groups), ELB, ECR, and IAM (it creates
+      `onto-ecs-execution`). Actions assumes it via
+      `aws-actions/configure-aws-credentials` — no long-lived keys.
+- [ ] **ECR repository.** CI pushes here before the first apply, so it must exist
+      first. Terraform does **not** create it today — either add an
+      `aws_ecr_repository` resource or create `onto-api` by hand in bootstrap.
 
-**3. Container image (ECR)**
-- [ ] Create an ECR repository (e.g. `onto-api`). Terraform does **not** create it
-      — the `image` variable must reference an image that already exists.
-- [ ] Build **for `linux/amd64`** (Fargate's default architecture) and push, e.g.:
-      `docker build --platform linux/amd64 -f deploy/ministack/Dockerfile.api -t <acct>.dkr.ecr.<region>.amazonaws.com/onto-api:<tag> .`,
-      then `aws ecr get-login-password | docker login …` and `docker push`.
-- [ ] Copy `terraform.tfvars.example` → `terraform.tfvars` and set `image` to the
-      pushed URI.
+**2. Ongoing — GitHub Actions (build + deploy on merge to `main`)**
 
-**4. Terraform state backend (do this before CI)**
-- [ ] The AWS env currently uses **local state** (no `backend` block). For CI or
-      multi-machine use, create an S3 state bucket + DynamoDB lock table and add a
-      `backend "s3"` block to `providers.tf` (bootstrap once by hand).
+The current workflow (`.github/workflows/ci.yml`) only tests, lints, and tags.
+Add a `deploy` job, gated on the existing `test` / `lint` jobs, that:
+- [ ] assumes the deploy role via OIDC (`aws-actions/configure-aws-credentials`
+      with `role-to-assume`);
+- [ ] logs into ECR (`aws-actions/amazon-ecr-login`), builds `--platform
+      linux/amd64` (Fargate's default arch), and pushes the image tagged with the
+      commit SHA;
+- [ ] applies Terraform against `envs/aws`, passing the image as
+      `-var image=<repo>:<sha>` (so the tag isn't committed to `terraform.tfvars`)
+      — **or** just rolls the service with
+      `aws ecs update-service --force-new-deployment` when only the image changed;
+- [ ] on SPA changes, `aws s3 sync`s the static assets and issues a CloudFront
+      invalidation (`/*`).
+- [ ] Store non-secret config as repo **variables** (account ID, region, role ARN,
+      ECR repo); OIDC removes the need for any AWS keys as secrets.
 
-**5. First apply**
-- [ ] `make tf-aws-init && make tf-aws-plan && make tf-aws-apply`. The first apply
-      is slow (ACM waits on DNS validation; CloudFront creation takes minutes).
-- [ ] Confirm the `urls` output resolves over HTTPS.
+**3. First apply**
+- [ ] The very first `terraform apply` (run locally against the new remote
+      backend, or as a one-off CI run) is slow — ACM waits on DNS validation and
+      CloudFront creation takes minutes. Confirm the `urls` output resolves over
+      HTTPS.
 
-**6. Redeploy on changes (GitHub Actions)**
-The current workflow (`.github/workflows/ci.yml`) only tests, lints, and tags — it
-does not deploy. To redeploy on merge to `main`:
-- [ ] Add a **GitHub OIDC provider + IAM role** in AWS trusted for this repo so
-      Actions assumes a role instead of storing long-lived keys (use
-      `aws-actions/configure-aws-credentials` with `role-to-assume`).
-- [ ] Add a `deploy` job (gated on the existing `test` / `lint` jobs) that:
-  - [ ] logs into ECR (`aws-actions/amazon-ecr-login`), builds `--platform
-        linux/amd64`, and pushes the image tagged with the commit SHA;
-  - [ ] applies Terraform against `envs/aws` (needs the remote backend above), **or**
-        just rolls the service with `aws ecs update-service --force-new-deployment`
-        when only the image changed;
-  - [ ] on SPA changes, `aws s3 sync` the static assets and issue a CloudFront
-        invalidation (`/*`).
-- [ ] Store non-secret config as repo **variables** (account ID, region, role ARN);
-      OIDC removes the need to keep any AWS keys as secrets.
+**4. Local fallback (no CI)**
 
-**7. Operational odds and ends**
-- [ ] There's no `make tf-aws-destroy` target yet — tear down with
+Everything above can still be driven by hand — useful for the first apply or
+break-glass:
+- [ ] Make credentials available via the standard chain (`aws configure` /
+      `AWS_PROFILE`); `providers.tf` hard-codes none.
+- [ ] Build + push the image (`docker build --platform linux/amd64 -f
+      deploy/ministack/Dockerfile.api -t
+      <acct>.dkr.ecr.<region>.amazonaws.com/onto-api:<tag> .`, then `docker
+      push`), set `image` in `terraform.tfvars`, and run `make tf-aws-init &&
+      make tf-aws-plan && make tf-aws-apply`.
+
+**5. Operational odds and ends**
+- [ ] No `make tf-aws-destroy` target yet — tear down with
       `cd deploy/terraform/envs/aws && terraform destroy` (add a target if useful).
-- [ ] Budget awareness: the ALB, CloudFront, the Fargate task, and the Route53
-      hosted zone all bill continuously even at idle; ACM certificates are free.
+- [ ] Budget: the ALB, CloudFront, the Fargate task, and the Route53 hosted zone
+      bill continuously even at idle; ACM certificates are free.
 - [ ] Before real traffic, consider raising `desired_count` and adding ECS
       autoscaling (defaults to a single task).
 
