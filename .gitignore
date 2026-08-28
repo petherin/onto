@@ -5,6 +5,7 @@
 # Go build outputs
 bin/
 /onto
+/onto-web
 *.exe
 *.dll
 *.so
@@ -33,6 +34,14 @@ coverage.out
 
 # Local environment variables
 .env
+
+# Terraform — provider binaries, state, and crash logs (lock files ARE committed)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!*.tfvars.example
 
 # Runtime save data. This is generated/appended to during play (every shift,
 # jump, drift, observe, time-travel, and dead-end discovery can add new

@@ -152,11 +152,17 @@ let logCount = 0;
 // the save-button indicator and the beforeunload guard.
 let dirty = false;
 
+// API_BASE lets the SPA and API live on different origins. It's empty by default
+// (config.js), so calls stay relative for same-origin dev (make web); when the
+// SPA is served from S3 and the API from ECS/ALB, provisioning sets
+// window.ONTO_API_BASE to the API's absolute URL (e.g. http://api.onto.world).
+const API_BASE = (typeof window !== "undefined" && window.ONTO_API_BASE) || "";
+
 async function api(path, body) {
   const opts = body
     ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
     : {};
-  const res = await fetch(path, opts);
+  const res = await fetch(API_BASE + path, opts);
   if (!res.ok) throw new Error(`${path} responded ${res.status}`);
   return res.json();
 }

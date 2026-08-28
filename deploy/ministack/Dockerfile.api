@@ -1,0 +1,39 @@
+# API image for the MiniStack ECS task: builds the Onto web server (cmd/web),
+# which embeds the SPA's static assets and exposes the JSON API. MiniStack's ECS
+# RunTask starts this container via the host Docker daemon, so it's built locally
+# as onto-api:local (no registry push needed) by the `ministack-image` make
+# target that runs before `terraform apply`.
+#
+# Build context is the repository root:
+#   docker build -f deploy/ministack/Dockerfile.api -t onto-api:local .
+
+# ── Build stage ──────────────────────────────────────────────────────────────
+FROM golang:1.26-alpine AS builder
+
+WORKDIR /build
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o onto-web ./cmd/web
+
+# ── Runtime stage ─────────────────────────────────────────────────────────────
+FROM alpine:3.20
+
+WORKDIR /app
+
+# Run as an unprivileged user rather than root: the server binds :8090 (a
+# non-privileged port) and needs no root capabilities.
+RUN addgroup -S onto && adduser -S -G onto onto
+
+COPY --from=builder --chown=onto:onto /build/onto-web .
+
+USER onto
+
+# The web server binds ONTO_WEB_ADDR (default :8090); the ECS task definition and
+# ALB target group both target 8090.
+ENV ONTO_WEB_ADDR=:8090
+EXPOSE 8090
+
+ENTRYPOINT ["./onto-web"]

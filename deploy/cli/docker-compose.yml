@@ -1,0 +1,27 @@
+# Interactive CLI game in a container (cmd/cli). This is the standalone CLI path
+# — not the MiniStack AWS simulation under deploy/ministack. Paths below resolve
+# against the repository root, so always run with --project-directory pointed at
+# the repo root (the `docker-run` / `docker-build` / `docker-clean` make targets
+# do this for you):
+#
+#   docker compose -f deploy/cli/docker-compose.yml --project-directory . run --rm cli
+
+services:
+  cli:
+    build:
+      context: .
+      dockerfile: deploy/cli/Dockerfile
+    # Deterministic image name (compose would otherwise derive it from the
+    # project + service, e.g. onto-cli, depending on where it's run from).
+    image: onto-cli:local
+    # Interactive CLI — keep stdin open and allocate a pseudo-TTY.
+    stdin_open: true
+    tty: true
+    # Mount the host data directory so saves persist across container restarts.
+    volumes:
+      - ./data:/app/data
+    environment:
+      - ONTO_DATA_FILE=${ONTO_DATA_FILE}
+      - ONTO_START_LOCATION=${ONTO_START_LOCATION}
+    env_file:
+      - .env

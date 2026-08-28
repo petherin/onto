@@ -1,0 +1,87 @@
+# MiniStack — a free, local AWS emulator (https://ministack.org) — used to run
+# the Onto stack as it would look in AWS: the SPA on S3, the Go API on ECS behind
+# an ALB, and a Route53 hosted zone for onto.world. A StackPort UI
+# (https://stackport.cloud) is bundled in for browsing what MiniStack holds.
+#
+#   make ministack            # one command: hosts + start everything + terraform apply
+#   make ministack-down       # terraform destroy + tear everything down
+#
+# Once up: SPA/API at http://onto.world/, StackPort UI at http://localhost:8080/.
+#
+# The project name is pinned so the Docker network is predictable
+# (ministack_default); MiniStack attaches the containers it starts for ECS tasks
+# to that network via DOCKER_NETWORK, so the ALB can reach the API container.
+name: ministack
+
+services:
+  ministack:
+    image: ministackorg/ministack:latest
+    ports:
+      - "4566:4566"
+    environment:
+      # Attach ECS-started task containers to this compose network so the ALB
+      # data plane can route to them by container IP.
+      - DOCKER_NETWORK=ministack_default
+      - MINISTACK_REGION=eu-west-1
+      # Keep everything in memory for a clean, repeatable local run.
+      - PERSIST_STATE=0
+    volumes:
+      # Real-infrastructure mode: ECS RunTask starts real Docker containers via
+      # the host daemon, so MiniStack needs the Docker socket.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4566/_ministack/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # StackPort — a web UI (https://stackport.cloud) that browses everything living
+  # inside MiniStack (S3 buckets/objects, the ECS cluster/task def, the ALB/target
+  # group, the Route53 zone/records). Read-only dashboard on http://localhost:8080;
+  # it reaches MiniStack over this compose network at http://ministack:4566.
+  stackport:
+    image: davireis/stackport:latest
+    # Published for amd64 only; runs under emulation on Apple Silicon. Pinned so
+    # the platform is explicit rather than a runtime warning.
+    platform: linux/amd64
+    container_name: ministack-stackport
+    depends_on:
+      ministack:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      - AWS_ENDPOINT_URL=http://ministack:4566
+      - AWS_REGION=eu-west-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    networks:
+      - default
+
+  # Local edge proxy — the one piece real AWS would give us for free that
+  # MiniStack can't: DNS + host-based routing. MiniStack has no resolver that
+  # maps onto.world / api.onto.world to a service, and its ALB data plane only
+  # answers to the load balancer's generated *.elb.amazonaws.com host, so this
+  # nginx stands in for Route53:
+  #   http://onto.world       → S3 (path-style) → the SPA
+  #   http://api.onto.world   → MiniStack with Host set to the ALB DNS → ALB → ECS
+  # onto.conf is static; api.conf is rewritten by the Terraform local shim
+  # (deploy/terraform/envs/local/shim.sh) with the ALB's (random each run) DNS
+  # name, then nginx is reloaded.
+  edge:
+    image: nginx:alpine
+    container_name: ministack-edge
+    depends_on:
+      - ministack
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    networks:
+      - default
+
+networks:
+  default:
+    name: ministack_default

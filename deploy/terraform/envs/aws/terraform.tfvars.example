@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars and fill in. Only `image` is required — Terraform
+# issues and DNS-validates both ACM certificates itself against the hosted zone
+# that Route53 auto-created when you registered the domain in the console.
+
+# Fully-qualified API image, e.g. pushed to ECR.
+image = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/onto-api:latest"
+
+# Optional overrides (defaults shown):
+# region        = "eu-west-1"
+# domain        = "onto.world"
+# api_domain    = "api.onto.world"
+# api_base_url  = "https://api.onto.world"
+# api_port      = 8090
+# desired_count = 1

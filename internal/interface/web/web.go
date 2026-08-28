@@ -12,6 +12,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 
@@ -65,7 +66,32 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/execute", s.handleExecute)
 	mux.HandleFunc("/api/save", s.handleSave)
 	mux.HandleFunc("/api/reset", s.handleReset)
-	return mux
+	return corsMiddleware(mux)
+}
+
+// corsMiddleware adds CORS headers so the SPA can call this API from a different
+// origin. In the split MiniStack layout the SPA is served from S3 (onto.world)
+// while the API runs on ECS behind an ALB (api.onto.world), so the browser makes
+// cross-origin requests and needs these headers (and a preflight answer for the
+// JSON POSTs). The allowed origin defaults to "*" and can be pinned to a single
+// origin with ONTO_ALLOWED_ORIGIN. Same-origin dev (make web) is unaffected.
+func corsMiddleware(next http.Handler) http.Handler {
+	origin := os.Getenv("ONTO_ALLOWED_ORIGIN")
+	if origin == "" {
+		origin = "*"
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("Access-Control-Allow-Origin", origin)
+		h.Add("Vary", "Origin")
+		h.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		h.Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Run starts the server on addr and blocks. It saves any unsaved mutations

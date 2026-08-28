@@ -3,6 +3,11 @@ GOLANGCI_LINT_BIN := $(shell go env GOPATH)/bin/golangci-lint
 DLV_BIN := $(shell go env GOPATH)/bin/dlv
 DEBUG_PORT := 2345
 
+# Standalone CLI game in a container (deploy/cli). Distinct from the MiniStack
+# AWS simulation (MINISTACK_COMPOSE, below). --project-directory . in the docker-*
+# targets resolves its build context, ./data mount, and .env against the repo root.
+CLI_COMPOSE := deploy/cli/docker-compose.yml
+
 ## ── Run ──────────────────────────────────────────────────────────────────────
 
 .PHONY: run
@@ -33,8 +38,8 @@ debug-kill:            ## Force-kill any stuck dlv/debug processes (use if a deb
 	fi
 
 .PHONY: docker-run
-docker-run: docker-build  ## Build (if needed) and run the app in Docker
-	docker compose run --rm onto
+docker-run: docker-build  ## Build (if needed) and run the CLI game in Docker
+	docker compose -f $(CLI_COMPOSE) --project-directory . run --rm cli
 
 ## ── Build ────────────────────────────────────────────────────────────────────
 
@@ -47,12 +52,83 @@ build-web:             ## Build the native web binary to ./onto-web (embeds stat
 	go build -o onto-web ./cmd/web
 
 .PHONY: docker-build
-docker-build:          ## Build the Docker image
-	docker compose build
+docker-build:          ## Build the CLI game Docker image
+	docker compose -f $(CLI_COMPOSE) --project-directory . build
 
 .PHONY: docker-clean
-docker-clean:          ## Stop and remove any leftover containers, anonymous volumes, and networks
-	docker compose down --volumes --remove-orphans
+docker-clean:          ## Stop and remove any leftover CLI containers, anonymous volumes, and networks
+	docker compose -f $(CLI_COMPOSE) --project-directory . down --volumes --remove-orphans
+
+## ── MiniStack (local AWS: S3 + ECS/ALB + Route53 via Terraform) ───────────────
+
+MINISTACK_COMPOSE := deploy/ministack/docker-compose.yml
+MINISTACK_HOSTS   := onto.world api.onto.world
+API_IMAGE         := onto-api:local
+
+TF_LOCAL := deploy/terraform/envs/local
+TF_AWS   := deploy/terraform/envs/aws
+# MiniStack creds + checksum settings (its S3 rejects the SDK's default CRC64NVME).
+TF_LOCAL_ENV := AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=eu-west-1 \
+	AWS_REQUEST_CHECKSUM_CALCULATION=WHEN_REQUIRED AWS_RESPONSE_CHECKSUM_VALIDATION=WHEN_REQUIRED
+
+.PHONY: ministack
+ministack: ministack-hosts ministack-up ministack-provision  ## One command: mock the domain in /etc/hosts, start MiniStack/StackPort/edge, build the image, terraform apply the whole stack
+	@echo ""
+	@echo "Onto is up:"
+	@echo "  SPA        → http://onto.world/"
+	@echo "  API        → http://api.onto.world/api/state"
+	@echo "  StackPort  → http://localhost:8080/   (browse MiniStack resources)"
+
+.PHONY: ministack-up
+ministack-up:          ## Start MiniStack, the StackPort UI, and the local edge proxy
+	docker compose -f $(MINISTACK_COMPOSE) up -d
+
+.PHONY: ministack-image
+ministack-image:       ## Build the API image MiniStack's ECS RunTask starts
+	docker build -f deploy/ministack/Dockerfile.api -t $(API_IMAGE) .
+
+.PHONY: ministack-provision
+ministack-provision: ministack-image  ## Build the API image and terraform apply (S3 + ECS/ALB + Route53) on MiniStack
+	cd $(TF_LOCAL) && $(TF_LOCAL_ENV) terraform init -input=false
+	cd $(TF_LOCAL) && $(TF_LOCAL_ENV) terraform apply -auto-approve -input=false
+
+.PHONY: ministack-down
+ministack-down:        ## Tear down: terraform destroy, remove ECS containers, stop MiniStack + edge
+	-cd $(TF_LOCAL) && $(TF_LOCAL_ENV) terraform destroy -auto-approve -input=false
+	-docker ps -aq --filter 'name=ministack-ecs-' | xargs -r docker rm -f
+	docker compose -f $(MINISTACK_COMPOSE) down --remove-orphans
+
+## ── AWS (real deployment via Terraform) ───────────────────────────────────────
+
+.PHONY: tf-aws-init
+tf-aws-init:           ## terraform init for the real AWS environment (deploy/terraform/envs/aws)
+	cd $(TF_AWS) && terraform init -input=false
+
+.PHONY: tf-aws-plan
+tf-aws-plan:           ## terraform plan for real AWS (supply vars via terraform.tfvars or -var)
+	cd $(TF_AWS) && terraform plan
+
+.PHONY: tf-aws-apply
+tf-aws-apply:          ## terraform apply for real AWS
+	cd $(TF_AWS) && terraform apply
+
+.PHONY: ministack-hosts
+ministack-hosts:       ## Add onto.world / api.onto.world → 127.0.0.1 to /etc/hosts (needs sudo)
+	@for h in $(MINISTACK_HOSTS); do \
+		if grep -qE "^127\.0\.0\.1[[:space:]].*$$h( |$$)" /etc/hosts; then \
+			echo "$$h already in /etc/hosts"; \
+		else \
+			echo "Adding $$h to /etc/hosts (sudo)"; \
+			echo "127.0.0.1 $$h" | sudo tee -a /etc/hosts >/dev/null; \
+		fi; \
+	done
+
+.PHONY: ministack-hosts-remove
+ministack-hosts-remove: ## Remove the onto.world / api.onto.world entries from /etc/hosts (needs sudo)
+	@for h in $(MINISTACK_HOSTS); do \
+		echo "Removing $$h from /etc/hosts (sudo)"; \
+		sudo sed -i.bak "/^127\.0\.0\.1[[:space:]][[:space:]]*$$h$$/d" /etc/hosts; \
+	done
 
 ## ── Test ─────────────────────────────────────────────────────────────────────
 
@@ -93,10 +169,10 @@ help:                  ## Show this help
 
 .PHONY: docs
 docs:                  ## Start local documentation server (installs pkgsite if needed)
-	@echo "Starting documentation server on http://localhost:8080..."
+	@echo "Starting documentation server on http://localhost:6060..."
 	@if [ ! -f "$(PKGSITE_BIN)" ]; then \
 		echo "Installing pkgsite..."; \
 		go install golang.org/x/pkgsite/cmd/pkgsite@v0.1.0; \
 	fi
 	@echo "Press Ctrl+C to stop"
-	@$(PKGSITE_BIN) -http=:8080
+	@$(PKGSITE_BIN) -http=:6060

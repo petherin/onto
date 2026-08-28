@@ -14,11 +14,14 @@ Onto is an experimental CLI for navigating reality as a coordinate system.
 - [Current status](#current-status)
 - [Architecture](#architecture)
 - [Getting started](#getting-started)
+- [Cloud deployment](#cloud-deployment)
 - [Roadmap](#roadmap)
 - [Notes](#notes)
-- [Why the name "Onto"](#why-the-name-onto)
 - [Design notes](#design-notes)
+- [Why the name "Onto"](#why-the-name-onto)
 
+
+## Core idea
 
 The long-term idea is simple: whether you are walking to a station, shifting to a different timeline, entering a simulation, or moving between imagined worlds, the interface should feel like the same operation: routing through a graph of possible locations.
 
@@ -470,7 +473,7 @@ plus free-text entry, an observer picker, and a time picker.
 ```bash
 make docker-run
 # or directly:
-docker compose run --rm onto
+docker compose -f deploy/cli/docker-compose.yml --project-directory . run --rm cli
 ```
 
 The `data/` directory is mounted as a bind mount, so locations you create or travel to persist on the host between runs. To clean up any dangling containers or anonymous volumes:
@@ -514,6 +517,147 @@ make mocks
 **Continuous Integration & Tagging:**
 
 Pushes to `main` automatically run unit tests, linting, and saved-universe validation via GitHub Actions. Upon success, semantic version tags (`vX.Y.Z`) are automatically generated and pushed based on [Conventional Commit](https://www.conventionalcommits.org/) messages: `BREAKING CHANGE` triggers a major bump, `feat:` triggers a minor bump, and `fix:` triggers a patch bump. Other commits use the configured patch fallback.
+
+## Cloud deployment
+
+Onto can run as a split cloud stack — the static SPA on **S3**, the Go API on
+**ECS/Fargate** behind an **ALB**, fronted by **Route53** on the domain
+`onto.world` — described entirely in Terraform under `deploy/terraform/`:
+
+```
+onto.world      → SPA       (S3, via CloudFront on AWS / nginx edge locally)
+api.onto.world  → JSON API  (ALB → ECS task running cmd/web)
+```
+
+The SPA and API live on different origins, so the API sends permissive CORS
+headers (`internal/interface/web`) and the SPA reads its API base from a
+generated `config.js`. One shared module drives two environments:
+
+```
+deploy/terraform/
+├── modules/onto/   # SHARED — S3, ECS, ALB, Route53 (all parameterised)
+├── envs/local/     # MiniStack: endpoint overrides + run-task/edge shims
+└── envs/aws/       # real AWS: HTTPS/ACM, CloudFront, IAM role, security groups
+```
+
+Everything declarative lives in the shared module; the two environments differ
+only where MiniStack and AWS genuinely diverge:
+
+| Concern | Local (MiniStack) | AWS |
+|---|---|---|
+| Provider | endpoints → `localhost:4566`, fake creds | real credentials |
+| ECS runtime | `run-task` + register-target shim (its service is phantom) | native `aws_ecs_service` |
+| DNS / TLS | nginx edge, plain HTTP | existing Route53 zone, HTTPS via ACM (80→443) |
+| SPA delivery | edge proxies S3 path-style | CloudFront + Origin Access Control |
+| Network / IAM | default VPC, none | default VPC + security groups + Fargate role |
+
+### Local (MiniStack)
+
+Requires Docker and Terraform. [MiniStack](https://ministack.org) (a local AWS
+emulator) plus a small nginx edge stand in for the two things AWS gives for free
+that it can't: a DNS resolver and host-based routing. A
+[StackPort](https://stackport.cloud) UI is bundled in for browsing what MiniStack
+holds (S3 objects, the ECS task, the ALB, the Route53 zone).
+
+`make ministack` is the whole thing in **one command** — it maps the domains into
+`/etc/hosts` if they aren't already (sudo), starts MiniStack + StackPort + the
+edge, builds the API image, and `terraform apply`s the S3/ECS/ALB/Route53 stack:
+
+```bash
+make ministack        # one command: hosts + up + build + apply
+# open http://onto.world/       — the SPA + API
+# open http://localhost:8080/   — StackPort, browsing MiniStack's resources
+make ministack-down   # terraform destroy + stop everything
+```
+
+### Real AWS
+
+Scope is deliberately minimal: it consumes the account's default VPC/subnets and
+creates only the app resources, two security groups, and a Fargate execution
+role. The **only manual step is registering `onto.world`** in the Route53
+console — that auto-creates the hosted zone, which Terraform then consumes (via a
+data source) and issues + DNS-validates both ACM certificates against (a regional
+cert for the ALB and, since CloudFront requires it, a us-east-1 cert for the
+apex). After registering, supply just an ECR image and apply:
+
+```bash
+cp deploy/terraform/envs/aws/terraform.tfvars.example \
+   deploy/terraform/envs/aws/terraform.tfvars      # set image
+make tf-aws-init && make tf-aws-plan && make tf-aws-apply
+```
+
+Everything after the domain purchase is hands-off. The first apply can take a few
+minutes (ACM waiting on DNS validation, and CloudFront distribution creation is
+slow by nature).
+
+### Deployment checklist — remaining work to go live
+
+The Terraform under `deploy/terraform/envs/aws/` already describes the whole
+runtime stack (S3 + CloudFront + Origin Access Control, ALB + ECS/Fargate
+service, both ACM certificates, the Route53 records, the security groups, and the
+`onto-ecs-execution` Fargate role). What's left is the account setup, the image
+supply chain, and the CI wiring that Terraform deliberately doesn't own:
+
+**1. AWS account access**
+- [ ] Have an AWS account and pick the region (`region` defaults to `eu-west-1`).
+- [ ] Create a deploy identity (user or role) with permissions for S3, CloudFront,
+      ACM, Route53, ECS, EC2 (VPC/subnet reads + security groups), ELB, ECR, and
+      IAM (it creates the `onto-ecs-execution` role).
+- [ ] Make credentials available to Terraform locally via the standard chain
+      (`aws configure` / `AWS_PROFILE` / env vars) — `providers.tf` hard-codes no
+      credentials.
+
+**2. Domain name**
+- [ ] Register `onto.world` in the **Route53 console** — the one manual step.
+      Registration auto-creates the hosted zone that
+      `data "aws_route53_zone" "onto"` consumes and that ACM validates against.
+- [ ] Using a different domain? Register it, then set `domain`, `api_domain`, and
+      `api_base_url` in `terraform.tfvars`. If it's registered outside Route53,
+      create a hosted zone and point the registrar's NS records at it.
+
+**3. Container image (ECR)**
+- [ ] Create an ECR repository (e.g. `onto-api`). Terraform does **not** create it
+      — the `image` variable must reference an image that already exists.
+- [ ] Build **for `linux/amd64`** (Fargate's default architecture) and push, e.g.:
+      `docker build --platform linux/amd64 -f deploy/ministack/Dockerfile.api -t <acct>.dkr.ecr.<region>.amazonaws.com/onto-api:<tag> .`,
+      then `aws ecr get-login-password | docker login …` and `docker push`.
+- [ ] Copy `terraform.tfvars.example` → `terraform.tfvars` and set `image` to the
+      pushed URI.
+
+**4. Terraform state backend (do this before CI)**
+- [ ] The AWS env currently uses **local state** (no `backend` block). For CI or
+      multi-machine use, create an S3 state bucket + DynamoDB lock table and add a
+      `backend "s3"` block to `providers.tf` (bootstrap once by hand).
+
+**5. First apply**
+- [ ] `make tf-aws-init && make tf-aws-plan && make tf-aws-apply`. The first apply
+      is slow (ACM waits on DNS validation; CloudFront creation takes minutes).
+- [ ] Confirm the `urls` output resolves over HTTPS.
+
+**6. Redeploy on changes (GitHub Actions)**
+The current workflow (`.github/workflows/ci.yml`) only tests, lints, and tags — it
+does not deploy. To redeploy on merge to `main`:
+- [ ] Add a **GitHub OIDC provider + IAM role** in AWS trusted for this repo so
+      Actions assumes a role instead of storing long-lived keys (use
+      `aws-actions/configure-aws-credentials` with `role-to-assume`).
+- [ ] Add a `deploy` job (gated on the existing `test` / `lint` jobs) that:
+  - [ ] logs into ECR (`aws-actions/amazon-ecr-login`), builds `--platform
+        linux/amd64`, and pushes the image tagged with the commit SHA;
+  - [ ] applies Terraform against `envs/aws` (needs the remote backend above), **or**
+        just rolls the service with `aws ecs update-service --force-new-deployment`
+        when only the image changed;
+  - [ ] on SPA changes, `aws s3 sync` the static assets and issue a CloudFront
+        invalidation (`/*`).
+- [ ] Store non-secret config as repo **variables** (account ID, region, role ARN);
+      OIDC removes the need to keep any AWS keys as secrets.
+
+**7. Operational odds and ends**
+- [ ] There's no `make tf-aws-destroy` target yet — tear down with
+      `cd deploy/terraform/envs/aws && terraform destroy` (add a target if useful).
+- [ ] Budget awareness: the ALB, CloudFront, the Fargate task, and the Route53
+      hosted zone all bill continuously even at idle; ACM certificates are free.
+- [ ] Before real traffic, consider raising `desired_count` and adding ECS
+      autoscaling (defaults to a single task).
 
 ## Roadmap
 
