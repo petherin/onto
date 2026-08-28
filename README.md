@@ -696,7 +696,10 @@ This project is philosophical in spirit, but practical in implementation. It tre
 
 ## Design notes
 
-For the hierarchical reality model, coordinate system, vector costs, and future CLI progression, see [DESIGN.md](docs/DESIGN.md).
+For the design reasoning behind the reality model — the origin of the hierarchical
+concept, the `onto://` address format, and the coordinate/cost design — see
+[DESIGN.md](docs/DESIGN.md). For how those concepts map onto the code, see
+[DDD.md](docs/DDD.md).
 
 ## Why the name "Onto"
 

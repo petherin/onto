@@ -1,9 +1,20 @@
 Design notes — Hierarchical realities & navigation
 =================================================
 
-The following is a saved copy of the hierarchical-reality concept and CLI progression. It's intended as a future-improvements reference when we expand beyond local navigation.
+These are the design notes behind Onto's reality model: where the
+hierarchical-reality idea came from, how the CLI was expected to grow into it,
+and the design of the implemented coordinate and `onto://` address system. Much
+of the early "future" progression below has since shipped — the notes are kept
+as the reasoning behind what now exists.
 
-The concept treats reality as a hierarchy rather than a flat graph. Roughly:
+This document is the "why" behind the coordinate/address design. For the current,
+user-facing description of the model (the Tegmark hierarchy, the axes, the
+movement rules, and the command reference) see the project README; for how those
+concepts map onto the code (layers, aggregates, repositories) see [DDD.md](DDD.md).
+
+The concept treats reality as a hierarchy rather than a flat graph. The original
+sketch — since refined into the Tegmark-based model described in the README — was
+roughly:
 
 - **Local reality** (walking around normally)
 - **Neighbouring realities** (small quantum divergences)
@@ -12,7 +23,7 @@ The concept treats reality as a hierarchy rather than a flat graph. Roughly:
 - **Meta-realities** (collections of universes)
 - **Infinite hierarchy**
 
-Key ideas
+## Key ideas
 
 - Travelling has a cost (Sigma instability, entropy, or "reality debt"). Some transitions are effectively impossible or very costly.
 - The CLI acts like a GPS for existence: users request a `route` and the engine computes a path across layers, with cost, risk, and return probability metadata.
@@ -46,7 +57,7 @@ Probability of successful return:
 92%
 ```
 
-Recommended progression
+## Recommended progression
 
 1. Start with only local navigation — a filesystem-like model. Keep the CLI small and familiar: `where`, `ls`, `cd`/`travel`, `route`, `look`, `scan`, `cost`.
 
@@ -69,34 +80,12 @@ Reality
 
 4. After local navigation is solid, add higher-dimension transports (quantum shifts, timeline shifts, universe jumps). The commands remain the same; only the underlying graph and edge types change.
 
-CLI commands (current)
+## Command reference
 
-```
-where                  — current reality coordinate and cumulative journey cost
-look                   — describe the current location
-ls                     — adjacent locations and available transitions
-route <destination>    — plan a route without moving
-travel <destination>   — move to a destination (physical edges only)
-home                   — show the plan and cost to return home, confirm, then execute
-shift                  — jump forward to the next quantum branch (Q0 → Q1 → …)
-shift back             — return to the previous quantum branch
-jump                   — jump forward to the next timeline branch (Prime → T1 → …)
-jump back              — return to the previous timeline branch
-drift                  — enter the next consensus divergence (0 → 1 → …)
-align                  — return one level toward shared consensus
-observe <observer>     — change observer perspective
-observe back           — return to the previous observer perspective
-time <RFC3339>         — enter a temporal branch at an absolute timestamp
-time back               — return to the previous temporal branch
-<number>               — take the corresponding numbered possible journey
-cost                   — show travel cost information
-help                   — list all commands
-exit                   — leave the CLI
-```
-
-`travel` enforces physical-only routing — it rejects any path that contains a quantum or timeline edge. Exotic transitions require their own dedicated commands (`shift`, `jump`).
-
-`home` is a composite operation: it shows the full unwind plan (observer return, consensus alignment, timeline jumps back, quantum shifts back, physical travel), displays the estimated cost, and asks for confirmation before executing. Each step uses the same underlying commands and incurs the same cost as doing it manually.
+The full CLI command set — every command, its cost, forward/back behaviour, the
+physical-vs-contextual routing rules, and the `home` unwind — is documented in
+the project README ("Contextual transition reference" and "Example CLI
+experience"). It isn't duplicated here so the two can't drift apart.
 
 The key UX principle: the same navigation commands work at all layers; only the graph and edge semantics change. This continuity is what makes the interface feel like an "operating system for reality" rather than a collection of separate features.
 
@@ -106,44 +95,48 @@ The key UX principle: the same navigation commands work at all layers; only the 
 
 These notes capture the idea that a location is more than a point in space — it is an address in a multidimensional reality. They expand on the hierarchical model and offer practical CLI conventions to make coordinates both human-readable and machine-friendly.
 
-Core idea
+## Core idea
 
 - A location is an address in reality, analogous to a URL, a filesystem path, or GPS coordinates.
-- The hierarchy can be thought of along three orthogonal dimensions:
+- The hierarchy can be thought of along four orthogonal dimensions — not only *where* and *when*, but *which* reality and *how* that reality is experienced:
 
 ```
 Reality
-├── Which reality?   (Universe / Timeline / Branch / Quantum variant)
-├── Where in that reality? (Galaxy → System → Planet → Region → City → Location)
-└── When?            (timestamp / temporal coordinate)
+├── Which reality?    (Meta · Mathematics · Universe · Timeline · Quantum · Simulation · Consensus)
+├── Where in it?      (Galaxy → System → Planet → Country → Region → City → Location)
+├── When?             (timestamp / temporal coordinate)
+└── Experienced how?  (Observer — the umwelt, the point of view reality is perceived from)
 ```
+
+The fourth dimension is easy to overlook: two coordinates can share every "which / where / when" axis and still differ because they are inhabited from different points of view. The `Observer` axis captures that — see "Observer axis and the umwelt" below.
 
 Example hierarchical path (readable):
 
 ```
 Reality:
 Origin
- └─ Timeline 0
-     └─ Earth
-         └─ Europe
-             └─ UK
-                 └─ Yorkshire
-                     └─ Leeds
-                         └─ Home
-                             @ 2026-08-02 18:37
+ └─ Prime
+     └─ Milky Way
+         └─ Solar System
+             └─ Earth
+                 └─ United Kingdom
+                     └─ Yorkshire
+                         └─ Leeds
+                             └─ Home
+                                 @ Human, 2026-08-02T18:37
 ```
 
-Canonical onto:// address (implemented)
+## Canonical onto:// address (implemented)
 
 Every coordinate serialises to a deterministic, parseable `onto://` address. Two forms are supported:
 
 **Full address** — all axes always present, unset fields rendered as `_`:
 
 ```
-onto://<meta>.<math>/<universe>/<timeline>/<quantum>/sim:<n>/<galaxy>/<system>/<planet>/<country>/<region>/<city>/<location>@<observer>+<RFC3339>
+onto://<meta>.<math>/<universe>/<timeline>/<quantum>/<galaxy>/<system>/<planet>/<country>/<region>/<city>/<location>/sim:<n>/cons:<n>@<observer>+<RFC3339>
 ```
 
-- `sim:<n>` is omitted when simulation depth is 0
+- `sim:<n>` and `cons:<n>` are omitted when their value is 0
 - `+<RFC3339>` is omitted when time is the zero value
 - Spaces in field values are encoded as `_` (e.g. `United_Kingdom`)
 
@@ -164,61 +157,44 @@ onto://Andromeda/Kepler-22/Kepler-22b/New_Athens/Home
 
 Both forms are parseable with `ParseOntoAddress()`. The full address round-trips exactly; the short address populates whichever axes are present.
 
-Multidimensional structure
+## Coordinate value object
 
-The model can be represented as a structured value rather than a single string. The current implementation in `internal/domain/universe/coordinate.go`:
+These axes map one-to-one onto the `CoordinateVO` value object in
+`internal/domain/universe/coordinate.go` — string fields for the named axes
+(Meta, Mathematics, Universe, Timeline, Quantum, Galaxy…Location, Observer),
+integers for the counted axes (Simulation, Consensus), and a `time.Time` for
+*When*. That struct is the source of truth, so it isn't reproduced here.
 
-```go
-type CoordinateVO struct {
-    Meta        string    // Ontological layer
-    Mathematics string    // Mathematical framework
-    Universe    string    // Which universe
-    Timeline    string    // Historical timeline
-    Quantum     string    // Quantum branch (e.g. "Q0", "Q1")
-    Simulation  int       // Nesting depth within simulations (0 = base reality)
-    Galaxy      string
-    System      string
-    Planet      string
-    Country     string
-    Region      string
-    City        string
-    Location    string
-    Observer    string    // Perceptual umwelt
-    Time        time.Time
-}
-```
-
-Rendering
+## Rendering
 
 The CLI should allow multiple renderings, e.g. `where --short` for compact IDs and `where --full` for an expanded, human-readable view.
 
-Coordinates as vectors
+## Coordinates as vectors
 
 Treat coordinates as vectors in a reality space: each field is an axis, and journeys are vector transformations. This lets the routing algorithm compute lowest-cost paths through a multidimensional graph where different axes have different traversal costs:
 
 - Walk to a station: change only the `Location` axis.
-- Shift quantum variant: change `QuantumID`.
-- Enter alternate history: change `BranchID`.
-- Jump universes: change `UniverseID`.
+- Shift quantum variant: change `Quantum`.
+- Enter alternate history: change `Timeline`.
+- Jump universes: change `Universe`.
 
-Costs
+## Costs
 
-Costs arise from which axes change and by how much. Examples (illustrative):
-
-- Local move (Location): cost 1
-- Quantum shift: cost 20
-- Timeline change: cost 800
-- Universe change: cost 30000
+Costs arise from which axes change and by how much: a local step is cheap, a
+quantum shift more, a timeline jump more again, and a universe or
+mathematical-structure change is extreme. The exact, authoritative
+per-transition costs live in the README's "Contextual transition reference"
+table — they are not repeated here so the two can't drift.
 
 This model keeps the CLI surface stable (same commands) while the routing backend interprets edges and costs across axes.
 
-Observer axis and the umwelt
+## Observer axis and the umwelt
 
 The `Observer` axis captures the idea that reality is not objective — it is always perceived from a point of view. The concept comes from Jakob von Uexküll's notion of the *umwelt*: the subjective, species-specific perceptual world that every organism inhabits. A bat, a dog, and a human standing in the same room occupy the same spatial location but three entirely different umwelts.
 
 In Onto, two coordinates can share every other axis and still differ on `Observer`. An `ObserverShift` edge transitions between umwelts — from human perception to machine perception, from waking to dreaming, from one interpretive frame to another. This is one of the cheapest exotic transitions (it requires no physical movement) but one of the hardest to reverse, because the origin umwelt may no longer be recognisable from inside the destination one.
 
-Simulation axis
+## Simulation axis
 
 The `Simulation int` axis represents depth within nested simulations. At depth 0 you are in base reality (or what you take to be base reality). Each `SimulationEntry` edge increments the depth by one. Simulations can be arbitrarily nested, and the routing graph can represent them as subgraphs reachable only through a simulation boundary edge.
 
