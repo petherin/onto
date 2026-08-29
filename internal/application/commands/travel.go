@@ -81,12 +81,21 @@ func (c *TravelCommand) Execute(target string) (*TravelResult, error) {
 	}
 	c.Session.MoveTo(loc, pathCost)
 
+	// The dead-end test must ignore the edge we just arrived on, so it needs the
+	// *immediate* predecessor — the source of the last edge — not the journey's
+	// origin. For a multi-hop walk (e.g. clicking a far node on the map) previous
+	// is several nodes back, so using it would let the destination's edge home to
+	// its true neighbour masquerade as an onward route and suppress expansion.
+	cameFrom := previous
+	if len(path) > 0 {
+		cameFrom = path[len(path)-1].From
+	}
 	result := &TravelResult{
 		Location:       loc,
 		Path:           path,
 		Edges:          c.Universe.EdgesFrom(norm),
 		History:        c.Session.History(),
-		DeadEndHandled: isDeadEnd(c.Universe, norm, previous),
+		DeadEndHandled: isDeadEnd(c.Universe, norm, cameFrom),
 	}
 	return result, nil
 }

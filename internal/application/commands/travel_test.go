@@ -142,6 +142,35 @@ func TestTravelCommand_DeadEnd_IsReportedWithoutMutation(t *testing.T) {
 	assert.True(t, result.DeadEndHandled)
 }
 
+// TestTravelCommand_MultiHopToDeadEnd_IsReported guards the frontier-expansion
+// bug: walking several hops to a genuine dead end (e.g. clicking a far node on
+// the map) must still report it, even though the journey's origin is not the
+// dead end's only neighbour. The check keys off the last edge's source, not the
+// starting location.
+func TestTravelCommand_MultiHopToDeadEnd_IsReported(t *testing.T) {
+	u, sess, pf := newTravelFixture(t)
+
+	coord := universe.DefaultCoordinateVO()
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "mid", Name: "Mid", Coordinate: coord}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "deadend", Name: "Dead End", Coordinate: coord}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "mid", Mode: universe.Walk, Cost: 1}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "mid", To: "home", Mode: universe.Walk, Cost: 1}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "mid", To: "deadend", Mode: universe.Walk, Cost: 1}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "deadend", To: "mid", Mode: universe.Walk, Cost: 1}))
+
+	route := []universe.EdgeVO{
+		{From: "home", To: "mid", Mode: universe.Walk, Cost: 1},
+		{From: "mid", To: "deadend", Mode: universe.Walk, Cost: 1},
+	}
+	pf.EXPECT().FindRoute(u, "home", "deadend").Return(route, true)
+
+	cmd := &commands.TravelCommand{Universe: u, Session: sess, Pathfinder: pf}
+	result, err := cmd.Execute("deadend")
+
+	require.NoError(t, err)
+	assert.True(t, result.DeadEndHandled)
+}
+
 func TestTravelCommand_DeadEndWithContextualEdges_IsReported(t *testing.T) {
 	u, sess, pf := newTravelFixture(t)
 
