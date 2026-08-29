@@ -305,6 +305,93 @@ Even when a gamble fails, the traveller is never hard-locked: a non-physical exi
 always remains, so they can keep drifting to another reality and roll again, and
 `home` remains available as the guaranteed way back.
 
+### Random traps (a future idea)
+
+The well is currently a single, hand-placed sink. The same machinery — a sink is
+"no outgoing physical edge" (`HasPhysicalExit`), escape is the cost-scaled gamble
+(`HasPhysicalEscape`) or a non-physical drift, and `home` is the guaranteed
+safety hatch — generalises naturally into **traps generated at random as you
+explore**. Every so often, instead of an ordinary "Nearby N" leaf, arriving at a
+dead end (or crossing into a nested reality) would spawn a *trap*: a themed
+location that is harder than usual to leave, so exploration occasionally turns
+tense without ever becoming a soft-lock.
+
+Generation policy (mirrors the existing deterministic gambles):
+
+- The choice "ordinary node vs trap", and which trap type, is **seeded from the
+  destination coordinate** (`coordinateSeed`), so it is reproducible across
+  reloads and in tests yet varies reality-to-reality, exactly like
+  `HasPhysicalEscape`. A low, tunable trap probability (e.g. ~5–10%) keeps them
+  occasional rather than constant.
+- A new domain policy — a `TrapGeneratorService` beside
+  `LocationGeneratorService`, or a trap branch inside
+  `SequentialLocationGenerator.Generate` — would decide the trap and wire its
+  edges. The trap *type* is a value object (an enum carried on the
+  location/coordinate), never inferred from the ID or name, matching the
+  "structural, not by name" rule the sink/dead-end distinction already follows.
+- Base reality (nesting depth 0) could stay trap-free — like the escape gamble —
+  so the starter world remains gentle and traps are confined to the nested
+  realities you chose to drift into.
+
+The invariant that keeps this safe: **no trap is ever a hard-lock.** `home`
+always plans a route out (a physical walk, else the `FindRoute` fallback across
+non-physical edges), the cost-scaled gamble can still hand you a ladder, and any
+contextual command (`drift`/`shift`/`jump`/…) always branches to a fresh reality.
+A trap therefore raises the *cost* or *effort* of leaving, never the possibility.
+
+A rich set of trap archetypes, each reusing existing edge modes and mechanics:
+
+- **Well (sink).** The canonical one, already shipped: the only seed exit is a
+  `ConsensusShift` drift back to the surface; walking out is impossible.
+- **Sealed vault.** The harshest: no physical exit *and* no seed drift — the only
+  ways out are the cost-scaled gamble or `home`.
+- **Tar pit.** Physical exits exist but each costs escalating σ (or a growing
+  distance), so walking out is futile and a non-physical move is the real exit.
+- **Möbius / mirror maze.** Several physical exits, all but (at most) one silently
+  loop back to the same node — travel *appears* to work but never leaves; finding
+  the true exit, or drifting out, is the puzzle.
+- **One-way trapdoor.** You fell in from a shallower reality and the return edge
+  is missing; you must gamble for a ladder or take `home`.
+- **Consensus collapse.** Forces `Consensus` toward 0 on arrival — agreement about
+  what is real breaks down and some commands are gated until you `drift`/`align`
+  back toward shared consensus.
+- **Observer lock.** Pins you into a non-human umwelt; ordinary movement is
+  disabled until `observe human` (or `home`) restores it.
+- **Time eddy.** Pins the `Time` axis into a loop — moves advance time but keep
+  returning you to the same place until you `time`-branch out.
+- **σ leak / debt sink.** Lingering here passively accrues reality-debt (ties into
+  the "Reality debt / instability" idea below), pressuring a quick exit.
+
+This shares the tension goal of the gamification ideas below (return probability,
+reality debt) but is a *world-generation* mechanic rather than a game-mode-only
+one, so it would enrich free exploration too.
+
+### Richer auto-generation (a future idea)
+
+Today a dead end expands into exactly **one** node — a single `LocationEntity`
+plus its two bidirectional physical edges — named `Nearby N` off a universe-wide
+counter (`NewNearbyLocation` / `nextNearbyNumber`). Two enrichments would make
+expansion feel like discovering a place rather than incrementing a counter:
+
+- **More than one node per expansion.** Arriving at a frontier could open a small
+  *cluster* — say 1–3 nodes — wired to the origin (and optionally to each other),
+  so the map grows in organic pockets instead of a single chain. The count would
+  be **seeded from the coordinate** (`coordinateSeed`) like the escape gamble, so
+  it is reproducible yet varies reality-to-reality.
+- **A rich variety of names and types.** Instead of `Nearby N`, nodes would draw
+  evocative, deterministic names from a seeded corpus/templates, and carry a
+  **type** value object (ordinary place, landmark, and — overlapping the *Random
+  traps* idea above — the trap archetypes). Type would drive the name style, the
+  generated description (`GenerateDescription`), and the edge modes/costs wired in.
+
+Both reuse the existing seam: `LocationGeneratorService` is already an injected
+domain policy (DIP), so a richer generator can be substituted without touching the
+command or facade *logic* — only the batch shape crosses the boundary. The one
+coupling to untangle first: the literal `"Nearby "` name prefix currently doubles
+as the marker `make validate-locations` uses to skip auto-generated nodes, so
+varied names need a separate "generated" marker (a flag/field, not the name)
+before the prefix can be dropped.
+
 ## Future gamification ideas
 
 Game mode today (documented in the README) gives a finite **budget**, an ordered
