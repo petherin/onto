@@ -109,6 +109,19 @@ func (a *App) JourneyOptions(edges []universe.EdgeVO) ([]JourneyOption, bool) {
 		}
 	}
 
+	// Contextual transitions are listed cheapest-first by forward cost, each
+	// forward option immediately followed by its return: drift (5), simulate
+	// (10), shift (20), jump (800), universe (5,000), structure (50,000). The
+	// observer (2) and time (100) affordances are back-only here and trail the
+	// branch group.
+	options = append(options, JourneyOption{Kind: JourneyDrift, Description: fmt.Sprintf("%s (consensus divergence, %.0f — drift)", a.session.NextConsensusID(), universe.ConsensusShiftCost)})
+	if hasReverseConsensus {
+		options = append(options, JourneyOption{Kind: JourneyAlign, Description: "Return toward shared consensus (align)"})
+	}
+	options = append(options, JourneyOption{Kind: JourneySimulate, Description: fmt.Sprintf("%s (simulation, %.0f — simulate)", a.session.NextSimulationID(), universe.SimulationEntryCost)})
+	if hasReverseSimulation {
+		options = append(options, JourneyOption{Kind: JourneySimulateBack, Description: fmt.Sprintf("Exit one simulation layer (simulate back, %.0f)", universe.SimulationExitCost)})
+	}
 	options = append(options, JourneyOption{Kind: JourneyShift, Description: fmt.Sprintf("%s (quantum, %.0f — shift)", a.session.NextQuantumID(), universe.QuantumShiftCost)})
 	if hasReverseQuantum {
 		options = append(options, JourneyOption{Kind: JourneyShiftBack, Description: "Return to the previous quantum branch (shift back)"})
@@ -124,14 +137,6 @@ func (a *App) JourneyOptions(edges []universe.EdgeVO) ([]JourneyOption, bool) {
 	options = append(options, JourneyOption{Kind: JourneyStructure, Description: fmt.Sprintf("%s (mathematics, %.0f — structure)", a.session.NextMathematicsID(), universe.MathematicalShiftCost)})
 	if hasReverseMathematics {
 		options = append(options, JourneyOption{Kind: JourneyStructureBack, Description: "Return to the previous mathematical structure (structure back)"})
-	}
-	options = append(options, JourneyOption{Kind: JourneySimulate, Description: fmt.Sprintf("%s (simulation, %.0f — simulate)", a.session.NextSimulationID(), universe.SimulationEntryCost)})
-	if hasReverseSimulation {
-		options = append(options, JourneyOption{Kind: JourneySimulateBack, Description: fmt.Sprintf("Exit one simulation layer (simulate back, %.0f)", universe.SimulationExitCost)})
-	}
-	options = append(options, JourneyOption{Kind: JourneyDrift, Description: fmt.Sprintf("%s (consensus divergence, %.0f — drift)", a.session.NextConsensusID(), universe.ConsensusShiftCost)})
-	if hasReverseConsensus {
-		options = append(options, JourneyOption{Kind: JourneyAlign, Description: "Return toward shared consensus (align)"})
 	}
 	if hasReverseObserver {
 		options = append(options, JourneyOption{Kind: JourneyObserveBack, Description: "Return to the previous observer perspective (observe back)"})

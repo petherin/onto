@@ -313,12 +313,12 @@ Contextual transitions **stack**: each one changes only its own axis and preserv
 
 | Transition | Command (forward / back) | Axis changed | Cost (forward / reverse) |
 |---|---|---|---|
-| Quantum shift | `shift` / `shift back` | Quantum branch (Tegmark III) | 20 / 20 |
-| Timeline jump | `jump` / `jump back` | Timeline (macro history) | 800 / 800 |
+| Observer shift | `observe <observer>` / `observe back` | Observer (umwelt) | 2 / 2 |
 | Consensus drift | `drift` / `align` | Consensus divergence | 5 / 5 |
 | Simulation entry | `simulate` / `simulate back` | Simulation depth | 10 / 50 |
-| Observer shift | `observe <observer>` / `observe back` | Observer (umwelt) | 2 / 2 |
+| Quantum shift | `shift` / `shift back` | Quantum branch (Tegmark III) | 20 / 20 |
 | Time travel | `time <RFC3339>` / `time back` | Time | 100 / 100 |
+| Timeline jump | `jump` / `jump back` | Timeline (macro history) | 800 / 800 |
 | Universe shift | `universe` / `universe back` | Bubble universe (Tegmark II) | 5000 / 5000 |
 | Structure shift | `structure` / `structure back` | Mathematical structure (Tegmark IV) | 50000 / 50000 |
 

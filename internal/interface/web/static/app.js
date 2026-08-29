@@ -9,7 +9,7 @@ import {
   modeStyle,
   edgeWeight,
   TRANSITION_LEGEND,
-  TRANSITIONS,
+  TRANSITIONS_BY_COST,
   detectTransition,
   requiredTransition,
   physicalRoute,
@@ -962,8 +962,8 @@ if (labelsBtn) {
 renderLabels();
 
 // Help modal: an About/Help overlay explaining reality transitions. Its axis
-// table is built from the same TRANSITIONS source of truth the legend uses, so
-// the colours, commands, and costs never drift from the map.
+// table is built from the same cost-sorted view the legend uses, so the colours,
+// commands, and costs never drift from the map and it reads cheapest-first.
 (function initHelp() {
   const modal = document.getElementById("help-modal");
   const openBtn = document.getElementById("help-btn");
@@ -972,7 +972,7 @@ renderLabels();
   const axesBox = document.getElementById("help-axes");
   if (!modal || !openBtn) return;
   if (axesBox) {
-    axesBox.innerHTML = TRANSITIONS.map(({ mode, label, command, cost, what, refs }) => {
+    axesBox.innerHTML = TRANSITIONS_BY_COST.map(({ mode, label, command, cost, what, refs }) => {
       const st = modeStyle(mode);
       const links = (refs || [])
         .map((r) => `<a class="help-ref" href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.label)} ↗</a>`)

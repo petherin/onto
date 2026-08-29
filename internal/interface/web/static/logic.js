@@ -300,34 +300,43 @@ export function spawnHalo(elapsed, duration = SPAWN_HALO_MS) {
 // (same-reality) travel is not a transition and is intentionally absent. The
 // `cost` strings mirror the per-step constants in internal/domain/universe/edge.go.
 export const TRANSITIONS = [
-  { mode: "universe",   axis: "Universe",    label: "universe",   command: "universe",  cost: "5,000 / hop",
+  { mode: "universe",   axis: "Universe",    label: "universe",   command: "universe",  cost: "5,000 / hop",    costValue: 5000,
     what: "A parallel bubble universe with different physical constants (Tegmark Level II).",
     refs: [{ label: "Tegmark multiverse", url: "https://en.wikipedia.org/wiki/Multiverse#Max_Tegmark's_four_levels" }] },
-  { mode: "timeline",   axis: "Timeline",    label: "timeline",   command: "jump",      cost: "800 / hop",
+  { mode: "timeline",   axis: "Timeline",    label: "timeline",   command: "jump",      cost: "800 / hop",      costValue: 800,
     what: "An alternate timeline where history diverged — the differences may be subtle or catastrophic." },
-  { mode: "quantum",    axis: "Quantum",     label: "quantum",    command: "shift",     cost: "20 / hop",
+  { mode: "quantum",    axis: "Quantum",     label: "quantum",    command: "shift",     cost: "20 / hop",       costValue: 20,
     what: "A neighbouring quantum branch: almost identical, but something is subtly different (Everett many-worlds).",
     refs: [{ label: "Many-worlds interpretation", url: "https://en.wikipedia.org/wiki/Many-worlds_interpretation" }] },
-  { mode: "math",       axis: "Mathematics", label: "structure",  command: "structure", cost: "50,000 / hop",
+  { mode: "math",       axis: "Mathematics", label: "structure",  command: "structure", cost: "50,000 / hop",   costValue: 50000,
     what: "A different mathematical structure — dimensions, logic, or physical law need not match (Tegmark Level IV).",
     refs: [{ label: "Mathematical universe hypothesis", url: "https://en.wikipedia.org/wiki/Mathematical_universe_hypothesis" }] },
-  { mode: "simulation", axis: "Simulation",  label: "simulation", command: "simulate",  cost: "10 in · 50 out",
+  { mode: "simulation", axis: "Simulation",  label: "simulation", command: "simulate",  cost: "10 in · 50 out", costValue: 10,
     what: "A nested simulation whose rules can be rewritten. Entering is cheap; leaving means finding an exit.",
     refs: [{ label: "Simulation hypothesis", url: "https://en.wikipedia.org/wiki/Simulation_hypothesis" }] },
-  { mode: "consensus",  axis: "Consensus",   label: "consensus",  command: "drift",     cost: "5 / level",
+  { mode: "consensus",  axis: "Consensus",   label: "consensus",  command: "drift",     cost: "5 / level",      costValue: 5,
     what: "A reality that has drifted from shared consensus; its rules may no longer match the world you left.",
     refs: [{ label: "Consensus reality", url: "https://en.wikipedia.org/wiki/Consensus_reality" }] },
-  { mode: "observer",   axis: "Observer",    label: "observer",   command: "observe",   cost: "2 / shift",
+  { mode: "observer",   axis: "Observer",    label: "observer",   command: "observe",   cost: "2 / shift",      costValue: 2,
     what: "The same reality perceived through another observer (e.g. Bat, Octopus, Machine).",
     refs: [{ label: "Umwelt", url: "https://en.wikipedia.org/wiki/Umwelt" },
            { label: "What Is It Like to Be a Bat?", url: "https://en.wikipedia.org/wiki/What_Is_It_Like_to_Be_a_Bat%3F" }] },
-  { mode: "time",       axis: "Time",        label: "time",       command: "time",      cost: "100 / shift",
+  { mode: "time",       axis: "Time",        label: "time",       command: "time",      cost: "100 / shift",    costValue: 100,
     what: "The same reality at another point in time." },
 ];
 
-// Reality-transition legend for the top-right key, derived from TRANSITIONS so
-// every row consistently carries its mode, label, and traversal command.
-export const TRANSITION_LEGEND = TRANSITIONS.map((t) => ({
+// TRANSITIONS_BY_COST is the display ordering: the same transitions sorted by
+// ascending cost. The user-facing lists (legend and help modal) read from this
+// so they always read cheapest-first, while TRANSITIONS keeps its most-exotic
+// declaration order for the detector's tie-break.
+export const TRANSITIONS_BY_COST = [...TRANSITIONS].sort(
+  (a, b) => a.costValue - b.costValue,
+);
+
+// Reality-transition legend for the top-right key, derived from the cost-sorted
+// view so every row consistently carries its mode, label, and traversal command
+// and reads cheapest-first.
+export const TRANSITION_LEGEND = TRANSITIONS_BY_COST.map((t) => ({
   mode: t.mode,
   label: t.label,
   command: t.command,

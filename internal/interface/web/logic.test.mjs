@@ -22,6 +22,7 @@ import {
   sessionMoved,
   detectTransition,
   TRANSITIONS,
+  TRANSITIONS_BY_COST,
   TRANSITION_LEGEND,
   AXIS_MODE,
   requiredTransition,
@@ -257,14 +258,30 @@ test("detectTransition prefers the most-exotic axis when several change", () => 
   assert.equal(detectTransition(base, next), "universe");
 });
 
-test("AXIS_MODE and TRANSITION_LEGEND derive from the one TRANSITIONS source", () => {
-  // Same length and order as the single source of truth.
+test("AXIS_MODE derives from TRANSITIONS in its most-exotic detection order", () => {
+  // AXIS_MODE drives detectTransition's tie-break, so it must preserve the
+  // declaration order of the single source of truth.
   assert.equal(AXIS_MODE.length, TRANSITIONS.length);
-  assert.equal(TRANSITION_LEGEND.length, TRANSITIONS.length);
   TRANSITIONS.forEach((t, i) => {
     assert.deepEqual(AXIS_MODE[i], [t.axis, t.mode]);
+  });
+});
+
+test("TRANSITION_LEGEND derives from the cost-sorted view, cheapest-first", () => {
+  // The visible legend/modal read cheapest-first, independent of the detection
+  // order, so they derive from TRANSITIONS_BY_COST.
+  assert.equal(TRANSITIONS_BY_COST.length, TRANSITIONS.length);
+  assert.equal(TRANSITION_LEGEND.length, TRANSITIONS.length);
+  TRANSITIONS_BY_COST.forEach((t, i) => {
     assert.deepEqual(TRANSITION_LEGEND[i], { mode: t.mode, label: t.label, command: t.command });
   });
+  // Costs are non-decreasing across the sorted view.
+  for (let i = 1; i < TRANSITIONS_BY_COST.length; i++) {
+    assert.ok(
+      TRANSITIONS_BY_COST[i - 1].costValue <= TRANSITIONS_BY_COST[i].costValue,
+      `legend not ascending by cost at index ${i}`,
+    );
+  }
 });
 
 test("every legend row carries a command, so the legend is consistent", () => {
