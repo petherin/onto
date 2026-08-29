@@ -623,10 +623,11 @@ function triggerEffect(mode) {
 
 // ── Transition sound ─────────────────────────────────────────────────────────
 // Each reality transition plays its own layered, cinematic cue (soundSpec picks
-// the voices in logic.js). The Web Audio context is created lazily on the first
-// transition — always inside the user gesture that triggered the move — so the
-// browser's autoplay policy is satisfied without a separate "click to enable"
-// step. A muted preference persists in localStorage and gates playback entirely.
+// the voices in logic.js). The Web Audio context is created lazily — primed on
+// the first user gesture (see unlockAudio) so the browser's autoplay policy is
+// satisfied without a separate "click to enable" step, and lazily created by
+// playSound too if a cue somehow fires first. A muted preference persists in
+// localStorage and gates playback entirely.
 //
 // Each cue is sound-designed in a Star Wars / Alien spirit — organic and grungy
 // rather than clean, so voices carry per-voice distortion (drive), ring
@@ -869,6 +870,24 @@ function playSound(mode) {
   } catch (err) {
     console.error("sound failed", err);
   }
+}
+
+// First-gesture audio unlock. A browser only lets an AudioContext start (or
+// resume from "suspended") inside a real user gesture. Every cue is played after
+// an await (the /api/execute round-trip), which on WebKit (Safari, iOS) falls
+// outside the gesture window and would leave the context suspended, so no sound
+// ever reaches the speakers. Chromium and Firefox use "sticky" activation and
+// forgive this; Safari does not. Priming the context on the first pointer/key/
+// touch anywhere — synchronously, inside that gesture — means every later
+// playSound just works. It runs regardless of mute so unmuting mid-session needs
+// no special case: a muted context simply sits idle (playSound short-circuits).
+// The listeners are one-shot.
+function unlockAudio() {
+  if (!ensureAudio()) return;
+  if (audioCtx.state === "suspended") audioCtx.resume();
+}
+for (const ev of ["pointerdown", "keydown", "touchstart"]) {
+  window.addEventListener(ev, unlockAudio, { once: true });
 }
 
 // Mute toggle: flips the preference, persists it, and reflects state in the
