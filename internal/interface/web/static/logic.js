@@ -322,6 +322,59 @@ export function requiredTransition(session, node) {
   return null;
 }
 
+// ── Physical route preview ─────────────────────────────────────────────────
+// The set of travel modes the `travel` command permits — the solid-blue,
+// same-reality edges. It mirrors universe.TravelModeVO.IsPhysical() in the Go
+// domain, so the client previews exactly the routes the server would let you
+// walk. Any other mode (a reality transition, or an unknown one) is not physical.
+export const PHYSICAL_MODES = new Set(["walk", "cycle", "drive", "rail", "flight", "orbit", "warp"]);
+export function isPhysical(mode) { return PHYSICAL_MODES.has(mode); }
+
+// physicalRoute plans the fewest-hops physical route from `from` to `to` over the
+// live EdgeSnapshot list, following only physical edges. It mirrors the domain's
+// BFSPathfinder (navigation.FindRoute over physical edges), so the preview a
+// hover shows is the same journey a click's `travel` would take. Returns the
+// ordered edges of the path, or null when there is no physical route (including
+// when from/to are missing or identical).
+export function physicalRoute(from, to, edges) {
+  if (!from || !to || from === to) return null;
+  const adj = new Map();
+  for (const e of edges || []) {
+    if (!isPhysical(e.Mode)) continue;
+    if (!adj.has(e.From)) adj.set(e.From, []);
+    adj.get(e.From).push(e);
+  }
+  const visited = new Set([from]);
+  const parentEdge = new Map();
+  const queue = [from];
+  while (queue.length) {
+    const current = queue.shift();
+    for (const e of adj.get(current) || []) {
+      if (visited.has(e.To)) continue;
+      visited.add(e.To);
+      parentEdge.set(e.To, e);
+      if (e.To === to) {
+        const path = [];
+        for (let n = to; n !== from; n = parentEdge.get(n).From) path.push(parentEdge.get(n));
+        path.reverse();
+        return path;
+      }
+      queue.push(e.To);
+    }
+  }
+  return null;
+}
+
+// routeTotals sums a path's cost and distance and counts its hops, mirroring the
+// domain's PathCost/PathDistance. A null/empty path totals to zero across the
+// board, so callers can render it without a null check.
+export function routeTotals(path) {
+  const p = path || [];
+  let cost = 0, distance = 0;
+  for (const e of p) { cost += e.Cost || 0; distance += e.Distance || 0; }
+  return { steps: p.length, cost, distance };
+}
+
 // Node fills, chosen so the map answers "where can I go?" at a glance:
 //   green  — you are here (handled in draw)
 //   blue   — reachable now by ordinary travel (click to go)

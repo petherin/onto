@@ -24,6 +24,10 @@ import {
   TRANSITION_LEGEND,
   AXIS_MODE,
   requiredTransition,
+  isPhysical,
+  PHYSICAL_MODES,
+  physicalRoute,
+  routeTotals,
   colorFor,
   NODE_REACHABLE,
   NODE_QUANTUM,
@@ -285,6 +289,76 @@ test("requiredTransition prefers the most-exotic axis when several differ", () =
   const sess = { Universe: "Origin", Quantum: "Q0" };
   const node = { Universe: "Alt", Quantum: "Q1" };
   assert.equal(requiredTransition(sess, node).mode, "universe");
+});
+
+test("isPhysical: the travel-command modes are physical, transitions are not", () => {
+  // Mirrors universe.TravelModeVO.IsPhysical() — the solid-blue travel modes.
+  for (const mode of ["walk", "cycle", "drive", "rail", "flight", "orbit", "warp"]) {
+    assert.equal(isPhysical(mode), true, `${mode} should be physical`);
+    assert.ok(PHYSICAL_MODES.has(mode), `${mode} should be in PHYSICAL_MODES`);
+  }
+  for (const mode of ["quantum", "timeline", "universe", "observer", "time", undefined, "nonsense"]) {
+    assert.equal(isPhysical(mode), false, `${String(mode)} should not be physical`);
+  }
+});
+
+test("physicalRoute: returns null for missing or identical endpoints", () => {
+  const edges = [{ From: "home", To: "park", Mode: "walk", Cost: 1, Distance: 1 }];
+  assert.equal(physicalRoute(null, "park", edges), null);
+  assert.equal(physicalRoute("home", null, edges), null);
+  assert.equal(physicalRoute("home", "home", edges), null);
+});
+
+test("physicalRoute: finds a multi-hop physical path and preserves order", () => {
+  const edges = [
+    { From: "home", To: "station", Mode: "walk", Cost: 1, Distance: 1.6 },
+    { From: "station", To: "city", Mode: "rail", Cost: 3, Distance: 3.0 },
+  ];
+  const path = physicalRoute("home", "city", edges);
+  assert.equal(path.length, 2);
+  assert.deepEqual(path.map((e) => e.To), ["station", "city"]);
+});
+
+test("physicalRoute: follows only physical edges, never a reality transition", () => {
+  // branch is reachable only across a quantum hop, so there is no physical route.
+  const edges = [
+    { From: "home", To: "branch", Mode: "quantum", Cost: 20, Distance: 0 },
+    { From: "branch", To: "far", Mode: "walk", Cost: 1, Distance: 1 },
+  ];
+  assert.equal(physicalRoute("home", "far", edges), null);
+});
+
+test("physicalRoute: prefers the fewest-hops route, mirroring the BFS pathfinder", () => {
+  // A direct drive and a two-hop walk both reach city; BFS returns the shorter.
+  const edges = [
+    { From: "home", To: "mid", Mode: "walk", Cost: 1, Distance: 1 },
+    { From: "mid", To: "city", Mode: "walk", Cost: 1, Distance: 1 },
+    { From: "home", To: "city", Mode: "drive", Cost: 5, Distance: 8 },
+  ];
+  const path = physicalRoute("home", "city", edges);
+  assert.equal(path.length, 1);
+  assert.equal(path[0].Mode, "drive");
+});
+
+test("physicalRoute: returns null when there is no route at all", () => {
+  const edges = [{ From: "home", To: "park", Mode: "walk", Cost: 1, Distance: 1 }];
+  assert.equal(physicalRoute("home", "island", edges), null);
+});
+
+test("routeTotals: sums cost and distance and counts hops", () => {
+  const path = [
+    { From: "home", To: "station", Mode: "walk", Cost: 1, Distance: 1.6 },
+    { From: "station", To: "city", Mode: "rail", Cost: 3, Distance: 3.0 },
+  ];
+  const totals = routeTotals(path);
+  assert.equal(totals.steps, 2);
+  assert.equal(totals.cost, 4);
+  assert.ok(Math.abs(totals.distance - 4.6) < 1e-9);
+});
+
+test("routeTotals: a null or empty path totals to zero", () => {
+  assert.deepEqual(routeTotals(null), { steps: 0, cost: 0, distance: 0 });
+  assert.deepEqual(routeTotals([]), { steps: 0, cost: 0, distance: 0 });
 });
 
 test("colorFor: reachable nodes are blue", () => {

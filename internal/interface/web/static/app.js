@@ -11,6 +11,8 @@ import {
   TRANSITIONS,
   detectTransition,
   requiredTransition,
+  physicalRoute,
+  routeTotals,
   effectSpec,
   soundSpec,
   sessionMoved,
@@ -50,6 +52,13 @@ const questBtn = document.getElementById("quest-btn");
 let state = null;
 let edges = [];
 const nodes = new Map(); // id -> {id, name, x, y, z, vx, vy, vz}
+
+// Hovered route preview: the physical path (EdgeSnapshot list) a click would
+// travel from the current location to the hovered reachable node, plus its
+// summed totals. Both are null when nothing routable is hovered. draw() traces
+// the path and labels each hop's cost; renderInspector() shows the totals.
+let previewPath = null;
+let previewTotals = null;
 
 // themeColors caches the theme-dependent canvas colours (the CSS handles the
 // DOM). They are read from the CSS custom properties so the map follows the
@@ -210,6 +219,9 @@ function apply(s) {
   const added = syncNodes(s.graph);
   renderHUD(s.session);
   renderLog(s);
+  // The location and edges may have changed, so recompute any hovered preview
+  // against the new state before the inspector reads it.
+  updatePreview();
   renderInspector();
   renderDirty(s);
   renderConfirm(s);
@@ -413,12 +425,31 @@ function nodeInfo(n) {
   };
 }
 
+// updatePreview recomputes the hovered route preview: the physical path from the
+// current location to the hovered node, but only when that node is reachable by
+// ordinary travel. It is cleared for the current node, unreachable nodes, or no
+// hover, so the map only ever previews a journey a click would actually make.
+// Called whenever the hover or the underlying state changes.
+function updatePreview() {
+  const sess = state && state.session;
+  const cur = sess && sess.Location;
+  const node = hoveredId ? nodes.get(hoveredId) : null;
+  if (cur && node && node.reachable && hoveredId !== cur) {
+    previewPath = physicalRoute(cur, hoveredId, edges);
+    previewTotals = previewPath ? routeTotals(previewPath) : null;
+  } else {
+    previewPath = null;
+    previewTotals = null;
+  }
+}
+
 // renderInspector fills the floating top-left inspector. It describes where you
 // are — the current node — by default, and switches to the hovered node's
 // details while the pointer is over one. The footer answers "how do I get
-// there?": you-are-here, click-to-travel for a reachable same-reality node, a
-// command chip when a reality transition is required (requiredTransition), or
-// no-route when it's otherwise unreachable.
+// there?": you-are-here, click-to-travel (with the previewed route's hops, cost
+// and distance) for a reachable same-reality node, a command chip when a reality
+// transition is required (requiredTransition), or no-route when it's otherwise
+// unreachable.
 function renderInspector() {
   if (!inspectorEl) return;
   const sess = state && state.session;
@@ -432,6 +463,13 @@ function renderInspector() {
     status = '<span class="insp-status here">you are here</span>';
   } else if (info.reachable) {
     status = '<span class="insp-status go">click to travel</span>';
+    // Surface the previewed route's totals: hop count, summed travel cost, and
+    // distance in km — the same figures the CLI `route` command reports.
+    if (previewTotals) {
+      const hops = `${previewTotals.steps} ${previewTotals.steps === 1 ? "hop" : "hops"}`;
+      status +=
+        `<span class="insp-status dim">${hops} · cost ${Math.round(previewTotals.cost)} · ${previewTotals.distance.toFixed(1)} km</span>`;
+    }
   } else {
     const t = requiredTransition(sess, info);
     if (t) {
@@ -933,6 +971,40 @@ function draw() {
   }
   ctx.setLineDash([]);
 
+  // Route preview: while a reachable node is hovered, trace the physical path a
+  // click would travel over the base edges — brighter, thicker solid segments in
+  // the current-location green — and label each hop with its cost, so the map
+  // answers "how far, and at what price?" before you commit. Drawn under the
+  // nodes so they stay legible on top; the totals go in the inspector.
+  if (previewPath && previewPath.length) {
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.lineWidth = 2.5;
+    // The same green the current-location halo uses, so the route reads as "your"
+    // path rather than another mode's edge colour.
+    ctx.strokeStyle = "rgba(87,226,165,0.9)";
+    for (const e of previewPath) {
+      const a = nodes.get(e.From), b = nodes.get(e.To);
+      if (!a || !b) continue;
+      const pa = toScreen(a), pb = toScreen(b);
+      ctx.beginPath();
+      ctx.moveTo(pa.x, pa.y);
+      ctx.lineTo(pb.x, pb.y);
+      ctx.stroke();
+    }
+    ctx.fillStyle = themeColors.good;
+    ctx.font = "11px ui-monospace, monospace";
+    ctx.textAlign = "center";
+    for (const e of previewPath) {
+      const a = nodes.get(e.From), b = nodes.get(e.To);
+      if (!a || !b) continue;
+      const pa = toScreen(a), pb = toScreen(b);
+      ctx.fillText(String(Math.round(e.Cost || 0)), (pa.x + pb.x) / 2, (pa.y + pb.y) / 2 - 4);
+    }
+    ctx.textAlign = "left";
+    ctx.restore();
+  }
+
   // Project every node, then paint far-to-near so nearer nodes overlap farther
   // ones — the depth cue that sells the 3D rotation.
   const drawn = [...nodes.values()].map((n) => ({ n, p: toScreen(n) }));
@@ -1198,16 +1270,16 @@ canvas.addEventListener("mousedown", (e) => {
 // panning/rotating keeps its own cursor.
 canvas.addEventListener("mousemove", (e) => {
   if (dragging) {
-    if (hoveredId !== null) { hoveredId = null; renderInspector(); }
+    if (hoveredId !== null) { hoveredId = null; updatePreview(); renderInspector(); }
     return;
   }
   const hit = nodeAt(e.offsetX, e.offsetY);
   const id = hit ? hit.id : null;
-  if (id !== hoveredId) { hoveredId = id; renderInspector(); }
+  if (id !== hoveredId) { hoveredId = id; updatePreview(); renderInspector(); }
   canvas.style.cursor = hit && hit.reachable ? "pointer" : "default";
 });
 canvas.addEventListener("mouseleave", () => {
-  if (hoveredId !== null) { hoveredId = null; renderInspector(); }
+  if (hoveredId !== null) { hoveredId = null; updatePreview(); renderInspector(); }
 });
 window.addEventListener("mousemove", (e) => {
   if (!dragging) return;
