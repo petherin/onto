@@ -255,4 +255,67 @@ These would slot into the existing facade options (`WithBudget`, `WithTargets`,
 `WithObjectivePool`) and the session's cost/goal tracking without changing the
 coordinate or routing model.
 
+## Future web UI & navigation ideas
+
+Ideas for enriching the browser Reality Map (the Canvas-2D renderer in
+`internal/interface/web/static/`) and the graph-travel model behind it. The
+connecting theme is shifting the map from **imperative stepping** (click a node,
+travel one edge) toward **plan → preview → commit**, with cost, risk, and
+return-probability made visible — the direction the "GPS for existence" framing
+above already gestures at. None are implemented except where marked.
+
+Presentation — cheap wins (the data is already sent by the API, just not drawn):
+
+- **Edge cost / distance.** `EdgeSnapshot.Cost` and `.Distance` are sent but not
+  rendered; label edges (or show on hover) and vary edge width/opacity by cost so
+  expensive exotic jumps *look* expensive. **Shipped** (this session) as an
+  on-hover route preview with per-hop cost labels and a totals line; the
+  always-on edge weighting is still open.
+- **Full objective chain.** `Objectives[]` (with per-waypoint `Reached`) is sent
+  but only the current target shows in the HUD; render the whole chain as a
+  checklist and mark each waypoint node on the map (a ring/flag) so the quest is
+  spatially legible.
+- **History trail.** `SessionSnapshot.History` only appears in the log panel;
+  draw the recent path as a fading breadcrumb on the graph.
+
+Presentation — interaction, usability, performance:
+
+- **Search / jump-to** a coordinate or node name (important once the graph grows).
+- **Minimap / best-fit per reality** — the deterministic layout already clusters
+  each reality; a minimap of cluster centres would aid navigation across nested
+  realities.
+- **Accessibility & mobile** — keyboard-driven node focus/travel and touch
+  gestures (the current shift+drag / wheel model is mouse-only).
+- **First-run tour** explaining the colour legend and the physical-vs-contextual
+  distinction.
+- **Layout performance** — the `tick()` repulsion loop is O(n²) over all node
+  pairs every frame; a spatial grid / Barnes-Hut approximation would keep it
+  smooth as the universe grows.
+
+Enriching the graph-travel model:
+
+- **Make the route the hero, not the node.** A first-class multi-hop route
+  planner — pick a destination coordinate, see the full plan (physical legs +
+  contextual transitions) with its total cost, then execute step-by-step — fits
+  the "GPS for existence" framing far better than click-to-step.
+- **Cross-axis routing.** `travel` deliberately refuses any route crossing a
+  reality boundary, so a journey like `home → Q2 → sim:1` has no single planned
+  path today. A higher-level planner that *composes* physical travel with
+  contextual transitions (still executing them as distinct edges) would let you
+  route to any coordinate, not just physical ones.
+- **Risk & return-probability.** Surface the risk bar and probability-of-return
+  from the speculative sketch above on routes/edges, so deep simulation and
+  mathematical-structure jumps read as visibly risky.
+- **σ / reality-debt as a live pressure.** Visualise accumulated cost as
+  instability — the further you drift, the more the map destabilises (jitter,
+  desaturation) — with `home` as the pressure-release, turning the cumulative
+  cost number into a felt mechanic.
+- **Reality "diff" view.** Hovering a node in another reality shows *what differs*
+  from your current coordinate (which axes changed, by how much) — the vector
+  view from "Coordinates as vectors" made visible.
+- **Time-scrubber** for the Time axis (a slider previewing temporal branches)
+  rather than a raw RFC3339 input.
+- **Alternative routes.** Offer 2–3 candidate paths (cheapest / safest /
+  fewest-hops) and let the player choose — classic routing UX applied to reality.
+
 Use these notes as a guide when extending Onto beyond local navigation: they explain the address model, rendering choices, and the vector-based view that unifies walking and exotic reality transitions.
