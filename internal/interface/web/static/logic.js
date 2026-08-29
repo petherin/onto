@@ -211,12 +211,29 @@ export const BLOCKED_SOUND = [
   { type: "square", freq: 72, gain: 0.4, attack: 0.005, release: 0.16, drive: 0.6, ring: { freq: 57, depth: 0.9 } },
 ];
 
+// TRAVEL_SOUND is the soft cue for ordinary physical travel — a plain location
+// change within one reality (the travel command, or clicking a reachable node),
+// which detectTransition never arms as a reality transition. It is deliberately
+// brief and understated next to the cinematic transition cues, since travel is by
+// far the most common move: an airy band-passed noise whoosh (movement through
+// space) over a short, gently driven low thump (a footfall landing). Kept out of
+// SOUND_SPEC so it never counts as a reality transition; soundSpec serves it
+// under the "travel" mode.
+export const TRAVEL_SOUND = [
+  { type: "noise", gain: 0.16, attack: 0.05, release: 0.24, filter: { type: "bandpass", freq: 650, freqEnd: 1900, q: 1.1 } },
+  { type: "sine", freq: 190, freqEnd: 120, gain: 0.24, attack: 0.005, release: 0.2, drive: 0.25 },
+];
+
 // soundSpec returns the voices for a mode (falling back to DEFAULT_SOUND) plus
 // the total duration (s) the sound occupies — the latest voice's delay + attack
 // + release — so the player and any caller agree on when it has finished. The
-// "blocked" mode is special-cased to the refusal cue.
+// "blocked" and "travel" modes are special-cased to their own cues, kept out of
+// the reality-transition palette.
 export function soundSpec(mode) {
-  const voices = mode === "blocked" ? BLOCKED_SOUND : SOUND_SPEC[mode] || DEFAULT_SOUND;
+  const voices =
+    mode === "blocked" ? BLOCKED_SOUND :
+    mode === "travel" ? TRAVEL_SOUND :
+    SOUND_SPEC[mode] || DEFAULT_SOUND;
   const duration = voices.reduce(
     (max, v) => Math.max(max, (v.delay || 0) + v.attack + v.release),
     0,

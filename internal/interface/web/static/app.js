@@ -238,6 +238,13 @@ function apply(s) {
       const n = nodes.get(id);
       if (n) { n.spawn = now; n.spawnRgb = rgb; }
     }
+  } else if (prev && s.session && prev.Location !== s.session.Location) {
+    // A plain physical move within the same reality (the travel command, or a
+    // click on a reachable node): detectTransition finds no reality change, so
+    // play the soft travel cue here. Ordinary travel is then as audible as a
+    // transition, just quieter and shorter. A refused travel never reaches this
+    // branch — the location is unchanged, so runMove sounds the blocked cue.
+    playSound("travel");
   }
   // Auto-frame the camera so it always follows where you are, however you got
   // there. A move that reveals new locations focuses on the freshly-revealed

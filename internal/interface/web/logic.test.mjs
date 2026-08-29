@@ -18,6 +18,7 @@ import {
   SOUND_SPEC,
   DEFAULT_SOUND,
   BLOCKED_SOUND,
+  TRAVEL_SOUND,
   sessionMoved,
   detectTransition,
   TRANSITIONS,
@@ -146,7 +147,7 @@ test("soundSpec duration spans the latest-finishing voice's delay, attack and re
 });
 
 test("every declared sound voice has a sane, playable envelope", () => {
-  const specs = [...Object.values(SOUND_SPEC), DEFAULT_SOUND, BLOCKED_SOUND];
+  const specs = [...Object.values(SOUND_SPEC), DEFAULT_SOUND, BLOCKED_SOUND, TRAVEL_SOUND];
   for (const voices of specs) {
     for (const v of voices) {
       // Pitched voices carry a frequency; noise voices are broadband, so they
@@ -202,6 +203,15 @@ test("soundSpec serves the blocked cue and it stays out of the transition palett
   assert.equal(voices, BLOCKED_SOUND, "the blocked mode must serve BLOCKED_SOUND");
   assert.ok(duration > 0, "the blocked cue must have a positive duration");
   assert.ok(!Object.values(SOUND_SPEC).includes(BLOCKED_SOUND), "the blocked cue must not be a transition sound");
+});
+
+test("soundSpec serves the travel cue and it stays out of the transition palette", () => {
+  // Ordinary physical travel is a plain location change, not a reality shift, so
+  // it has its own soft cue reached only through the "travel" mode.
+  const { voices, duration } = soundSpec("travel");
+  assert.equal(voices, TRAVEL_SOUND, "the travel mode must serve TRAVEL_SOUND");
+  assert.ok(duration > 0, "the travel cue must have a positive duration");
+  assert.ok(!Object.values(SOUND_SPEC).includes(TRAVEL_SOUND), "the travel cue must not be a transition sound");
 });
 
 test("sessionMoved tells a real move from a refused one", () => {
