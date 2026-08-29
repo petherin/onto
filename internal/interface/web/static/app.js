@@ -87,29 +87,61 @@ const view = { scale: 1, ox: 0, oy: 0, rotX: 0, rotY: 0 };
 // wheel, or a view button) clears it so the user always wins.
 let viewAnim = null;
 
-// setVerticalView / setDefaultView back the view buttons and the initial framing.
-// Vertical is a near-top-down angle with no yaw, so z (nesting depth) drives
-// screen-y: base reality sits near the top and the deepest layer at the bottom,
-// with an upward pan nudging the base layer to the top of the canvas rather than
-// its centre. Default is the free three-quarter view.
+// The two orientation presets (Ladder / Angled) back the segmented view toggle
+// and the initial framing; Fit is an independent framing action. Ladder is a
+// near-top-down angle with no yaw, so z (nesting depth) drives screen-y: base
+// reality sits at the top and the deepest layer at the bottom. Angled is the
+// free three-quarter view. Both now fit the whole map to the canvas at their own
+// angle in a single click (fitToContent), so choosing an orientation also frames
+// it — no follow-up Fit press needed. Before any nodes exist (first boot) there
+// is nothing to measure, so each falls back to a tuned static framing.
 function setVerticalView() {
   viewAnim = null;
   view.rotX = -1.42; view.rotY = 0;
-  view.ox = 0; view.oy = -canvas.clientHeight * 0.32;
-  view.scale = 1;
+  if (!fitToContent()) { view.ox = 0; view.oy = -canvas.clientHeight * 0.32; view.scale = 1; }
+  setActiveView("view-vertical");
 }
 function setDefaultView() {
   viewAnim = null;
   view.rotX = 0.5; view.rotY = 0.35;
-  view.ox = 0; view.oy = 0; view.scale = 1;
+  if (!fitToContent()) { view.ox = 0; view.oy = 0; view.scale = 1; }
+  setActiveView("view-reset");
 }
 // setFitView keeps the current rotation but re-frames the map so every node fits
-// on screen at once (fitView computes the scale + pan). Use it to recover from a
-// map that has sprawled or zoomed off-frame without losing the current angle.
+// on screen at once. Use it to recover from a map that has sprawled or zoomed
+// off-frame without losing the current angle; it leaves the active orientation
+// as it is, since Fit does not change the viewing angle.
 function setFitView() {
   viewAnim = null;
+  fitToContent();
+}
+// fitToContent snaps scale + pan so every node fits the canvas at the current
+// rotation, returning false (and changing nothing) when no nodes exist yet.
+function fitToContent() {
+  if (!nodes.size) return false;
   const fit = fitView(nodes.values(), view, canvas.clientWidth, canvas.clientHeight);
   view.scale = fit.scale; view.ox = fit.ox; view.oy = fit.oy;
+  return true;
+}
+// setActiveView highlights whichever orientation preset is current and keeps the
+// segmented toggle's aria-pressed state in step; clearActiveView drops the
+// highlight when a manual orbit (Shift+drag) leaves both presets behind.
+function setActiveView(activeId) {
+  for (const id of ["view-vertical", "view-reset"]) {
+    const b = document.getElementById(id);
+    if (!b) continue;
+    const on = id === activeId;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+}
+function clearActiveView() {
+  for (const id of ["view-vertical", "view-reset"]) {
+    const b = document.getElementById(id);
+    if (!b) continue;
+    b.classList.remove("is-active");
+    b.setAttribute("aria-pressed", "false");
+  }
 }
 // frameToFit smoothly re-frames the map to the same "everything on screen" target
 // as setFitView, but animates the camera there (via viewAnim in tick) instead of
@@ -1274,6 +1306,9 @@ canvas.addEventListener("mousedown", (e) => {
   viewAnim = null;
   dragging = { x: e.offsetX, y: e.offsetY, rotate: e.shiftKey };
   if (dragging.rotate) {
+    // An orbit leaves both orientation presets behind, so drop the toggle
+    // highlight — it should only be lit while the view matches a preset angle.
+    clearActiveView();
     dragging.pivot = unproject(e.offsetX, e.offsetY, view, canvas.clientWidth, canvas.clientHeight);
   }
 });
@@ -1346,10 +1381,11 @@ document.querySelectorAll("button[data-cmd]").forEach((b) => {
   });
 });
 
-// View-orientation buttons (client-side only, no server round-trip). "vertical"
-// snaps to the depth-ladder view; "reset" restores the free three-quarter view;
-// "fit" keeps the current angle but re-frames so every node is on screen. The
-// running tick() redraws automatically.
+// View-orientation buttons (client-side only, no server round-trip). "ladder"
+// snaps to the depth-ladder view and fits it; "angled" restores the free
+// three-quarter view and fits it; "fit" keeps the current angle but re-frames so
+// every node is on screen. The running tick() redraws automatically. (Element
+// ids are kept as view-vertical/view-reset for stability; only labels changed.)
 document.getElementById("view-vertical").addEventListener("click", setVerticalView);
 document.getElementById("view-reset").addEventListener("click", setDefaultView);
 document.getElementById("view-fit").addEventListener("click", setFitView);

@@ -319,6 +319,22 @@ button.save { color: var(--good); border-color: rgba(87,226,165,0.4); }
 button.reset-map { color: var(--hot); border-color: rgba(255,95,176,0.4); background: rgba(255,95,176,0.08); }
 button.reset-map:hover { border-color: var(--hot); background: rgba(255,95,176,0.18); }
 
+/* View controls: the two orientation presets (Ladder / Angled) are a segmented
+   toggle — joined into one control with a shared border and only the active
+   segment highlighted — while Fit sits beside them as an independent action.
+   The presets take two-thirds of the row (flex:2) so the pair reads as a unit. */
+.view-orient { display: flex; flex: 2; }
+.view-orient button:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.view-orient button:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
+.view-orient button.is-active {
+  position: relative;
+  z-index: 1;
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(110, 168, 255, 0.28);
+}
+.view-orient button.is-active:hover { background: rgba(110, 168, 255, 0.34); }
+
 /* Control buttons carry a text label and an icon glyph in separate spans. The
    labels toggle (app.js) sets a mode class on .controls to show both (default),
    just the text, or just the icon. The icon's leading gap is a margin so it

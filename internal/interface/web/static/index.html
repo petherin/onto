@@ -120,9 +120,11 @@
         <section class="panel">
           <div class="panel-grid">
             <div class="control-group view-group">
-              <button id="view-vertical" title="Stack realities top-to-bottom: base at the top, deepest at the bottom"><span class="btn-label">vertical</span><span class="btn-icon">⭳</span></button>
-              <button id="view-reset" title="Restore the free three-quarter view"><span class="btn-label">reset</span><span class="btn-icon">⟲</span></button>
-              <button id="view-fit" title="Keep the current angle but zoom and pan so every node fits on screen"><span class="btn-label">best fit</span><span class="btn-icon">⤢</span></button>
+              <div class="view-orient" role="group" aria-label="Map orientation">
+                <button id="view-vertical" aria-pressed="true" title="Ladder view: stack realities top-to-bottom (base at the top, deepest at the bottom) and fit the whole map on screen"><span class="btn-label">ladder</span><span class="btn-icon">⭳</span></button>
+                <button id="view-reset" aria-pressed="false" title="Angled three-quarter view, fit the whole map on screen"><span class="btn-label">angled</span><span class="btn-icon">◈</span></button>
+              </div>
+              <button id="view-fit" title="Keep the current angle but zoom and pan so every node fits on screen"><span class="btn-label">fit</span><span class="btn-icon">⤢</span></button>
             </div>
           </div>
         </section>
