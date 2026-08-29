@@ -223,6 +223,88 @@ Cost implications:
 
 The simulation axis interacts with the observer axis: changing umwelt inside a simulation may be easier than in base reality, because the simulation's rules are malleable. Implementation uses `BranchSimulation` with asymmetric forward/reverse edge costs via `ContextualTransitionSpec.ReverseCost`.
 
+## Dead ends, sinks, and the `home` safety hatch
+
+The graph distinguishes two kinds of terminal location, and the distinction is
+structural — it keys off edge *modes*, never off a location's name or ID.
+
+- **Dead end (leaf).** A node whose only physical edge is back the way you came.
+  Ordinary leaves and auto-generated "Nearby N" chains are dead ends: on arrival
+  `travel` auto-expands them into a fresh nearby node, so exploration never
+  bottoms out. `HasPhysicalExit` returns `true` for these (there is at least one
+  physical edge), which is what permits the expansion.
+- **Sink.** A node with *no outgoing physical edge at all*. The **well** is the
+  canonical sink: you fall in from the park and its only *seed exit edge* is a
+  single `ConsensusShift` drift (5 σ) back to the surface (`park`).
+  `HasPhysicalExit` returns `false`, so `Travel` deliberately does **not**
+  auto-expand it. A sink is a genuine physical dead end: you cannot *walk* out,
+  and this holds for every on-foot mechanic (`travel`, auto-expansion, physical
+  pathfinding via the physical-only `TravelCommand`).
+
+  Two different "ways out" must not be conflated here. The `ConsensusShift` drift
+  is the only *pre-built edge back to the surface*, and so it is the one edge
+  `home` (and `FindRoute`) traverses to leave the base-reality well. It is **not**
+  the only non-physical move available, though: any contextual command
+  (`shift`, `jump`, `universe`, `structure`, `simulate`, `observe`, `time`,
+  `drift`) branches the *current location* into a fresh nested reality without
+  needing a pre-existing edge, so you can equally leave the well node into
+  `well@Q1`, a timeline branch, and so on. Those moves go *deeper* (into a nested
+  copy of the well) rather than up to the surface, and there the cost-scaled
+  escape gamble below may hand you a physical ladder; getting home from such a
+  copy still funnels back through the drift (directly, or via `home`'s unwind).
+
+This is internally consistent because "physically closed" and "reachable by
+`home`" are statements about **different edge classes**. The well's `well → park`
+drift exists in the seed graph at all times; ordinary movement simply declines to
+traverse non-physical edges on foot (you would normally spend a
+`drift`/`shift`/`jump` to cross a reality boundary). The sink rule governs
+physical edges only, so it is never in conflict with a command that uses a
+non-physical one.
+
+### `home` as the safety hatch
+
+`home` is the one privileged, explicitly-invoked command permitted to leave a
+sink, so the traveller is never permanently soft-locked. It does not make the
+well physically escapable and it does not special-case the well:
+
+- The plan and the executor both ask the pathfinder's `FindRoute`, a BFS over
+  **all** edges (physical and non-physical).
+- The executor only falls back to that full route *after* a physical-only walk
+  home has failed. Each hop is labelled by `edge.Mode.IsPhysical()` — physical
+  hops render as `travel`, the non-physical hop renders as `escape` — so the plan
+  reflects a journey that can actually complete rather than advertising an
+  impossible one.
+
+From the well, `home` therefore plans `escape (well → park) 5 σ` +
+`travel (park → home) 1 σ`. The escape edge is a seed edge, not a recorded
+context transition, so it is applied with `MoveTo` and leaves the context stack
+untouched. Because the logic keys off `IsPhysical()` and `FindRoute` rather than
+the string `"well"`, any future sink with a non-physical exit that reaches home
+is handled the same way; a location with *no* route home at all still surfaces an
+honest "no route home" error instead of stranding the traveller mid-journey.
+
+### Cost-scaled escape gamble
+
+When a *non-physical* move (drift, shift, jump, universe, structure, simulate,
+observe, time) lands the traveller on a dead end in a **nested** reality, whether
+that reality offers a physical way out (a "ladder") is decided by a cost-scaled
+gamble in `HasPhysicalEscape`. The odds scale with the σ spent on the move that
+arrived there — you gamble more reality-debt for better escape odds:
+
+- The cost→probability mapping is logarithmic (`EscapeProbability`), clamped
+  between `EscapeProbMin` (0.10, at the cheapest 2 σ observer shift) and
+  `EscapeProbMax` (0.90, at the dearest 50000 σ mathematical-structure jump) —
+  mirroring the log edge-weighting used in the web layer.
+- The verdict is **deterministic per reality**: it is seeded from the
+  destination coordinate (`coordinateSeed`), so the same reality always gives the
+  same answer (reproducible across reloads and in tests) yet escapability varies
+  from one reality to the next. Base reality (nesting depth 0) is never gated —
+  its dead ends always expand, preserving prior behaviour.
+
+Even when a gamble fails, the traveller is never hard-locked: a non-physical exit
+always remains, so they can keep drifting to another reality and roll again, and
+`home` remains available as the guaranteed way back.
+
 ## Future gamification ideas
 
 Game mode today (documented in the README) gives a finite **budget**, an ordered

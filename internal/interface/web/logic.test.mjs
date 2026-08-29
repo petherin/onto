@@ -51,6 +51,13 @@ import {
   edgeRestLength,
   REST_PHYSICAL,
   REST_TRANSITION,
+  edgeWeight,
+  EDGE_COST_MIN,
+  EDGE_COST_MAX,
+  EDGE_WIDTH_MIN,
+  EDGE_WIDTH_MAX,
+  EDGE_ALPHA_MIN,
+  EDGE_ALPHA_MAX,
   spawnHalo,
   SPAWN_HALO_MS,
   SPAWN_HALO_ALPHA,
@@ -415,6 +422,32 @@ test("edgeRestLength: reality transitions rest longer, pushing child sub-graphs 
 test("edgeRestLength: unknown modes fall on the transition side", () => {
   assert.equal(edgeRestLength("nonsense"), REST_TRANSITION);
   assert.equal(edgeRestLength(undefined), REST_TRANSITION);
+});
+
+test("edgeWeight: cost at/under the floor sits at the thin, faint end", () => {
+  const floor = edgeWeight(EDGE_COST_MIN);
+  assert.ok(Math.abs(floor.width - EDGE_WIDTH_MIN) < 1e-9);
+  assert.ok(Math.abs(floor.alpha - EDGE_ALPHA_MIN) < 1e-9);
+  // 0, undefined, and sub-floor costs all clamp to the same thin, faint end.
+  assert.deepEqual(edgeWeight(0), floor);
+  assert.deepEqual(edgeWeight(undefined), floor);
+  assert.deepEqual(edgeWeight(-100), floor);
+});
+
+test("edgeWeight: cost at/over the cap saturates at the thick, opaque end", () => {
+  const cap = edgeWeight(EDGE_COST_MAX);
+  assert.ok(Math.abs(cap.width - EDGE_WIDTH_MAX) < 1e-9);
+  assert.ok(Math.abs(cap.alpha - EDGE_ALPHA_MAX) < 1e-9);
+  // A runaway cost past the cap can't blow the map out — it stays clamped.
+  assert.deepEqual(edgeWeight(EDGE_COST_MAX * 1000), cap);
+});
+
+test("edgeWeight: width and alpha rise monotonically with cost", () => {
+  const cheap = edgeWeight(2);       // an observe shift
+  const mid = edgeWeight(500);
+  const dear = edgeWeight(50000);    // a structure jump
+  assert.ok(cheap.width < mid.width && mid.width < dear.width);
+  assert.ok(cheap.alpha < mid.alpha && mid.alpha < dear.alpha);
 });
 
 test("spawnHalo: is null before it starts and once it has run its course", () => {

@@ -55,8 +55,10 @@ func TestCompleter_OnlyOffersCurrentPhysicalJourneys(t *testing.T) {
 	candidates, _ := c.Do([]rune("travel "), 7)
 	names := runeStr(candidates)
 
+	// The seed world is two-way, so from station you can travel on to city-centre
+	// and back to home; park is still not offered (no station→park edge).
 	assert.Contains(t, names, "city-centre")
-	assert.NotContains(t, names, "home")
+	assert.Contains(t, names, "home")
 	assert.NotContains(t, names, "park")
 }
 

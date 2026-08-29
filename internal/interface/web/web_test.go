@@ -110,14 +110,18 @@ func TestExecute_HomeCancel(t *testing.T) {
 	assert.Equal(t, "station", s.app.Snapshot().Location, "cancelling must not move the traveller")
 }
 
-// TestExecute_DeadEnd_NoConfirmPrompt covers the fixed bug: from a dead end
-// with no path home, 'home' reports no route and never arms confirmation.
-func TestExecute_DeadEnd_NoConfirmPrompt(t *testing.T) {
+// TestExecute_TerminalHome_NoConfirmPrompt covers the guard that a terminal
+// 'home' result — one that is a plain message rather than an actionable plan —
+// never arms confirmation. From the start location there is nothing to unwind
+// and no walk to make, so GoHome returns "already home" and awaitingHomeConfirm
+// must stay false. (The seed world is fully two-way, so a walked-to leaf like
+// park now has a route home; the no-route branch is covered at the command layer
+// in return_home_test.go.)
+func TestExecute_TerminalHome_NoConfirmPrompt(t *testing.T) {
 	s := newTestServer(t)
-	s.execute("travel park")
 
 	resp := s.execute("home")
-	assert.Contains(t, resp, "No route home")
+	assert.Contains(t, resp, facade.MsgAlreadyHome)
 	assert.False(t, s.awaitingHomeConfirm)
 }
 
@@ -144,7 +148,7 @@ func TestHandlers(t *testing.T) {
 
 // TestReset_RestoresStartingMap covers the full server-side reset: after a
 // reality transition has grown the graph and moved the session off base
-// reality, POST /api/reset rebuilds the starting map (only the four starter
+// reality, POST /api/reset rebuilds the starting map (only the five starter
 // nodes) and returns the session home in base reality.
 func TestReset_RestoresStartingMap(t *testing.T) {
 	s := newTestServer(t)
@@ -152,17 +156,17 @@ func TestReset_RestoresStartingMap(t *testing.T) {
 	defer srv.Close()
 
 	starterIDs := s.app.GraphSnapshot().Nodes
-	require.Len(t, starterIDs, 4, "the starter map has four nodes")
+	require.Len(t, starterIDs, 5, "the starter map has five nodes")
 
 	// Grow the graph with a reality transition; the branch adds new locations.
 	postJSON(t, srv.URL+"/api/execute", `{"command":"shift"}`, &stateDTO{})
 	grown := s.app.GraphSnapshot()
-	require.Greater(t, len(grown.Nodes), 4, "shift must branch new locations onto the map")
+	require.Greater(t, len(grown.Nodes), 5, "shift must branch new locations onto the map")
 
 	var reset stateDTO
 	postJSON(t, srv.URL+"/api/reset", `{}`, &reset)
 
-	assert.Len(t, reset.Graph.Nodes, 4, "reset restores only the starter nodes")
+	assert.Len(t, reset.Graph.Nodes, 5, "reset restores only the starter nodes")
 	assert.Equal(t, "home", reset.Session.Location, "reset returns the session home")
 	assert.Equal(t, "Q0", reset.Session.Quantum, "reset returns to base reality")
 	assert.Equal(t, 0.0, reset.Session.CumulativeCost, "reset clears the journey cost")
@@ -187,8 +191,9 @@ func nodesByID(g facade.GraphSnapshot) map[string]facade.NodeSnapshot {
 // TestGraphSnapshot_Reachability covers the reachability flag the web UI colours
 // nodes by: from the start location every physically-connected node is reachable
 // and the current node itself is not, edges expose their travel mode, and the
-// flag recomputes for the new location after a move — from the 'park' dead end
-// (no outgoing edges) nothing is reachable.
+// flag recomputes for the new location after a move. The seed world is fully
+// two-way, so after walking to 'park' you can still reach everywhere you came
+// from — proving the flag recomputes per location rather than being baked in once.
 func TestGraphSnapshot_Reachability(t *testing.T) {
 	s := newTestServer(t)
 	start := s.app.Snapshot().Location
@@ -209,15 +214,16 @@ func TestGraphSnapshot_Reachability(t *testing.T) {
 	assert.True(t, modes["walk"], "walk edges are exposed with their mode string")
 	assert.True(t, modes["rail"], "rail edges are exposed with their mode string")
 
-	// Reachability is relative to the current location: after moving to park —
-	// from which there is no route back — every node reachable from home flips to
-	// unreachable, proving the flag recomputes per location rather than being
-	// baked in once.
+	// Reachability is relative to the current location: after moving to park the
+	// current node stops being reachable while everywhere it connects back to
+	// stays reachable, proving the flag recomputes per location rather than being
+	// baked in once. The seed edges are now two-way, so park routes back to home
+	// and on to station and city-centre.
 	s.execute("travel park")
 	nodes = nodesByID(s.app.GraphSnapshot())
 	assert.False(t, nodes["park"].Reachable, "the new current location is not reachable")
 	for _, id := range []string{start, "station", "city-centre"} {
-		assert.Falsef(t, nodes[id].Reachable, "%s has no route back from the park dead end", id)
+		assert.Truef(t, nodes[id].Reachable, "%s is reachable back from park now the seed world is two-way", id)
 	}
 }
 

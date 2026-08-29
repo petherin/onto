@@ -2,6 +2,8 @@ package universe
 
 import (
 	"fmt"
+	"math"
+	"math/rand"
 	"strconv"
 	"strings"
 )
@@ -72,6 +74,77 @@ func NewNearbyLocation(u *Aggregate, originID string, coordinate CoordinateVO) (
 		return location, outbound, returning, nil
 	}
 	return LocationEntity{}, EdgeVO{}, EdgeVO{}, fmt.Errorf("%w: no nearby location ID available", ErrInvalidLocation)
+}
+
+// IsPhysicalDeadEnd reports whether a location has no outgoing physical edge
+// other than one leading back to cameFrom (the edge just arrived on). It mirrors
+// the travel command's dead-end policy so callers outside that package can ask
+// the same question — e.g. after a non-physical move lands the traveller in a
+// new reality.
+func IsPhysicalDeadEnd(u *Aggregate, id, cameFrom string) bool {
+	for _, e := range u.EdgesFrom(id) {
+		if e.Mode.IsPhysical() && e.To != cameFrom {
+			return false
+		}
+	}
+	return true
+}
+
+// HasPhysicalExit reports whether a location has at least one outgoing physical
+// edge. A location with none is a genuine physical sink — it can only be left by
+// a non-physical move (e.g. the well, whose sole exit is a consensus drift). Such
+// a sink must not be auto-expanded into a nearby "ladder" on arrival, otherwise
+// it becomes trivially escapable on foot and stops being a real dead end. Leaves
+// that are still physically connected (an ordinary node whose only walkable edge
+// is back the way you came, or an auto-generated nearby node) do have a physical
+// exit, so they keep expanding as before.
+func HasPhysicalExit(u *Aggregate, id string) bool {
+	for _, e := range u.EdgesFrom(id) {
+		if e.Mode.IsPhysical() {
+			return true
+		}
+	}
+	return false
+}
+
+// Escape-probability bounds. The chance that a dead end reached by a
+// non-physical move offers a physical way out scales with the σ cost of that
+// move: cheap transitions (an observer shift at 2 σ) rarely pay off, while
+// expensive ones (a mathematical-structure jump at 50000 σ) almost always do —
+// so the traveller gambles more σ for better odds of escaping. Costs span a
+// wide range, so the cost→probability mapping is logarithmic (see edgeWeight in
+// the web layer for the same reasoning), clamped to [EscapeCostMin, EscapeCostMax].
+const (
+	EscapeCostMin = ObserverShiftCost    // cheapest transition (2 σ) → EscapeProbMin
+	EscapeCostMax = MathematicalShiftCost // dearest transition (50000 σ) → EscapeProbMax
+	EscapeProbMin = 0.10
+	EscapeProbMax = 0.90
+)
+
+// EscapeProbability maps a transition's σ cost to the probability that the dead
+// end it lands on offers a physical escape, on a log curve between EscapeProbMin
+// and EscapeProbMax.
+func EscapeProbability(transitionCost float64) float64 {
+	c := math.Min(EscapeCostMax, math.Max(EscapeCostMin, transitionCost))
+	t := math.Log(c/EscapeCostMin) / math.Log(EscapeCostMax/EscapeCostMin)
+	return EscapeProbMin + t*(EscapeProbMax-EscapeProbMin)
+}
+
+// HasPhysicalEscape decides whether a dead end in the reality identified by
+// coord offers a physical way out (a "ladder"). The answer is derived
+// deterministically from the coordinate's seed — the same reality always gives
+// the same verdict, so it is reproducible across reloads and in tests — yet it
+// varies from one reality to the next, so escapability feels random as the
+// traveller moves between realities. The odds are set by transitionCost: the
+// more σ the move that arrived here cost, the more likely the escape (see
+// EscapeProbability). Base reality (nesting depth 0) is never gated: ordinary
+// dead ends there always expand, preserving existing behaviour.
+func HasPhysicalEscape(coord CoordinateVO, transitionCost float64) bool {
+	if coord.NestingDepth() == 0 {
+		return true
+	}
+	rng := rand.New(rand.NewSource(coordinateSeed(coord)))
+	return rng.Float64() < EscapeProbability(transitionCost)
 }
 
 // nextNearbyNumber returns one past the highest "Nearby N" sequence number

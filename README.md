@@ -124,13 +124,13 @@ Reality exists on a spectrum between collective consensus (everyone agrees on th
 - **Local coordinates (galaxy, planet, city, location) are always nested within your current Level I region**, regardless of which quantum branch, timeline, time, or simulation depth you occupy.
 
 **Cost hierarchy (cheapest to most expensive):**
-- **Cheapest**: physical travel (walking/driving within one region)
-- **Very cheap**: observer shifts (changing perceptual perspective), imagination transitions (entering/exiting dreams, stories)
-- **Low**: time travel (short distances), simulation boundary crossings
-- **Moderate**: timeline jumps (macroscopic history shifts)
-- **Expensive**: quantum shifts (Level III branches)
-- **Very expensive**: universe shifts (Level II bubbles)
-- **Extreme**: mathematical structure transitions (Level IV)
+- **Cheapest**: physical travel — walking/driving within one region (1–2 σ)
+- **Very cheap**: observer shifts — changing perceptual perspective (2 σ), imagination transitions — entering/exiting dreams, stories (5 σ)
+- **Low**: simulation boundary crossings (10 σ in / 50 σ out), quantum shifts — Level III branches (20 σ)
+- **Moderate**: time travel (100 σ)
+- **High**: timeline jumps — macroscopic history shifts (800 σ)
+- **Very expensive**: universe shifts — Level II bubbles (5000 σ)
+- **Extreme**: mathematical structure transitions — Level IV (50000 σ)
 
 **Why this model works:**
 
@@ -182,7 +182,7 @@ Here's the complete coordinate space visualized:
          ┌──────────────┬──────────────┬─────────────┬──────────────┬────────────────┐
          │  Timeline    │  Time        │  Simulation │ Consensus    │  Observer      │
          │  Which hist? │  When?       │  Depth?     │ Divergence?  │  Whose eyes?   │
-         │  (cost 800)  │  (cost var)  │  (cost low) │  (cost low)  │  (cost low)    │
+         │  (cost 800)  │  (cost 100)  │  (cost low) │  (cost low)  │  (cost low)    │
          │              │              │             │              │                │
          │  T1, T2, T3  │  timestamp   │  0, 1, 2... │  0, 1, 2...  │  human, bat,   │
          │  (branches)  │  (position)  │  (nesting)  │  (consensus  │  ai, ...       │

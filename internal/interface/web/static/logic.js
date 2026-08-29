@@ -51,6 +51,30 @@ export function edgeRestLength(mode) {
   return modeStyle(mode).dash.length ? REST_TRANSITION : REST_PHYSICAL;
 }
 
+// Edge cost weighting for the base map. Mode owns each edge's hue and dash (see
+// MODE_STYLE); cost owns its heft, so an expensive exotic jump *looks* expensive
+// at rest — thick and opaque — while a cheap step reads thin and faint. Costs
+// span orders of magnitude (an observe shift is ~2 σ, a structure jump ~50000),
+// so a linear scale would flatten everything; edgeWeight maps cost through a log
+// curve clamped to [EDGE_COST_MIN, EDGE_COST_MAX], normalised to [0,1], then
+// interpolated onto the width and alpha ranges below. Cost at or under the floor
+// (including 0/undefined) sits at the thin, faint end; cost at or over the cap
+// saturates at the thick, opaque end, so one runaway edge can't blow out the map.
+export const EDGE_COST_MIN = 1;
+export const EDGE_COST_MAX = 50000;
+export const EDGE_WIDTH_MIN = 0.75;
+export const EDGE_WIDTH_MAX = 4;
+export const EDGE_ALPHA_MIN = 0.2;
+export const EDGE_ALPHA_MAX = 0.6;
+export function edgeWeight(cost) {
+  const c = Math.min(EDGE_COST_MAX, Math.max(EDGE_COST_MIN, cost || 0));
+  const t = Math.log(c / EDGE_COST_MIN) / Math.log(EDGE_COST_MAX / EDGE_COST_MIN);
+  return {
+    width: EDGE_WIDTH_MIN + t * (EDGE_WIDTH_MAX - EDGE_WIDTH_MIN),
+    alpha: EDGE_ALPHA_MIN + t * (EDGE_ALPHA_MAX - EDGE_ALPHA_MIN),
+  };
+}
+
 // Each reality transition plays its own character-matched animation rather than
 // a single generic ripple, so the *feel* of crossing an axis matches its nature.
 // kind selects the canvas renderer in app.js (drawEffects); the colour still

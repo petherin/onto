@@ -7,6 +7,7 @@
 import {
   DEFAULTS,
   modeStyle,
+  edgeWeight,
   TRANSITION_LEGEND,
   TRANSITIONS,
   detectTransition,
@@ -961,15 +962,19 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const cur = state && state.session ? state.session.Location : null;
 
-  ctx.lineWidth = 1;
   for (const e of edges) {
     const a = nodes.get(e.From), b = nodes.get(e.To);
     if (!a || !b) continue;
     const pa = toScreen(a), pb = toScreen(b);
     // Each mode has its own hue + dash: solid blue for ordinary travel, a
-    // distinct dashed colour for every reality transition.
+    // distinct dashed colour for every reality transition. Cost owns the heft:
+    // edgeWeight maps EdgeSnapshot.Cost to a width and opacity (log-scaled), so
+    // expensive exotic jumps read as thick, solid lines and cheap steps as thin,
+    // faint ones — the same cost the hover preview labels, now legible at rest.
     const st = modeStyle(e.Mode);
-    ctx.strokeStyle = `rgba(${st.rgb},${st.dash.length ? 0.32 : 0.22})`;
+    const w = edgeWeight(e.Cost);
+    ctx.lineWidth = w.width;
+    ctx.strokeStyle = `rgba(${st.rgb},${w.alpha})`;
     ctx.setLineDash(st.dash);
     ctx.beginPath();
     ctx.moveTo(pa.x, pa.y);

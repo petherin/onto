@@ -111,14 +111,14 @@ func (c *ReturnHomeCommand) planRecordedTransitions(transitions []exploration.Co
 
 	if lastExistingID != c.HomeID {
 		if path, ok := c.Pathfinder.FindRoute(c.Universe, lastExistingID, c.HomeID); ok {
+			// return home is the safety hatch: it must always get the traveller
+			// back. Normally the residual route home is a pure physical walk, but
+			// a genuine sink (the well) can only be left by a non-physical exit
+			// edge (its drift back to the surface). If the route home crosses such
+			// an edge, include it as an "escape" step rather than stopping short —
+			// otherwise the plan would advertise a journey that cannot complete.
 			for _, edge := range path {
-				if !edge.Mode.IsPhysical() {
-					// Context should already be unwound; a non-physical hop means
-					// the residual route is not a pure walk home — stop rather than
-					// pretend later physical edges are reachable without it.
-					break
-				}
-				steps = append(steps, ReturnHomeStep{Action: "travel", Detail: fmt.Sprintf("%s -> %s", edge.From, edge.To), Cost: edge.Cost})
+				steps = append(steps, ReturnHomeStep{Action: routeStepAction(edge.Mode), Detail: fmt.Sprintf("%s -> %s", edge.From, edge.To), Cost: edge.Cost})
 				total += edge.Cost
 			}
 		}
@@ -194,12 +194,57 @@ func (c *ReturnHomeCommand) unwindRecordedTransitions() ([]ReturnHomeStep, error
 
 	if c.Session.Location() != c.HomeID {
 		result, err := (&TravelCommand{Universe: c.Universe, Session: c.Session, Pathfinder: c.Pathfinder, IgnoreBudget: true}).Execute(c.HomeID)
-		if err != nil {
+		if err == nil {
+			steps = append(steps, ReturnHomeStep{Action: "travel", Detail: result.Location.Name})
+			return steps, nil
+		}
+		// No pure-physical walk home: the traveller is in a genuine sink (the
+		// well) whose only exit is a non-physical edge. return home is the safety
+		// hatch, so follow the full route home — including that escape edge —
+		// rather than stranding them here.
+		escapeSteps, escapeErr := c.walkHomeAcrossEscapes()
+		if escapeErr != nil {
 			return steps, err
 		}
-		steps = append(steps, ReturnHomeStep{Action: "travel", Detail: result.Location.Name})
+		steps = append(steps, escapeSteps...)
 	}
 	return steps, nil
+}
+
+// walkHomeAcrossEscapes applies the full route from the current location to home,
+// following non-physical exit edges (e.g. the well's drift back to the surface)
+// as well as physical ones. It is the fallback used by return home when no pure
+// physical walk home exists, so a genuine sink is never a soft-lock. Non-physical
+// escape edges here are seed edges, not recorded context transitions, so they are
+// applied with MoveTo (no context-stack change); physical edges reuse MoveTo too
+// since the route was already validated by the pathfinder.
+func (c *ReturnHomeCommand) walkHomeAcrossEscapes() ([]ReturnHomeStep, error) {
+	path, ok := c.Pathfinder.FindRoute(c.Universe, c.Session.Location(), c.HomeID)
+	if !ok {
+		return nil, fmt.Errorf("no route home from %s", c.Session.Location())
+	}
+	var steps []ReturnHomeStep
+	for _, edge := range path {
+		dest, ok := c.Universe.GetLocation(edge.To)
+		if !ok {
+			return steps, fmt.Errorf("%w: %s", universe.ErrUnknownEdgeEndpoint, edge.To)
+		}
+		c.Session.MoveTo(dest, edge.Cost)
+		steps = append(steps, ReturnHomeStep{Action: routeStepAction(edge.Mode), Detail: dest.Name})
+	}
+	return steps, nil
+}
+
+// routeStepAction labels a residual route-home edge for display and unwinding: a
+// physical leg is an ordinary "travel", while a non-physical exit edge (e.g. the
+// well's drift back to the surface) is an "escape" — the safety-hatch hop that
+// leaves a sink. Both Plan and Execute label the same route this way, so the rule
+// lives in one place.
+func routeStepAction(mode universe.TravelModeVO) string {
+	if mode.IsPhysical() {
+		return "travel"
+	}
+	return "escape"
 }
 
 func returnDetail(mode universe.TravelModeVO, current, origin universe.LocationEntity) string {

@@ -221,3 +221,97 @@ func TestGenerateDescription_ReflectsActiveAxes(t *testing.T) {
 	assert.False(t, strings.Contains(plain, "Q2") || strings.Contains(plain, "Bat"),
 		"base-reality description carries no exotic-axis clauses")
 }
+
+// TestIsPhysicalDeadEnd covers the shared dead-end predicate: a node is a dead
+// end when its only outgoing physical edges point back the way it was arrived on
+// (or it has no physical edges at all), while a non-physical exit does not count
+// as an onward physical route.
+func TestIsPhysicalDeadEnd(t *testing.T) {
+	u := universe.NewAggregate()
+	base := universe.DefaultCoordinateVO()
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home", Name: "Home", Coordinate: base}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "well", Name: "Well", Coordinate: base}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: base}))
+	// well has a one-way physical drop in and a non-physical exit only.
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "well", Mode: universe.Walk, Cost: 1}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "well", To: "park", Mode: universe.ConsensusShift, Cost: universe.ConsensusShiftCost}))
+
+	// Non-physical exit does not rescue it from being a physical dead end.
+	assert.True(t, universe.IsPhysicalDeadEnd(u, "well", "home"))
+	// A physical onward edge to somewhere other than cameFrom makes it not a dead end.
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "well", To: "home", Mode: universe.Walk, Cost: 1}))
+	assert.False(t, universe.IsPhysicalDeadEnd(u, "well", "park"))
+	// ...but if that only physical edge points back to cameFrom, it is still a dead end.
+	assert.True(t, universe.IsPhysicalDeadEnd(u, "well", "home"))
+}
+
+// TestHasPhysicalEscape_DeterministicPerReality confirms the escape verdict is
+// stable for a given coordinate (reproducible across reloads and tests) while
+// varying across realities, and that base reality is never gated.
+func TestHasPhysicalEscape_DeterministicPerReality(t *testing.T) {
+	base := universe.DefaultCoordinateVO()
+	base.Location = "Well"
+	assert.True(t, universe.HasPhysicalEscape(base, universe.ConsensusShiftCost), "base reality is never gated")
+
+	// The same non-base coordinate and cost always yield the same verdict.
+	c := base
+	c.Consensus = 3
+	assert.Equal(t,
+		universe.HasPhysicalEscape(c, universe.ConsensusShiftCost),
+		universe.HasPhysicalEscape(c, universe.ConsensusShiftCost))
+
+	// Across a run of realities both outcomes occur at a mid-range cost, so
+	// escapability genuinely varies rather than being constant.
+	sawEscape, sawBlocked := false, false
+	for level := 1; level <= 40; level++ {
+		cc := base
+		cc.Consensus = level
+		if universe.HasPhysicalEscape(cc, universe.QuantumShiftCost) {
+			sawEscape = true
+		} else {
+			sawBlocked = true
+		}
+	}
+	assert.True(t, sawEscape, "some realities offer a physical escape")
+	assert.True(t, sawBlocked, "some realities offer no physical escape")
+}
+
+// TestEscapeProbability_ScalesWithCost confirms the gamble: cheap transitions
+// give low escape odds, expensive ones high odds, monotonically between the
+// configured bounds, with clamping outside the cost range.
+func TestEscapeProbability_ScalesWithCost(t *testing.T) {
+	// Cheapest transition sits at the floor, dearest at the ceiling.
+	assert.InDelta(t, universe.EscapeProbMin, universe.EscapeProbability(universe.ObserverShiftCost), 1e-9)
+	assert.InDelta(t, universe.EscapeProbMax, universe.EscapeProbability(universe.MathematicalShiftCost), 1e-9)
+
+	// Below/above the range clamps to the bounds rather than extrapolating.
+	assert.InDelta(t, universe.EscapeProbMin, universe.EscapeProbability(0), 1e-9)
+	assert.InDelta(t, universe.EscapeProbMax, universe.EscapeProbability(universe.MathematicalShiftCost*10), 1e-9)
+
+	// Probability rises monotonically across the transition cost ladder.
+	ladder := []float64{
+		universe.ObserverShiftCost, universe.ConsensusShiftCost, universe.SimulationEntryCost,
+		universe.QuantumShiftCost, universe.TimeShiftCost, universe.TimelineShiftCost,
+		universe.UniverseShiftCost, universe.MathematicalShiftCost,
+	}
+	for i := 1; i < len(ladder); i++ {
+		assert.Greater(t, universe.EscapeProbability(ladder[i]), universe.EscapeProbability(ladder[i-1]),
+			"a dearer transition must give better escape odds")
+	}
+
+	// A cheap transition is genuinely unlikely to escape; a dear one likely.
+	cheapEscapes, dearEscapes := 0, 0
+	base := universe.DefaultCoordinateVO()
+	for level := 1; level <= 200; level++ {
+		c := base
+		c.Consensus = level
+		if universe.HasPhysicalEscape(c, universe.ObserverShiftCost) {
+			cheapEscapes++
+		}
+		if universe.HasPhysicalEscape(c, universe.MathematicalShiftCost) {
+			dearEscapes++
+		}
+	}
+	assert.Less(t, cheapEscapes, dearEscapes,
+		"cheap transitions escape far less often than expensive ones over many realities")
+}

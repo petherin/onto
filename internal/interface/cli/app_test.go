@@ -372,8 +372,11 @@ func TestGoHome_SeparatesConsensusAndPhysicalCosts(t *testing.T) {
 
 	plan := app.GoHome()
 
+	// The consensus unwind (align, cost 5) is listed separately from the physical
+	// walk home (station → home, cost 1 in the two-way seed world) — 6 in total.
 	assert.Contains(t, plan, "align      (consensus 1 → 0)  cost 5")
-	assert.Contains(t, plan, "Estimated cost: 10")
+	assert.Contains(t, plan, "travel     (station -> home)  cost 1")
+	assert.Contains(t, plan, "Estimated cost: 6")
 	assert.NotContains(t, plan, "Station (consensus 1) → Station")
 }
 
@@ -511,18 +514,86 @@ func TestGoHome_FromStation_ReturnsPlan(t *testing.T) {
 	assert.Contains(t, output, "home")
 }
 
-// A dead-end node (park has no outgoing edge in the default map) has no route
-// back home. GoHome must report that explicitly rather than falsely claiming
-// the traveller is already home, and it must not ask for confirmation.
-func TestGoHome_FromDeadEnd_ReportsNoRoute(t *testing.T) {
+// The well is a genuine physical dead end: you fall in from the park and there
+// is no physical way back out (its only exit is a non-physical drift). GoHome is
+// the safety hatch, so it must offer a real escape plan rather than falsely
+// claiming the traveller is already home — the escapability itself is asserted by
+// TestGoHome_EscapesWellSinkViaSafetyHatch.
+func TestGoHome_FromDeadEnd_DoesNotClaimAlreadyHome(t *testing.T) {
 	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
 	app := newTestApp(t)
 	app.Execute("travel park")
+	app.Execute("travel well")
 	output := app.Execute("home")
 
-	assert.Contains(t, output, "No route home")
 	assert.NotContains(t, output, "already home")
-	assert.False(t, facade.NeedsHomeConfirm(output))
+	assert.True(t, facade.NeedsHomeConfirm(output),
+		"the safety hatch must offer a completable escape plan from the well")
+}
+
+// Travelling into the well must not auto-generate a nearby "ladder": the well is
+// a designed physical sink (its only exit is a non-physical drift), so unlike an
+// ordinary leaf it must not spawn a walkable escape node on arrival.
+func TestTravelToWell_DoesNotAutoGenerateEscape(t *testing.T) {
+	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
+	app := newTestApp(t)
+	app.Execute("travel park")
+	before := len(app.app.GraphSnapshot().Nodes)
+
+	output := app.Execute("travel well")
+
+	assert.NotContains(t, output, "Auto-generated")
+	assert.Len(t, app.app.GraphSnapshot().Nodes, before,
+		"the well is a designed sink and must not spawn a nearby escape node")
+}
+
+// return home is the safety hatch: it must always get the traveller back, even
+// from a genuine physical sink like the well whose only exit is a non-physical
+// drift. The plan must include that escape (so it does not advertise a journey it
+// cannot finish), and confirming it must actually land the session at home rather
+// than stranding it in the well family.
+func TestGoHome_EscapesWellSinkViaSafetyHatch(t *testing.T) {
+	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
+	app := newTestApp(t)
+	app.Execute("travel park")
+	app.Execute("travel well")
+	require.Equal(t, "well", app.app.SessionEntity().Location())
+
+	plan := app.GoHome()
+	assert.True(t, facade.NeedsHomeConfirm(plan), "a completable plan must be offered, not a terminal message")
+	assert.Contains(t, plan, "escape", "the plan must include the non-physical escape out of the well")
+
+	result := app.GoHomeConfirm()
+	assert.NotContains(t, result, "Failed while returning home")
+	assert.Equal(t, "home", app.app.SessionEntity().Location(),
+		"the safety hatch must land the traveller home, not strand them in the well")
+}
+
+// A harder reproduction of the reported strand: escape the well by drifting into
+// nested realities until one offers a physical ladder, walk onto it, then head
+// home. Even after unwinding the recorded context lands the traveller back in the
+// well family (a base-reality sink), the safety hatch must still get them home.
+func TestGoHome_EscapesWellAfterNestedLadder(t *testing.T) {
+	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
+	app := newTestApp(t)
+	app.Execute("travel park")
+	app.Execute("travel well")
+
+	// Drift between realities until one yields a ladder, then walk onto it.
+	laddered := false
+	for i := 0; i < 30 && !laddered; i++ {
+		out := app.Execute("drift")
+		if strings.Contains(out, "A way out") {
+			app.Execute("travel Nearby 1")
+			laddered = true
+		}
+	}
+	require.True(t, laddered, "expected some drifted reality to offer a physical ladder")
+
+	result := app.GoHomeConfirm()
+	assert.NotContains(t, result, "Failed while returning home")
+	assert.Equal(t, "home", app.app.SessionEntity().Location(),
+		"the safety hatch must land the traveller home from a nested well ladder")
 }
 
 func TestTravel_ToQuantumBranchID_SuggestsShift(t *testing.T) {

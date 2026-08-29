@@ -6,35 +6,6 @@ import (
 	"github.com/petherin/onto/internal/domain/universe"
 )
 
-// CreateLocationCommand adds a location and its bidirectional walking
-// connection to an existing location.
-type CreateLocationCommand struct {
-	Universe *universe.Aggregate
-	OriginID string
-	Location universe.LocationEntity
-	Distance float64
-	Cost     float64
-}
-
-// Execute applies the graph change atomically in the aggregate.
-func (c *CreateLocationCommand) Execute() error {
-	if _, exists := c.Universe.GetLocation(c.OriginID); !exists {
-		return fmt.Errorf("%w: %s", universe.ErrUnknownEdgeEndpoint, c.OriginID)
-	}
-	if err := c.Universe.AddLocation(c.Location); err != nil {
-		return err
-	}
-	outbound := universe.EdgeVO{From: c.OriginID, To: c.Location.ID, Mode: universe.Walk, Distance: c.Distance, Cost: c.Cost, Description: "User-created path"}
-	if err := c.Universe.AddEdge(outbound); err != nil {
-		return err
-	}
-	returning := universe.EdgeVO{From: c.Location.ID, To: c.OriginID, Mode: universe.Walk, Distance: c.Distance, Cost: c.Cost, Description: "User-created return path"}
-	if err := c.Universe.AddEdge(returning); err != nil {
-		return err
-	}
-	return nil
-}
-
 // GenerateNearbyLocationCommand expands a dead end according to the domain's
 // nearby-location policy.
 type GenerateNearbyLocationCommand struct {

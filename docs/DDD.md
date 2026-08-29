@@ -43,7 +43,7 @@ flowchart TB
 
     subgraph Application["Application layer — orchestrates use cases"]
         Facade["Facade: facade.App<br/>Delivery-agnostic entry point;<br/>dispatches input to commands/queries<br/>and formats results as strings"]
-        Commands["Commands: Travel, Shift, Jump, Universe, Structure,<br/>Simulate, Drift, Observe, Time, CreateLocation, ReturnHome<br/>Coordinate domain work and persistence"]
+        Commands["Commands: Travel, Shift, Jump, Universe, Structure,<br/>Simulate, Drift, Observe, Time, GenerateNearbyLocation, ReturnHome<br/>Coordinate domain work and persistence"]
         Queries["Queries: Lookup, Route<br/>Read domain state without mutation"]
         Facade --> Commands
         Facade --> Queries

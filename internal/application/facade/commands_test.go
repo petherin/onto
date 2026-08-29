@@ -413,3 +413,71 @@ func TestBudgetDisplay_DistinguishesUnlimitedFromExhausted(t *testing.T) {
 	require.Equal(t, 0.0, spent.Snapshot().RemainingBudget)
 	assert.Contains(t, spent.Where(), BudgetExhaustedMarker, "a spent-down budget is labelled exhausted")
 }
+
+// newDeadEndApp builds an App whose start location is a genuine physical dead
+// end (a well fallen into from home) with only a non-physical drift back out,
+// mirroring the seed world's well. The session starts in the well.
+func newDeadEndApp(t *testing.T) *App {
+	t.Helper()
+	u := universe.NewAggregate()
+	base := universe.DefaultCoordinateVO()
+	well := base
+	well.Location = "Well"
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home", Name: "Home", Coordinate: base}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "well", Name: "Well", Coordinate: well}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "well", Mode: universe.Walk, Cost: 1}))
+	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "well", To: "home", Mode: universe.ConsensusShift, Cost: universe.ConsensusShiftCost}))
+
+	repo := mocks.NewMockRepository(t)
+	app, err := New(u, repo, "well",
+		navigation.NewBFSPathfinder(),
+		universe.NewSequentialLocationGenerator(),
+	)
+	require.NoError(t, err)
+	return app
+}
+
+// TestNonPhysicalMove_FromDeadEnd_GeneratesEscapeOrBlocks covers the core
+// behaviour: drifting out of a physical dead end lands the traveller in another
+// reality, where a deterministic per-reality roll decides whether a physical way
+// out (a nearby node) is generated or the reality is reported as blocked. The
+// asserted outcome matches HasPhysicalEscape for the landed coordinate.
+func TestNonPhysicalMove_FromDeadEnd_GeneratesEscapeOrBlocks(t *testing.T) {
+	app := newDeadEndApp(t)
+
+	out := app.Execute("drift")
+
+	landed := app.Snapshot()
+	expectEscape := universe.HasPhysicalEscape(app.session.Coordinate(), universe.ConsensusShiftCost)
+	if expectEscape {
+		assert.Contains(t, out, "A way out:", "an escapable reality generates a nearby node")
+	} else {
+		assert.Contains(t, out, "No way out:", "a blocked reality reports no physical route")
+	}
+	assert.Equal(t, 1, landed.Consensus, "the drift moved the session into consensus divergence 1")
+}
+
+// TestNonPhysicalMove_FromDeadEnd_IsDeterministic confirms the escape verdict for
+// a given reality is reproducible: resetting and drifting again into the same
+// reality produces the same outcome (escape generated or blocked).
+func TestNonPhysicalMove_FromDeadEnd_IsDeterministic(t *testing.T) {
+	first := newDeadEndApp(t).Execute("drift")
+	second := newDeadEndApp(t).Execute("drift")
+
+	firstBlocked := strings.Contains(first, "No way out:")
+	secondBlocked := strings.Contains(second, "No way out:")
+	assert.Equal(t, firstBlocked, secondBlocked, "the same reality yields the same escape verdict")
+}
+
+// TestNonPhysicalMove_Back_DoesNotGenerateEscape confirms unwinding a contextual
+// move (align) never spawns an escape node — only forward moves into a new
+// reality do.
+func TestNonPhysicalMove_Back_DoesNotGenerateEscape(t *testing.T) {
+	app := newDeadEndApp(t)
+	app.Execute("drift") // consensus 0 -> 1
+
+	out := app.Execute("align") // consensus 1 -> 0, back at the well
+
+	assert.NotContains(t, out, "A way out:", "aligning back does not generate an escape")
+	assert.NotContains(t, out, "No way out:", "aligning back does not report escape status")
+}

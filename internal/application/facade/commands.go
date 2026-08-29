@@ -62,6 +62,13 @@ func (a *App) Travel(target string) string {
 	if !result.DeadEndHandled {
 		return output
 	}
+	// A genuine physical sink (no outgoing physical edge at all, e.g. the well)
+	// must stay a dead end: expanding it would hand the traveller a walkable way
+	// out and defeat the point. Ordinary leaves and nearby chains keep a physical
+	// edge (at least back the way they came), so they still auto-expand here.
+	if !universe.HasPhysicalExit(a.univ, result.Location.ID) {
+		return output
+	}
 	location, err := (&commands.GenerateNearbyLocationCommand{
 		Universe:  a.univ,
 		Generator: a.locationGenerator,
@@ -85,7 +92,7 @@ func (a *App) Shift() string {
 		return fmt.Sprintf("Shift failed: %v", err)
 	}
 	a.markDirty()
-	return a.formatShiftResult(result)
+	return a.maybeGenerateEscape(result.Location, universe.QuantumShiftCost, a.formatShiftResult(result))
 }
 
 // ShiftBack returns the session to the previous quantum branch.
@@ -113,7 +120,7 @@ func (a *App) Jump() string {
 		return fmt.Sprintf("Jump failed: %v", err)
 	}
 	a.markDirty()
-	return a.formatJumpResult(result)
+	return a.maybeGenerateEscape(result.Location, universe.TimelineShiftCost, a.formatJumpResult(result))
 }
 
 // JumpBack returns the session to the previous timeline branch.
@@ -141,7 +148,7 @@ func (a *App) Universe() string {
 		return fmt.Sprintf("Universe shift failed: %v", err)
 	}
 	a.markDirty()
-	return a.formatUniverseResult(result)
+	return a.maybeGenerateEscape(result.Location, universe.UniverseShiftCost, a.formatUniverseResult(result))
 }
 
 // UniverseBack returns the session to the previous bubble universe.
@@ -169,7 +176,7 @@ func (a *App) Structure() string {
 		return fmt.Sprintf("Mathematical structure shift failed: %v", err)
 	}
 	a.markDirty()
-	return a.formatStructureResult(result)
+	return a.maybeGenerateEscape(result.Location, universe.MathematicalShiftCost, a.formatStructureResult(result))
 }
 
 // StructureBack returns the session to the previous mathematical structure.
@@ -197,7 +204,7 @@ func (a *App) Simulate() string {
 		return fmt.Sprintf("Simulation entry failed: %v", err)
 	}
 	a.markDirty()
-	return a.formatSimulateResult(result)
+	return a.maybeGenerateEscape(result.Location, universe.SimulationEntryCost, a.formatSimulateResult(result))
 }
 
 // SimulateBack exits one simulation layer toward base reality.
@@ -225,7 +232,7 @@ func (a *App) Drift() string {
 		return fmt.Sprintf("Drift failed: %v", err)
 	}
 	a.markDirty()
-	return a.formatDriftResult(result)
+	return a.maybeGenerateEscape(result.Location, universe.ConsensusShiftCost, a.formatDriftResult(result))
 }
 
 // Align returns the session one level toward shared consensus.
@@ -253,7 +260,7 @@ func (a *App) Observe(observer string) string {
 		return fmt.Sprintf("Observer shift failed: %v", err)
 	}
 	a.markDirty()
-	return a.formatObserveResult(result)
+	return a.maybeGenerateEscape(result.Location, universe.ObserverShiftCost, a.formatObserveResult(result))
 }
 
 // ObserveBack restores the previous observer perspective.
@@ -280,7 +287,7 @@ func (a *App) Time(target string) string {
 		return fmt.Sprintf("Time shift failed: %v", err)
 	}
 	a.markDirty()
-	return a.formatTimeResult(result)
+	return a.maybeGenerateEscape(result.Location, universe.TimeShiftCost, a.formatTimeResult(result))
 }
 
 // TimeBack returns the session through the temporal branch.
@@ -294,6 +301,39 @@ func (a *App) TimeBack() string {
 	}
 	a.markDirty()
 	return a.formatTimeResult(result)
+}
+
+// maybeGenerateEscape expands a physical dead end reached by a non-physical
+// move (e.g. drifting the well into another reality). Ordinary travel already
+// spawns a nearby node whenever it lands on a dead end; a non-physical move does
+// not, so without this a mirrored dead end like the well stays a physical sink
+// in every reality. Here escapability is gated per reality: HasPhysicalEscape
+// rolls a deterministic, coordinate-seeded verdict whose odds scale with
+// transitionCost — the σ the arriving move cost — so cheap transitions rarely
+// yield a physical way out (a nearby "ladder") while expensive ones usually do.
+// The traveller gambles more σ for better odds, can keep trying other realities,
+// and is never hard-locked because a non-physical exit always remains. The
+// base-reality case is never gated, so existing behaviour there is unchanged. It
+// returns the output, augmented with the outcome when the landed location is a
+// dead end.
+func (a *App) maybeGenerateEscape(landed universe.LocationEntity, transitionCost float64, output string) string {
+	if !universe.IsPhysicalDeadEnd(a.univ, landed.ID, "") {
+		return output
+	}
+	if !universe.HasPhysicalEscape(landed.Coordinate, transitionCost) {
+		return fmt.Sprintf("%s\n\nNo way out: this reality offers no physical route from %s. Try another reality.",
+			output, a.locationName(landed.ID))
+	}
+	location, err := (&commands.GenerateNearbyLocationCommand{
+		Universe:  a.univ,
+		Generator: a.locationGenerator,
+		OriginID:  landed.ID,
+	}).Execute()
+	if err != nil {
+		return fmt.Sprintf("%s\n\nUnable to generate a nearby location: %v", output, err)
+	}
+	a.markDirty()
+	return fmt.Sprintf("%s\n\nA way out: %s (%s)", output, location.Name, location.ID)
 }
 
 func (a *App) markDirty() { a.dirty = true }
