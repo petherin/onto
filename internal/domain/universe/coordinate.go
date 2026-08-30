@@ -261,48 +261,53 @@ func ParseOntoAddress(addr string) (CoordinateVO, error) {
 
 	segments := strings.Split(addr, "/")
 
-	// Full address has a fixed structure:
-	// [0] meta.math  [1] universe  [2] timeline  [3] quantum
-	// [4..10] galaxy, system, planet, country, region, city, location
-	// [11+] sim:n and/or cons:n
-	// We detect full vs short by checking if segment[0] contains a dot
-	// (meta.math pair) and segment count is at least 11.
+	// Detect full vs short by whether segment[0] is a meta.math pair and there
+	// are at least the 11 fixed spatial segments; otherwise it is a short
+	// address carrying only the non-default fields.
 	if len(segments) >= 11 && strings.Contains(segments[0], ".") {
-		dot := strings.SplitN(segments[0], ".", 2)
-		c.Meta = segDecode(dot[0])
-		c.Mathematics = segDecode(dot[1])
-		c.Universe = segDecode(segments[1])
-		c.Timeline = segDecode(segments[2])
-		c.Quantum = segDecode(segments[3])
-		c.Galaxy = segDecode(segments[4])
-		c.System = segDecode(segments[5])
-		c.Planet = segDecode(segments[6])
-		c.Country = segDecode(segments[7])
-		c.Region = segDecode(segments[8])
-		c.City = segDecode(segments[9])
-		c.Location = segDecode(segments[10])
+		return parseFullOntoAddress(c, segments), nil
+	}
+	return parseShortOntoAddress(c, segments), nil
+}
 
-		// Parse sim:n and cons:n from remaining segments
-		for i := 11; i < len(segments); i++ {
-			if strings.HasPrefix(segments[i], "sim:") {
-				n, err := strconv.Atoi(strings.TrimPrefix(segments[i], "sim:"))
-				if err == nil {
-					c.Simulation = n
-				}
-			} else if strings.HasPrefix(segments[i], "cons:") {
-				n, err := strconv.Atoi(strings.TrimPrefix(segments[i], "cons:"))
-				if err == nil {
-					c.Consensus = n
-				}
+// parseFullOntoAddress populates c from a full canonical address' segments,
+// whose positions are fixed: [0] meta.math, [1] universe, [2] timeline,
+// [3] quantum, [4..10] galaxy…location, and [11+] the sim:n / cons:n suffixes.
+func parseFullOntoAddress(c CoordinateVO, segments []string) CoordinateVO {
+	dot := strings.SplitN(segments[0], ".", 2)
+	c.Meta = segDecode(dot[0])
+	c.Mathematics = segDecode(dot[1])
+	c.Universe = segDecode(segments[1])
+	c.Timeline = segDecode(segments[2])
+	c.Quantum = segDecode(segments[3])
+	c.Galaxy = segDecode(segments[4])
+	c.System = segDecode(segments[5])
+	c.Planet = segDecode(segments[6])
+	c.Country = segDecode(segments[7])
+	c.Region = segDecode(segments[8])
+	c.City = segDecode(segments[9])
+	c.Location = segDecode(segments[10])
+	for i := 11; i < len(segments); i++ {
+		if strings.HasPrefix(segments[i], "sim:") {
+			n, err := strconv.Atoi(strings.TrimPrefix(segments[i], "sim:"))
+			if err == nil {
+				c.Simulation = n
+			}
+		} else if strings.HasPrefix(segments[i], "cons:") {
+			n, err := strconv.Atoi(strings.TrimPrefix(segments[i], "cons:"))
+			if err == nil {
+				c.Consensus = n
 			}
 		}
-		return c, nil
 	}
+	return c
+}
 
-	// Short address: segments are only the non-default fields in order.
-	// We can't reliably reconstruct which field each segment maps to
-	// without more context, so we populate what we can heuristically.
-	// This is intentionally best-effort for short addresses.
+// parseShortOntoAddress populates c from a short address, where only the
+// non-default fields are present and in spatial order. It is intentionally
+// best-effort: sim:, cons:, and meta.math segments are recognised explicitly,
+// and every other segment fills the first still-empty spatial field in order.
+func parseShortOntoAddress(c CoordinateVO, segments []string) CoordinateVO {
 	for _, s := range segments {
 		if s == "" {
 			continue
@@ -327,32 +332,39 @@ func ParseOntoAddress(addr string) (CoordinateVO, error) {
 			c.Mathematics = segDecode(dot[1])
 			continue
 		}
-		// Assign to first unpopulated field in spatial order.
-		val := segDecode(s)
-		switch {
-		case c.Universe == "":
-			c.Universe = val
-		case c.Timeline == "":
-			c.Timeline = val
-		case c.Quantum == "":
-			c.Quantum = val
-		case c.Galaxy == "":
-			c.Galaxy = val
-		case c.System == "":
-			c.System = val
-		case c.Planet == "":
-			c.Planet = val
-		case c.Country == "":
-			c.Country = val
-		case c.Region == "":
-			c.Region = val
-		case c.City == "":
-			c.City = val
-		default:
-			c.Location = val
-		}
+		c = assignFirstEmptySpatialField(c, segDecode(s))
 	}
-	return c, nil
+	return c
+}
+
+// assignFirstEmptySpatialField writes val into the first still-empty spatial
+// field of c, in canonical order from universe down to location, and returns
+// the updated coordinate. It is the field-placement half of short-address
+// parsing, where segment positions are not fixed.
+func assignFirstEmptySpatialField(c CoordinateVO, val string) CoordinateVO {
+	switch {
+	case c.Universe == "":
+		c.Universe = val
+	case c.Timeline == "":
+		c.Timeline = val
+	case c.Quantum == "":
+		c.Quantum = val
+	case c.Galaxy == "":
+		c.Galaxy = val
+	case c.System == "":
+		c.System = val
+	case c.Planet == "":
+		c.Planet = val
+	case c.Country == "":
+		c.Country = val
+	case c.Region == "":
+		c.Region = val
+	case c.City == "":
+		c.City = val
+	default:
+		c.Location = val
+	}
+	return c
 }
 
 // segEncode encodes a coordinate field for use in an Onto Address segment:

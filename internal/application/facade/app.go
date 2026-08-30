@@ -469,7 +469,11 @@ func (a *App) ratingLine() string {
 	return fmt.Sprintf("Rating: %s  (%.0f cost / par %.0f)", starBar(starsForCost(cost, par)), cost, par)
 }
 
-// dispatch routes a raw input string to the appropriate command handler.
+// dispatch routes a raw input string to the appropriate command handler. It is
+// a flat switch over the fixed set of commands; funlen is silenced because
+// splitting a command table into sub-dispatchers would obscure, not clarify, it.
+//
+//nolint:funlen // flat command-routing switch over the fixed command set
 func (a *App) dispatch(input string) string {
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {

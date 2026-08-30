@@ -39,89 +39,120 @@ func (c *ReturnHomeCommand) Execute() ([]ReturnHomeStep, error) {
 	return c.unwindRecordedTransitions()
 }
 
+// returnPlanState carries the running plan as each recorded transition is
+// unwound: the accumulated steps and cost, plus the planned identity/coordinate
+// (advanced even when a node is absent so labels keep showing the true N → N-1
+// change) and the last identity that actually exists in the graph, which anchors
+// the residual physical walk home.
+type returnPlanState struct {
+	steps          []ReturnHomeStep
+	total          float64
+	plannedCoord   universe.CoordinateVO
+	plannedID      string
+	lastExistingID string
+}
+
 func (c *ReturnHomeCommand) planRecordedTransitions(transitions []exploration.ContextTransition) ([]ReturnHomeStep, float64) {
-	steps := make([]ReturnHomeStep, 0, len(transitions))
-	var total float64
 	current, ok := c.Universe.GetLocation(c.Session.Location())
 	if !ok {
 		return nil, 0
 	}
-	// Track coordinates independently of graph lookup success so plan labels
-	// always show the true N → N-1 change even when a reverse edge was never
-	// materialised (common after generating nearby places inside a branch).
-	plannedCoord := current.Coordinate
-	plannedID := current.ID
-	lastExistingID := current.ID
-
-	for i := len(transitions) - 1; i >= 0; i-- {
-		mode := transitions[i].Mode
-		fromCoord := plannedCoord
-		toCoord, ok := universe.LowerContextCoordinate(fromCoord, mode)
-		if !ok {
-			// Observer/time and unknown modes: the return is edge-defined. Prefer
-			// an existing return edge; otherwise self-heal the enclosing
-			// counterpart from the recorded origin (the same repair Execute does)
-			// so the plan matches a trip that will actually succeed.
-			id, found := c.returnDestination(plannedID, mode)
-			if !found {
-				if healed, err := universe.EnsureContextualReturn(c.Universe, plannedID, transitions[i].OriginID, mode); err == nil {
-					id, found = healed, true
-				}
-			}
-			if found {
-				origin, _ := c.Universe.GetLocation(id)
-				steps = append(steps, ReturnHomeStep{
-					Action: returnAction(mode),
-					Detail: planDetail(mode, locationWithCoord(plannedID, fromCoord), origin),
-					Cost:   returnCost(mode),
-				})
-				total += returnCost(mode)
-				plannedID = origin.ID
-				plannedCoord = origin.Coordinate
-				lastExistingID = origin.ID
-				continue
-			}
-			steps = append(steps, ReturnHomeStep{Action: returnAction(mode), Detail: "return path unavailable"})
-			continue
-		}
-
-		detail := planDetailCoords(mode, fromCoord, toCoord)
-		if id, found := c.returnDestination(plannedID, mode); found {
-			origin, _ := c.Universe.GetLocation(id)
-			toCoord = origin.Coordinate
-			detail = planDetailCoords(mode, fromCoord, toCoord)
-			plannedID = origin.ID
-			plannedCoord = origin.Coordinate
-			lastExistingID = origin.ID
-		} else if id, found := universe.LowerContextID(plannedID, mode); found {
-			// Advance the planned identity even if the node is absent so later
-			// steps keep decreasing the right axis instead of repeating N → N.
-			plannedID = id
-			plannedCoord = toCoord
-			if _, exists := c.Universe.GetLocation(id); exists {
-				lastExistingID = id
-			}
-		} else {
-			plannedCoord = toCoord
-		}
-
-		steps = append(steps, ReturnHomeStep{Action: returnAction(mode), Detail: detail, Cost: returnCost(mode)})
-		total += returnCost(mode)
+	st := &returnPlanState{
+		steps:          make([]ReturnHomeStep, 0, len(transitions)),
+		plannedCoord:   current.Coordinate,
+		plannedID:      current.ID,
+		lastExistingID: current.ID,
 	}
+	for i := len(transitions) - 1; i >= 0; i-- {
+		c.planOneTransition(st, transitions[i])
+	}
+	return c.appendResidualRouteHome(st.steps, st.total, st.lastExistingID)
+}
 
-	if lastExistingID != c.HomeID {
-		if path, ok := c.Pathfinder.FindRoute(c.Universe, lastExistingID, c.HomeID); ok {
-			// return home is the safety hatch: it must always get the traveller
-			// back. Normally the residual route home is a pure physical walk, but
-			// a genuine sink (the well) can only be left by a non-physical exit
-			// edge (its drift back to the surface). If the route home crosses such
-			// an edge, include it as an "escape" step rather than stopping short —
-			// otherwise the plan would advertise a journey that cannot complete.
-			for _, edge := range path {
-				steps = append(steps, ReturnHomeStep{Action: routeStepAction(edge.Mode), Detail: fmt.Sprintf("%s -> %s", edge.From, edge.To), Cost: edge.Cost})
-				total += edge.Cost
-			}
+// planOneTransition plans the return leg for a single recorded transition,
+// dispatching to the edge-defined path (observer/time and unknown modes, whose
+// return is defined by a graph edge) or the lowered-axis path.
+func (c *ReturnHomeCommand) planOneTransition(st *returnPlanState, t exploration.ContextTransition) {
+	fromCoord := st.plannedCoord
+	toCoord, ok := universe.LowerContextCoordinate(fromCoord, t.Mode)
+	if !ok {
+		c.planEdgeDefinedReturn(st, t, fromCoord)
+		return
+	}
+	c.planLoweredReturn(st, t.Mode, fromCoord, toCoord)
+}
+
+// planEdgeDefinedReturn plans a return whose destination is defined by a graph
+// edge. It prefers an existing return edge; otherwise it self-heals the
+// enclosing counterpart from the recorded origin (the same repair Execute does)
+// so the plan matches a trip that will actually succeed.
+func (c *ReturnHomeCommand) planEdgeDefinedReturn(st *returnPlanState, t exploration.ContextTransition, fromCoord universe.CoordinateVO) {
+	mode := t.Mode
+	id, found := c.returnDestination(st.plannedID, mode)
+	if !found {
+		if healed, err := universe.EnsureContextualReturn(c.Universe, st.plannedID, t.OriginID, mode); err == nil {
+			id, found = healed, true
 		}
+	}
+	if !found {
+		st.steps = append(st.steps, ReturnHomeStep{Action: returnAction(mode), Detail: "return path unavailable"})
+		return
+	}
+	origin, _ := c.Universe.GetLocation(id)
+	st.steps = append(st.steps, ReturnHomeStep{
+		Action: returnAction(mode),
+		Detail: planDetail(mode, locationWithCoord(st.plannedID, fromCoord), origin),
+		Cost:   returnCost(mode),
+	})
+	st.total += returnCost(mode)
+	st.plannedID = origin.ID
+	st.plannedCoord = origin.Coordinate
+	st.lastExistingID = origin.ID
+}
+
+// planLoweredReturn plans a return along an axis that has a well-defined lower
+// context coordinate, advancing the planned identity even when the target node
+// is absent so later steps keep decreasing the right axis.
+func (c *ReturnHomeCommand) planLoweredReturn(st *returnPlanState, mode universe.TravelModeVO, fromCoord, toCoord universe.CoordinateVO) {
+	detail := planDetailCoords(mode, fromCoord, toCoord)
+	if id, found := c.returnDestination(st.plannedID, mode); found {
+		origin, _ := c.Universe.GetLocation(id)
+		detail = planDetailCoords(mode, fromCoord, origin.Coordinate)
+		st.plannedID = origin.ID
+		st.plannedCoord = origin.Coordinate
+		st.lastExistingID = origin.ID
+	} else if id, found := universe.LowerContextID(st.plannedID, mode); found {
+		st.plannedID = id
+		st.plannedCoord = toCoord
+		if _, exists := c.Universe.GetLocation(id); exists {
+			st.lastExistingID = id
+		}
+	} else {
+		st.plannedCoord = toCoord
+	}
+	st.steps = append(st.steps, ReturnHomeStep{Action: returnAction(mode), Detail: detail, Cost: returnCost(mode)})
+	st.total += returnCost(mode)
+}
+
+// appendResidualRouteHome appends the final physical walk from lastExistingID to
+// HomeID (if any) onto an in-progress plan, returning the extended steps and
+// running total. return home is the safety hatch: it must always get the
+// traveller back. Normally the residual route home is a pure physical walk, but
+// a genuine sink (the well) can only be left by a non-physical exit edge (its
+// drift back to the surface). If the route home crosses such an edge, it is
+// included as an "escape" step rather than stopping short — otherwise the plan
+// would advertise a journey that cannot complete.
+func (c *ReturnHomeCommand) appendResidualRouteHome(steps []ReturnHomeStep, total float64, lastExistingID string) ([]ReturnHomeStep, float64) {
+	if lastExistingID == c.HomeID {
+		return steps, total
+	}
+	path, ok := c.Pathfinder.FindRoute(c.Universe, lastExistingID, c.HomeID)
+	if !ok {
+		return steps, total
+	}
+	for _, edge := range path {
+		steps = append(steps, ReturnHomeStep{Action: routeStepAction(edge.Mode), Detail: fmt.Sprintf("%s -> %s", edge.From, edge.To), Cost: edge.Cost})
+		total += edge.Cost
 	}
 	return steps, total
 }

@@ -4,6 +4,7 @@ linters:
   default: none
   enable:
     - errcheck       # unchecked error returns
+    - funlen         # functions that are too long
     - govet          # suspicious constructs (go vet)
     - ineffassign    # assignments whose value is never used
     - misspell       # common spelling mistakes in comments and strings
@@ -11,6 +12,10 @@ linters:
     - staticcheck    # static analysis (deprecated APIs, unreachable code, etc.)
     - unused         # exported and unexported identifiers that are never used
   settings:
+    funlen:
+      # Count executable size, not documentation. Comment lines are excluded so
+      # the codebase's thorough doc comments do not inflate the count.
+      ignore-comments: true
     revive:
       rules:
         - name: exported
@@ -23,6 +28,17 @@ linters:
       exclude-functions:
         - fmt.Sscanf
         - (*bufio.Reader).ReadString
+  exclusions:
+    rules:
+      # Test functions (table/scenario tests and the exhaustive return-home model
+      # walk) and one-off dev scripts are legitimately long; funlen targets
+      # production code only.
+      - path: _test\.go
+        linters:
+          - funlen
+      - path: scripts/
+        linters:
+          - funlen
 
 issues:
   max-issues-per-linter: 0

@@ -88,52 +88,74 @@ func materializePhysicalBranch(
 			return err
 		}
 
-		for _, edge := range u.EdgesFrom(currentID) {
-			if !edge.Mode.IsPhysical() {
-				continue
-			}
-
-			targetID, exists := ids[edge.To]
-			if !exists {
-				targetID = neighborBranchID(edge.To, spec.Mode, destAxes)
-				ids[edge.To] = targetID
-				queue = append(queue, edge.To)
-
-				if target, ok := u.GetLocation(edge.To); ok {
-					if _, alreadyExists := u.GetLocation(targetID); !alreadyExists {
-						target.ID = targetID
-						target.Name = fmt.Sprintf("%s (%s)", target.Name, spec.Label)
-						target.Coordinate = withRealityContext(target.Coordinate, destCoord)
-						if err := u.AddLocation(target); err != nil {
-							return err
-						}
-					}
-				}
-			}
-
-			if err := addEdgeOnce(u, EdgeVO{
-				From:        currentBranchID,
-				To:          targetID,
-				Mode:        edge.Mode,
-				Distance:    edge.Distance,
-				Cost:        edge.Cost,
-				Description: edge.Description,
-			}); err != nil {
-				return err
-			}
-			if err := addEdgeOnce(u, EdgeVO{
-				From:        targetID,
-				To:          currentBranchID,
-				Mode:        edge.Mode,
-				Distance:    edge.Distance,
-				Cost:        edge.Cost,
-				Description: fmt.Sprintf("Return via %s", edge.Description),
-			}); err != nil {
-				return err
-			}
+		var err error
+		queue, err = mirrorPhysicalNeighbors(u, currentID, currentBranchID, queue, ids, spec, destAxes, destCoord)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// mirrorPhysicalNeighbors mirrors every physical edge leaving currentID into the
+// branched reality: each not-yet-seen neighbor is cloned into the destination
+// context (new ID, labelled name, rewritten coordinate) and enqueued, then the
+// edge is reproduced in both directions between the branched endpoints. It
+// returns the queue with any newly discovered neighbors appended.
+func mirrorPhysicalNeighbors(
+	u *Aggregate,
+	currentID, currentBranchID string,
+	queue []string,
+	ids map[string]string,
+	spec ContextualTransitionSpec,
+	destAxes axisSuffixes,
+	destCoord CoordinateVO,
+) ([]string, error) {
+	for _, edge := range u.EdgesFrom(currentID) {
+		if !edge.Mode.IsPhysical() {
+			continue
+		}
+
+		targetID, exists := ids[edge.To]
+		if !exists {
+			targetID = neighborBranchID(edge.To, spec.Mode, destAxes)
+			ids[edge.To] = targetID
+			queue = append(queue, edge.To)
+
+			if target, ok := u.GetLocation(edge.To); ok {
+				if _, alreadyExists := u.GetLocation(targetID); !alreadyExists {
+					target.ID = targetID
+					target.Name = fmt.Sprintf("%s (%s)", target.Name, spec.Label)
+					target.Coordinate = withRealityContext(target.Coordinate, destCoord)
+					if err := u.AddLocation(target); err != nil {
+						return queue, err
+					}
+				}
+			}
+		}
+
+		if err := addEdgeOnce(u, EdgeVO{
+			From:        currentBranchID,
+			To:          targetID,
+			Mode:        edge.Mode,
+			Distance:    edge.Distance,
+			Cost:        edge.Cost,
+			Description: edge.Description,
+		}); err != nil {
+			return queue, err
+		}
+		if err := addEdgeOnce(u, EdgeVO{
+			From:        targetID,
+			To:          currentBranchID,
+			Mode:        edge.Mode,
+			Distance:    edge.Distance,
+			Cost:        edge.Cost,
+			Description: fmt.Sprintf("Return via %s", edge.Description),
+		}); err != nil {
+			return queue, err
+		}
+	}
+	return queue, nil
 }
 
 // neighborBranchID computes a physically-reachable neighbor's ID in the

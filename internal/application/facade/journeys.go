@@ -38,7 +38,13 @@ type JourneyOption struct {
 }
 
 // JourneyOptions builds the ordered list of possible journeys from a set of
-// outgoing edges. Exported so the CLI completer and REPL can reuse it.
+// outgoing edges. Exported so the CLI completer and REPL can reuse it. It is two
+// flat switches over the fixed set of transition axes — detect which reverse
+// affordances exist, then emit options cheapest-first — so funlen is silenced;
+// collapsing the per-axis cases would need level accessors that do not exist and
+// would obscure the deliberate cost ordering.
+//
+//nolint:funlen // flat per-axis switches over the fixed set of transition modes
 func (a *App) JourneyOptions(edges []universe.EdgeVO) ([]JourneyOption, bool) {
 	var options []JourneyOption
 	hasReverseQuantum := false
