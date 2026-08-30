@@ -305,33 +305,34 @@ Even when a gamble fails, the traveller is never hard-locked: a non-physical exi
 always remains, so they can keep drifting to another reality and roll again, and
 `home` remains available as the guaranteed way back.
 
-### Random traps (a future idea)
+### Random traps
 
-The well is currently a single, hand-placed sink. The same machinery — a sink is
+The well began as a single, hand-placed sink. The same machinery — a sink is
 "no outgoing physical edge" (`HasPhysicalExit`), escape is the cost-scaled gamble
 (`HasPhysicalEscape`) or a non-physical drift, and `home` is the guaranteed
-safety hatch — generalises naturally into **traps generated at random as you
-explore**. Every so often, instead of an ordinary generated cluster, arriving at a
-dead end (or crossing into a nested reality) would spawn a *trap*: a themed
-location that is harder than usual to leave, so exploration occasionally turns
-tense without ever becoming a soft-lock.
+safety hatch — generalises into **traps generated at random as you explore**.
+Every so often, instead of an ordinary generated cluster, expanding a dead end in
+a nested reality spawns a *trap*: a themed location that is harder than usual to
+leave, so exploration occasionally turns tense without ever becoming a soft-lock.
+The four pure edge-wiring archetypes below are implemented; the axis-manipulation
+archetypes further down remain future ideas.
 
 Generation policy (mirrors the existing deterministic gambles):
 
 - The choice "ordinary node vs trap", and which trap type, is **seeded from the
-  destination coordinate** (`coordinateSeed`), so it is reproducible across
-  reloads and in tests yet varies reality-to-reality, exactly like
-  `HasPhysicalEscape`. A low, tunable trap probability (e.g. ~5–10%) keeps them
-  occasional rather than constant.
-- A new domain policy — a `TrapGeneratorService` beside
-  `LocationGeneratorService`, or a trap branch inside
-  `ClusterLocationGenerator.Generate` — would decide the trap and wire its
-  edges. The trap *type* is a value object (an enum carried on the
-  location/coordinate), never inferred from the ID or name, matching the
-  "structural, not by name" rule the sink/dead-end distinction already follows.
-- Base reality (nesting depth 0) could stay trap-free — like the escape gamble —
-  so the starter world remains gentle and traps are confined to the nested
-  realities you chose to drift into.
+  destination coordinate** (`SelectTrap`, on a salted `coordinateSeed` stream so
+  a coordinate that rolls no trap still generates its ordinary cluster
+  byte-identically). It is reproducible across reloads and in tests yet varies
+  reality-to-reality, exactly like `HasPhysicalEscape`. `TrapProbability` (~8%)
+  keeps traps occasional rather than constant.
+- The trap decision lives as a branch inside `ClusterLocationGenerator.Generate`:
+  if `SelectTrap` fires it delegates to `GenerateTrap`, otherwise to
+  `NewNearbyCluster`. The trap *type* is a `TrapType` value object carried on
+  `LocationEntity`, never inferred from the ID or name, matching the "structural,
+  not by name" rule the sink/dead-end distinction already follows.
+- Base reality (nesting depth 0) stays trap-free — like the escape gamble — so
+  the starter world remains gentle and traps are confined to the nested realities
+  you chose to drift into.
 
 The invariant that keeps this safe: **no trap is ever a hard-lock.** `home`
 always plans a route out (a physical walk, else the `FindRoute` fallback across
@@ -339,19 +340,46 @@ non-physical edges), the cost-scaled gamble can still hand you a ladder, and any
 contextual command (`drift`/`shift`/`jump`/…) always branches to a fresh reality.
 A trap therefore raises the *cost* or *effort* of leaving, never the possibility.
 
-A rich set of trap archetypes, each reusing existing edge modes and mechanics:
+**Implemented — pure edge-wiring archetypes** (`GenerateTrap`), each reusing
+existing edge modes and mechanics. Every one keeps a guaranteed route out: traps
+with physical exits (tar pit, möbius maze) route `home` by an ordinary walk;
+sealed traps (sealed vault, one-way sink) keep a non-physical `ConsensusShift`
+escape edge back toward the origin — exactly the well's pattern — which `FindRoute`
+(and therefore `home`) can traverse even though `travel` ignores it.
 
-- **Well (sink).** The canonical one, already shipped: the only seed exit is a
-  `ConsensusShift` drift back to the surface; walking out is impossible.
-- **Sealed vault.** The harshest: no physical exit *and* no seed drift — the only
-  ways out are the cost-scaled gamble or `home`.
-- **Tar pit.** Physical exits exist but each costs escalating σ (or a growing
-  distance), so walking out is futile and a non-physical move is the real exit.
-- **Möbius / mirror maze.** Several physical exits, all but (at most) one silently
-  loop back to the same node — travel *appears* to work but never leaves; finding
-  the true exit, or drifting out, is the puzzle.
-- **One-way trapdoor.** You fell in from a shallower reality and the return edge
-  is missing; you must gamble for a ladder or take `home`.
+- **Well (sink).** The hand-placed canonical `TrapSealedVault`, and the one
+  exception to "traps are nested-only": it sits in base reality with no physical
+  exit, its only seed exit a `ConsensusShift` drift back to the surface, so
+  walking out is impossible. `SelectTrap` never spawns it — it is seeded directly
+  into the starter world — but it carries the same `TrapType`, so it is a
+  first-class member of the trap system and surfaces identically to a generated
+  sealed vault.
+- **Sealed vault.** The generated form of the well's archetype and the harshest
+  generated trap: no physical exit at all, so `travel` never auto-expands it. Its one seed exit is a non-physical
+  `ConsensusShift` escape edge back to the origin (mirroring the well). That edge
+  is *not* player-traversable — `travel` refuses non-physical edges, and the
+  contextual commands branch to fresh realities rather than following an existing
+  edge — it exists solely so `home` (via `FindRoute`) can always route out. The
+  player's own ways out are therefore a contextual command (`drift`/`shift`/…,
+  always available), the cost-scaled gamble, or `home`; a truly edgeless node
+  would strand `home`, so the escape edge is required, not optional.
+- **Tar pit.** Physical exits exist but each costs escalating σ, so walking out is
+  futile and a non-physical move is the real exit. Nodes keep their physical edge
+  back to the origin, so they still auto-expand and `home` walks out (expensively).
+- **Möbius / mirror maze.** A hub plus two decoys: every decoy passage silently
+  loops back to the hub, and only the hub's edge to the origin truly leaves.
+  Decoys are interconnected so none reads as a plain dead end (they never
+  auto-expand); the hub's physical edge to the origin keeps `home` routable.
+- **One-way sink (trapdoor).** You drop through a one-way trapdoor into a small
+  physical pocket with no walkable route back to the origin. The entry node keeps
+  a non-physical escape edge to the origin so `home` (via `FindRoute`) can still
+  route out; as with the sealed vault that edge is not player-traversable, so the
+  player's own exits are a contextual command, the gamble, or `home`.
+
+**Future — axis-manipulation archetypes.** These change an axis or gate commands
+on arrival, so they touch the movement commands rather than being pure edge
+wiring; they are not yet implemented.
+
 - **Consensus collapse.** Forces `Consensus` toward 0 on arrival — agreement about
   what is real breaks down and some commands are gated until you `drift`/`align`
   back toward shared consensus.
@@ -382,10 +410,10 @@ varying reality-to-reality.
   (`nearby_names.go`) as a `"<qualifier> <noun>"` pair (e.g. "The Quiet Wharf"),
   kept unique across the whole universe, so nodes read as distinct places rather
   than a `Nearby N` counter. Each carries a full `GenerateDescription`.
-- **A node type value object — still open.** Nodes do not yet carry a **type**
-  (ordinary place, landmark, and — overlapping the *Random traps* idea above —
-  the trap archetypes) to drive the name style, description, and edge
-  modes/costs. That is the remaining enrichment.
+- **A node type value object — partly landed.** Generated nodes now carry a
+  `TrapType` (see *Random traps* above) that drives their edge modes/costs; a
+  broader place *type* (ordinary place, landmark) to drive name style and
+  description remains open.
 
 The coupling that used to block varied names has been removed: the literal
 `"Nearby "` name prefix no longer doubles as the marker `make validate-locations`

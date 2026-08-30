@@ -2,9 +2,11 @@ package universe_test
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/petherin/onto/internal/domain/navigation"
 	"github.com/petherin/onto/internal/domain/universe"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -367,4 +369,208 @@ func TestEscapeProbability_ScalesWithCost(t *testing.T) {
 	}
 	assert.Less(t, cheapEscapes, dearEscapes,
 		"cheap transitions escape far less often than expensive ones over many realities")
+}
+
+// nestedOrigin builds an aggregate with a base "park" and a universe-branch
+// counterpart "park-u1" (nesting depth > 0), returning the branch origin ID and
+// coordinate. Traps only spawn in nested realities, so this is the setup the
+// trap tests expand from.
+func nestedOrigin(t *testing.T) (*universe.Aggregate, string, universe.CoordinateVO) {
+	t.Helper()
+	u := universe.NewAggregate()
+	coord := universe.DefaultCoordinateVO()
+	coord.Location = "Park"
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: coord}))
+	require.NoError(t, universe.BranchUniverse(u, "park", coord, "Park", "park-u1", "U1"))
+	root, ok := u.GetLocation("park-u1")
+	require.True(t, ok)
+	return u, "park-u1", root.Coordinate
+}
+
+// addTrap generates the given trap off originID and commits it (every location,
+// then every edge), mirroring what the generator does when travel expands a dead
+// end. It returns the created locations so tests can assert on them.
+func addTrap(t *testing.T, u *universe.Aggregate, originID string, coord universe.CoordinateVO, trap universe.TrapType) []universe.LocationEntity {
+	t.Helper()
+	locs, edges, err := universe.GenerateTrap(u, originID, coord, trap)
+	require.NoError(t, err)
+	for _, l := range locs {
+		require.NoError(t, u.AddLocation(l))
+	}
+	for _, e := range edges {
+		require.NoError(t, u.AddEdge(e))
+	}
+	return locs
+}
+
+// TestSelectTrap_BaseRealityFree confirms base reality (nesting depth 0) is never
+// trapped, however its spatial position varies — the starter world stays gentle.
+func TestSelectTrap_BaseRealityFree(t *testing.T) {
+	base := universe.DefaultCoordinateVO()
+	for i := 0; i < 500; i++ {
+		c := base
+		c.Location = fmt.Sprintf("Place %d", i)
+		trap, ok := universe.SelectTrap(c)
+		assert.False(t, ok, "base reality must never spawn a trap")
+		assert.Equal(t, universe.NoTrap, trap)
+	}
+}
+
+// TestSelectTrap_DeterministicPerReality confirms the trap verdict is stable for
+// a given coordinate (reproducible across reloads/tests) yet varies between
+// realities, exactly like the cost-scaled escape gamble.
+func TestSelectTrap_DeterministicPerReality(t *testing.T) {
+	base := universe.DefaultCoordinateVO()
+	base.Quantum = "Q1"
+	distinctVerdicts := map[string]bool{}
+	for i := 0; i < 50; i++ {
+		c := base
+		c.Location = fmt.Sprintf("Spot %d", i)
+		trap1, ok1 := universe.SelectTrap(c)
+		trap2, ok2 := universe.SelectTrap(c)
+		assert.Equal(t, ok1, ok2, "same coordinate yields the same trap verdict")
+		assert.Equal(t, trap1, trap2, "same coordinate yields the same trap type")
+		distinctVerdicts[fmt.Sprintf("%v-%v", ok1, trap1)] = true
+	}
+	assert.Greater(t, len(distinctVerdicts), 1, "the verdict must vary across realities")
+}
+
+// TestSelectTrap_ProbabilityInBounds confirms traps stay occasional — roughly the
+// tuned probability over many nested realities, and only ever an edge-wiring
+// archetype.
+func TestSelectTrap_ProbabilityInBounds(t *testing.T) {
+	base := universe.DefaultCoordinateVO()
+	base.Quantum = "Q1"
+	const n = 4000
+	traps := 0
+	for i := 0; i < n; i++ {
+		c := base
+		c.Location = fmt.Sprintf("Spot %d", i)
+		if trap, ok := universe.SelectTrap(c); ok {
+			traps++
+			assert.True(t, trap.IsKnown())
+			assert.NotEqual(t, universe.NoTrap, trap)
+		}
+	}
+	rate := float64(traps) / float64(n)
+	assert.Greater(t, rate, 0.04, "traps should occur")
+	assert.Less(t, rate, 0.12, "traps should stay occasional")
+}
+
+// TestGenerateTrap_SealedVault_NoPhysicalExitButRoutableHome confirms the harshest
+// trap has no walkable way out (a physical sink, so travel never auto-expands it)
+// yet home can always route out across its non-physical escape edge.
+func TestGenerateTrap_SealedVault_NoPhysicalExitButRoutableHome(t *testing.T) {
+	u, origin, coord := nestedOrigin(t)
+	locs := addTrap(t, u, origin, coord, universe.TrapSealedVault)
+	require.Len(t, locs, 1)
+	vault := locs[0]
+	assert.Equal(t, universe.TrapSealedVault, vault.Trap)
+	assert.True(t, vault.Generated)
+	assert.False(t, universe.HasPhysicalExit(u, vault.ID), "a sealed vault is a physical sink")
+	_, ok := navigation.FindRoute(u, vault.ID, origin)
+	assert.True(t, ok, "home must route out of a sealed vault via its escape edge")
+}
+
+// TestGenerateTrap_TarPit_WalkableButCostly confirms the tar pit keeps physical
+// exits (so it still auto-expands and home can walk out) but each walk costs far
+// more than an ordinary path.
+func TestGenerateTrap_TarPit_WalkableButCostly(t *testing.T) {
+	u, origin, coord := nestedOrigin(t)
+	locs := addTrap(t, u, origin, coord, universe.TrapTarPit)
+	require.GreaterOrEqual(t, len(locs), 1)
+	require.LessOrEqual(t, len(locs), 3)
+	for _, l := range locs {
+		assert.Equal(t, universe.TrapTarPit, l.Trap)
+		assert.True(t, universe.HasPhysicalExit(u, l.ID), "tar-pit nodes keep a physical exit")
+		assert.True(t, physicallyReachable(u, l.ID, origin), "you can still walk out of the tar, at a price")
+	}
+	for _, e := range u.EdgesFrom(origin) {
+		if e.Mode == universe.Walk {
+			assert.Greater(t, e.Cost, 1.0, "wading into the tar costs more than an ordinary step")
+		}
+	}
+}
+
+// TestGenerateTrap_MobiusMaze_DecoysLoopWithoutStranding confirms the maze's
+// decoys do not auto-expand (they are never plain dead ends) and the hub keeps a
+// true physical way back to the origin.
+func TestGenerateTrap_MobiusMaze_DecoysLoopWithoutStranding(t *testing.T) {
+	u, origin, coord := nestedOrigin(t)
+	locs := addTrap(t, u, origin, coord, universe.TrapMobiusMaze)
+	require.Len(t, locs, 3)
+	hub := locs[0]
+	assert.True(t, physicallyReachable(u, hub.ID, origin), "the hub's true exit walks back to the origin")
+	for _, decoy := range locs[1:] {
+		assert.False(t, universe.IsPhysicalDeadEnd(u, decoy.ID, hub.ID),
+			"maze decoys must not read as dead ends, or they would auto-expand")
+		_, ok := navigation.FindRoute(u, decoy.ID, origin)
+		assert.True(t, ok, "home must route out from any maze node")
+	}
+}
+
+// TestGenerateTrap_OneWaySink_NoWalkBackButRoutableHome confirms you cannot walk
+// back to the origin from the pocket (it is one-way) yet home can always route
+// out via the entry node's escape edge.
+func TestGenerateTrap_OneWaySink_NoWalkBackButRoutableHome(t *testing.T) {
+	u, origin, coord := nestedOrigin(t)
+	locs := addTrap(t, u, origin, coord, universe.TrapOneWaySink)
+	require.Len(t, locs, 2)
+	mouth, pit := locs[0], locs[1]
+	assert.False(t, physicallyReachable(u, mouth.ID, origin), "the trapdoor is one-way — no walk back")
+	assert.False(t, physicallyReachable(u, pit.ID, origin), "the pocket cannot walk back to the origin")
+	for _, l := range locs {
+		_, ok := navigation.FindRoute(u, l.ID, origin)
+		assert.True(t, ok, "home must route out of a one-way sink via its escape edge")
+	}
+}
+
+// TestGenerateTrap_UnknownOrigin_Errors confirms a trap cannot be wired off a
+// missing origin.
+func TestGenerateTrap_UnknownOrigin_Errors(t *testing.T) {
+	u := universe.NewAggregate()
+	_, _, err := universe.GenerateTrap(u, "ghost", universe.DefaultCoordinateVO(), universe.TrapSealedVault)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, universe.ErrUnknownEdgeEndpoint))
+}
+
+// TestClusterGenerator_TrapsOnlyInNestedRealities confirms the generator spawns
+// traps only away from base reality: an ordinary base expansion carries no trap,
+// while a nested reality that rolls a trap tags its nodes with the archetype.
+func TestClusterGenerator_TrapsOnlyInNestedRealities(t *testing.T) {
+	gen := universe.NewClusterLocationGenerator()
+
+	base := universe.NewAggregate()
+	baseCoord := universe.DefaultCoordinateVO()
+	baseCoord.Location = "Park"
+	require.NoError(t, base.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: baseCoord}))
+	baseLocs, _, err := gen.Generate(base, "park", baseCoord)
+	require.NoError(t, err)
+	for _, l := range baseLocs {
+		assert.Equal(t, universe.NoTrap, l.Trap, "base reality never traps")
+	}
+
+	// Find a nested coordinate that rolls a trap, then confirm Generate tags it.
+	nested := universe.DefaultCoordinateVO()
+	nested.Quantum = "Q1"
+	var trapCoord universe.CoordinateVO
+	var want universe.TrapType
+	for i := 0; i < 100000; i++ {
+		c := nested
+		c.Location = fmt.Sprintf("Spot %d", i)
+		if trap, ok := universe.SelectTrap(c); ok {
+			trapCoord, want = c, trap
+			break
+		}
+	}
+	require.NotEqual(t, universe.NoTrap, want, "expected to find a trapping coordinate")
+
+	u := universe.NewAggregate()
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: trapCoord}))
+	locs, _, err := gen.Generate(u, "park", trapCoord)
+	require.NoError(t, err)
+	require.NotEmpty(t, locs)
+	for _, l := range locs {
+		assert.Equal(t, want, l.Trap, "a trapping coordinate tags its generated nodes")
+	}
 }

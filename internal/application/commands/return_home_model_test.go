@@ -52,6 +52,13 @@ type modelExplorer struct {
 // state-space backstop for the whole return-home / branching bug class: rather
 // than enumerating the millions of ordered paths, it walks the finite set of
 // distinct reachable states and checks the invariants once per state.
+//
+// Because dead-end expansion runs through the real ClusterLocationGenerator (see
+// doExplore), the walk also spawns and explores every trap archetype in the
+// nested realities it visits, so the no-hard-lock guarantee — you can always get
+// home after landing in a trap and navigating around some more — is proven across
+// the whole reachable trap state space, not just in isolated per-archetype unit
+// tests.
 func TestReturnHomeModel(t *testing.T) {
 	targetTime, err := time.Parse(time.RFC3339, modelTimeStr)
 	require.NoError(t, err)
@@ -171,15 +178,21 @@ func (e *modelExplorer) applyMove(u *universe.Aggregate, sess *exploration.Entit
 	return fmt.Errorf("unknown move kind %q", m.kind)
 }
 
-// doExplore expands the nearby-location cluster off the current position,
-// commits every node with its bidirectional walk edges, and travels to the
-// first — the facade's dead-end behaviour.
+// doExplore expands the current dead end through the real production policy —
+// ClusterLocationGenerator.Generate, which rolls SelectTrap and so may spawn a
+// trap (sealed vault, tar pit, möbius maze, one-way sink) rather than an ordinary
+// cluster in a nested reality — commits every node with its edges, and travels to
+// the entry node. Routing through Generate (not NewNearbyCluster directly) is
+// what pulls traps into the exhaustive walk: the DFS then explores onward from
+// the trap and re-checks the return-home invariants at every state reachable
+// through and beyond it, proving you can always get home after landing in a trap
+// and navigating around some more.
 func (e *modelExplorer) doExplore(u *universe.Aggregate, sess *exploration.Entity) error {
 	origin, ok := u.GetLocation(sess.Location())
 	if !ok {
 		return fmt.Errorf("current location %q missing", sess.Location())
 	}
-	locs, edges, err := universe.NewNearbyCluster(u, sess.Location(), origin.Coordinate)
+	locs, edges, err := universe.NewClusterLocationGenerator().Generate(u, sess.Location(), origin.Coordinate)
 	if err != nil {
 		return err
 	}
@@ -193,6 +206,10 @@ func (e *modelExplorer) doExplore(u *universe.Aggregate, sess *exploration.Entit
 			return err
 		}
 	}
+	// Every archetype's entry node (locs[0]: the cluster node, vault, tar-pit
+	// node, maze hub, or trapdoor mouth) is reachable by the inbound walk edge
+	// from the origin, so travelling to it always succeeds even when the node
+	// itself is a physical sink (a sealed vault has no outgoing physical edge).
 	_, err = (&commands.TravelCommand{Universe: u, Session: sess, Pathfinder: e.pf}).Execute(locs[0].ID)
 	return err
 }
@@ -243,7 +260,11 @@ func cloneUniverse(t *testing.T, u *universe.Aggregate) *universe.Aggregate {
 // checkInvariants asserts, at a single reachable state, everything that broke
 // in this bug class: canonical IDs, bidirectional physical edges, well-formed
 // auto-generated nearby nodes, and a return-home that both plans without stalls
-// and executes cleanly back to home with an empty context stack.
+// and executes cleanly back to home with an empty context stack. Trap nodes are
+// deliberately excused from the ordinary-cluster structural rules (one-way sinks
+// and maze decoys have directional edges; a sealed vault has no physical exit at
+// all) — for them the no-hard-lock guarantee is enforced by the primary
+// return-home invariant below and by checkTrapInvariants.
 func (e *modelExplorer) checkInvariants(u *universe.Aggregate, sess *exploration.Entity, path []string) {
 	t := e.t
 	journey := strings.Join(path, " > ")
@@ -251,12 +272,19 @@ func (e *modelExplorer) checkInvariants(u *universe.Aggregate, sess *exploration
 		require.Falsef(t, universe.LocationIDIsMalformed(loc.ID), "non-canonical id %q [journey: %s]", loc.ID, journey)
 	}
 	for _, edge := range u.AllEdgesFlat() {
-		if edge.Mode.IsPhysical() {
+		// Trap archetypes intentionally use one-way physical edges (the one-way
+		// sink's trapdoor, the möbius decoys' silent loop-backs), so the
+		// bidirectionality rule applies only to edges between non-trap nodes.
+		if edge.Mode.IsPhysical() && !isTrapNode(u, edge.From) && !isTrapNode(u, edge.To) {
 			require.Truef(t, hasPhysicalReverse(u, edge), "physical edge %s->%s has no reverse [journey: %s]", edge.From, edge.To, journey)
 		}
 	}
 	for _, loc := range u.AllLocations() {
 		if !loc.Generated {
+			continue
+		}
+		if loc.Trap != universe.NoTrap {
+			e.checkTrapInvariants(u, loc, journey)
 			continue
 		}
 		var originID string
@@ -319,4 +347,25 @@ func hasPhysicalReverse(u *universe.Aggregate, edge universe.EdgeVO) bool {
 		}
 	}
 	return false
+}
+
+// isTrapNode reports whether id is a generated trap node. Trap archetypes are
+// deliberately exempt from the ordinary-cluster structural rules, so the model's
+// bidirectionality and star-shape checks skip them.
+func isTrapNode(u *universe.Aggregate, id string) bool {
+	loc, ok := u.GetLocation(id)
+	return ok && loc.Trap != universe.NoTrap
+}
+
+// checkTrapInvariants asserts a trap node is well-formed on its own terms: it
+// carries a known archetype, and — the no-hard-lock guarantee at node level —
+// FindRoute can always plot a way out toward home across some edge (a physical
+// walk for tar pits and mazes, or the non-physical ConsensusShift escape edge for
+// sealed vaults and one-way sinks). The whole-journey return-home invariant below
+// then proves the traveller actually gets all the way back.
+func (e *modelExplorer) checkTrapInvariants(u *universe.Aggregate, loc universe.LocationEntity, journey string) {
+	t := e.t
+	require.Truef(t, loc.Trap.IsKnown(), "trap %q carries an unknown archetype %q [journey: %s]", loc.ID, loc.Trap, journey)
+	_, ok := e.pf.FindRoute(u, loc.ID, "home")
+	require.Truef(t, ok, "trap %q (%s) has no route out toward home [journey: %s]", loc.ID, loc.Trap.Label(), journey)
 }

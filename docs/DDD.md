@@ -121,11 +121,16 @@ domain service — an interface with a swappable implementation
 (`ClusterLocationGenerator`), injected into `GenerateNearbyLocationCommand` rather
 than called as a free function. Its policy (`NewNearbyCluster`) expands a dead end
 into a deterministic 1–3 node cluster, each node wired to the origin by a
-bidirectional physical edge (a star, not a clique). `TravelCommand` only reports
-that a destination is a dead end; `GenerateNearbyLocationCommand` performs the
-resulting mutation and persistence. This keeps terminal interaction and graph
-mutation out of the same code path, and lets a different nearby-location policy be
-substituted without changing the command that uses it.
+bidirectional physical edge (a star, not a clique). In a nested reality the same
+policy occasionally spawns a *trap* instead (`SelectTrap` makes the
+deterministic, coordinate-seeded choice; `GenerateTrap` wires it), never in base
+reality. The trap archetype is a `TrapType` value object carried on
+`LocationEntity`, structural rather than inferred from an ID or name.
+`TravelCommand` only reports that a destination is a dead end;
+`GenerateNearbyLocationCommand` performs the resulting mutation and persistence.
+This keeps terminal interaction and graph mutation out of the same code path, and
+lets a different nearby-location policy be substituted without changing the
+command that uses it.
 
 ### Repository — `universe.Repository`
 

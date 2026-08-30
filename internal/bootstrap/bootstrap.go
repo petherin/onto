@@ -235,7 +235,11 @@ func buildDefaultUniverse() (*universe.Aggregate, error) {
 		{ID: "station", Name: "Station", Description: "Leeds Station.", Coordinate: coordFor("Station", base)},
 		{ID: "park", Name: "Park", Description: "A green public park.", Coordinate: coordFor("Park", base)},
 		{ID: "city-centre", Name: "City Centre", Description: "The centre of town.", Coordinate: coordFor("City Centre", base)},
-		{ID: "well", Name: "Well", Description: "The bottom of an old stone well. The walls are sheer — there is no walking out of here.", Coordinate: coordFor("Well", base)},
+		// The well is the hand-placed canonical sealed vault: no physical exit, one
+		// non-physical drift out. It is the one trap seeded directly into base
+		// reality (SelectTrap only spawns traps in nested realities), but it carries
+		// the same TrapType so it surfaces identically to a generated sealed vault.
+		{ID: "well", Name: "Well", Description: "The bottom of an old stone well. The walls are sheer — there is no walking out of here.", Coordinate: coordFor("Well", base), Trap: universe.TrapSealedVault},
 		{ID: "kirkstall-abbey", Name: "Kirkstall Abbey", Description: "The ruins of a Cistercian abbey by the River Aire. The lane ends here among the cloisters.", Coordinate: coordFor("Kirkstall Abbey", base)},
 	}
 	for _, loc := range locations {

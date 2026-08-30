@@ -29,8 +29,14 @@ func NewClusterLocationGenerator() *ClusterLocationGenerator {
 	return &ClusterLocationGenerator{}
 }
 
-// Generate implements LocationGeneratorService using the cluster policy.
+// Generate implements LocationGeneratorService using the cluster policy. Every
+// so often, in a nested reality, it spawns a trap instead of an ordinary cluster
+// (SelectTrap makes the deterministic, coordinate-seeded choice); base reality
+// stays trap-free, so its expansions are byte-identical to before.
 func (ClusterLocationGenerator) Generate(u *Aggregate, originID string, coordinate CoordinateVO) ([]LocationEntity, []EdgeVO, error) {
+	if trap, ok := SelectTrap(coordinate); ok {
+		return GenerateTrap(u, originID, coordinate, trap)
+	}
 	return NewNearbyCluster(u, originID, coordinate)
 }
 
@@ -50,32 +56,11 @@ func NewNearbyCluster(u *Aggregate, originID string, coordinate CoordinateVO) ([
 	rng := rand.New(rand.NewSource(coordinateSeed(coordinate)))
 	count := 1 + rng.Intn(3)
 
-	// Number each nearby index onto the origin's stable base and reassemble
-	// canonically, so a location spawned inside a reality branch keeps its
-	// axis suffixes in canonical order (e.g. "park-1-u1", not "park-u1-1").
-	// A bare "-i" appended after an axis suffix would make the ID's encoded
-	// axes disagree with its coordinate, breaking LowerContextID and hence
-	// every *back / return-home step for that axis.
-	base, ax := parseLocationID(originID)
-	ids := make([]string, 0, count)
-	for i := 1; i < 1000 && len(ids) < count; i++ {
-		id := buildLocationID(fmt.Sprintf("%s-%d", base, i), ax)
-		if _, exists := u.GetLocation(id); exists {
-			continue
-		}
-		ids = append(ids, id)
+	ids, err := allocateNearbyIDs(u, originID, count)
+	if err != nil {
+		return nil, nil, err
 	}
-	if len(ids) < count {
-		return nil, nil, fmt.Errorf("%w: no nearby location ID available", ErrInvalidLocation)
-	}
-
-	// Seed the name-uniqueness set with every existing display name so cluster
-	// names are unique across the whole universe, and grow it per node so two
-	// siblings in the same batch cannot collide either.
-	used := make(map[string]bool)
-	for _, loc := range u.AllLocations() {
-		used[loc.Name] = true
-	}
+	used := usedNames(u)
 
 	locations := make([]LocationEntity, 0, count)
 	var edges []EdgeVO
@@ -102,6 +87,40 @@ func NewNearbyCluster(u *Aggregate, originID string, coordinate CoordinateVO) ([
 	// and grow the map without bound. Interconnecting them would make each node a
 	// non-leaf and stop the chain.
 	return locations, edges, nil
+}
+
+// allocateNearbyIDs returns count fresh location IDs numbered onto originID's
+// stable base and reassembled canonically, so a location spawned inside a
+// reality branch keeps its axis suffixes in canonical order (e.g. "park-1-u1",
+// not "park-u1-1"). A bare "-i" appended after an axis suffix would make the
+// ID's encoded axes disagree with its coordinate, breaking LowerContextID and
+// hence every *back / return-home step for that axis. It skips IDs already in
+// use and errors if it cannot find enough free ones.
+func allocateNearbyIDs(u *Aggregate, originID string, count int) ([]string, error) {
+	base, ax := parseLocationID(originID)
+	ids := make([]string, 0, count)
+	for i := 1; i < 1000 && len(ids) < count; i++ {
+		id := buildLocationID(fmt.Sprintf("%s-%d", base, i), ax)
+		if _, exists := u.GetLocation(id); exists {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	if len(ids) < count {
+		return nil, fmt.Errorf("%w: no nearby location ID available", ErrInvalidLocation)
+	}
+	return ids, nil
+}
+
+// usedNames returns the set of every display name currently in the universe, so
+// a fresh expansion can pick names unique across the whole map. Callers grow the
+// set per node so two siblings in the same batch cannot collide either.
+func usedNames(u *Aggregate) map[string]bool {
+	used := make(map[string]bool)
+	for _, loc := range u.AllLocations() {
+		used[loc.Name] = true
+	}
+	return used
 }
 
 // IsPhysicalDeadEnd reports whether a location has no outgoing physical edge
@@ -143,7 +162,7 @@ func HasPhysicalExit(u *Aggregate, id string) bool {
 // wide range, so the cost→probability mapping is logarithmic (see edgeWeight in
 // the web layer for the same reasoning), clamped to [EscapeCostMin, EscapeCostMax].
 const (
-	EscapeCostMin = ObserverShiftCost    // cheapest transition (2 σ) → EscapeProbMin
+	EscapeCostMin = ObserverShiftCost     // cheapest transition (2 σ) → EscapeProbMin
 	EscapeCostMax = MathematicalShiftCost // dearest transition (50000 σ) → EscapeProbMax
 	EscapeProbMin = 0.10
 	EscapeProbMax = 0.90

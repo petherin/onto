@@ -21,45 +21,42 @@ func (_m *MockLocationGeneratorService) EXPECT() *MockLocationGeneratorService_E
 }
 
 // Generate provides a mock function with given fields: u, originID, coordinate
-func (_m *MockLocationGeneratorService) Generate(u *universe.Aggregate, originID string, coordinate universe.CoordinateVO) (universe.LocationEntity, universe.EdgeVO, universe.EdgeVO, error) {
+func (_m *MockLocationGeneratorService) Generate(u *universe.Aggregate, originID string, coordinate universe.CoordinateVO) ([]universe.LocationEntity, []universe.EdgeVO, error) {
 	ret := _m.Called(u, originID, coordinate)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Generate")
 	}
 
-	var r0 universe.LocationEntity
-	var r1 universe.EdgeVO
-	var r2 universe.EdgeVO
-	var r3 error
-	if rf, ok := ret.Get(0).(func(*universe.Aggregate, string, universe.CoordinateVO) (universe.LocationEntity, universe.EdgeVO, universe.EdgeVO, error)); ok {
+	var r0 []universe.LocationEntity
+	var r1 []universe.EdgeVO
+	var r2 error
+	if rf, ok := ret.Get(0).(func(*universe.Aggregate, string, universe.CoordinateVO) ([]universe.LocationEntity, []universe.EdgeVO, error)); ok {
 		return rf(u, originID, coordinate)
 	}
-	if rf, ok := ret.Get(0).(func(*universe.Aggregate, string, universe.CoordinateVO) universe.LocationEntity); ok {
+	if rf, ok := ret.Get(0).(func(*universe.Aggregate, string, universe.CoordinateVO) []universe.LocationEntity); ok {
 		r0 = rf(u, originID, coordinate)
 	} else {
-		r0 = ret.Get(0).(universe.LocationEntity)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]universe.LocationEntity)
+		}
 	}
 
-	if rf, ok := ret.Get(1).(func(*universe.Aggregate, string, universe.CoordinateVO) universe.EdgeVO); ok {
+	if rf, ok := ret.Get(1).(func(*universe.Aggregate, string, universe.CoordinateVO) []universe.EdgeVO); ok {
 		r1 = rf(u, originID, coordinate)
 	} else {
-		r1 = ret.Get(1).(universe.EdgeVO)
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).([]universe.EdgeVO)
+		}
 	}
 
-	if rf, ok := ret.Get(2).(func(*universe.Aggregate, string, universe.CoordinateVO) universe.EdgeVO); ok {
+	if rf, ok := ret.Get(2).(func(*universe.Aggregate, string, universe.CoordinateVO) error); ok {
 		r2 = rf(u, originID, coordinate)
 	} else {
-		r2 = ret.Get(2).(universe.EdgeVO)
+		r2 = ret.Error(2)
 	}
 
-	if rf, ok := ret.Get(3).(func(*universe.Aggregate, string, universe.CoordinateVO) error); ok {
-		r3 = rf(u, originID, coordinate)
-	} else {
-		r3 = ret.Error(3)
-	}
-
-	return r0, r1, r2, r3
+	return r0, r1, r2
 }
 
 // MockLocationGeneratorService_Generate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Generate'
@@ -82,12 +79,12 @@ func (_c *MockLocationGeneratorService_Generate_Call) Run(run func(u *universe.A
 	return _c
 }
 
-func (_c *MockLocationGeneratorService_Generate_Call) Return(_a0 universe.LocationEntity, _a1 universe.EdgeVO, _a2 universe.EdgeVO, _a3 error) *MockLocationGeneratorService_Generate_Call {
-	_c.Call.Return(_a0, _a1, _a2, _a3)
+func (_c *MockLocationGeneratorService_Generate_Call) Return(_a0 []universe.LocationEntity, _a1 []universe.EdgeVO, _a2 error) *MockLocationGeneratorService_Generate_Call {
+	_c.Call.Return(_a0, _a1, _a2)
 	return _c
 }
 
-func (_c *MockLocationGeneratorService_Generate_Call) RunAndReturn(run func(*universe.Aggregate, string, universe.CoordinateVO) (universe.LocationEntity, universe.EdgeVO, universe.EdgeVO, error)) *MockLocationGeneratorService_Generate_Call {
+func (_c *MockLocationGeneratorService_Generate_Call) RunAndReturn(run func(*universe.Aggregate, string, universe.CoordinateVO) ([]universe.LocationEntity, []universe.EdgeVO, error)) *MockLocationGeneratorService_Generate_Call {
 	_c.Call.Return(run)
 	return _c
 }

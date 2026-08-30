@@ -297,3 +297,44 @@ func TestReturnHomeExecute_CreatesMissingReversePath(t *testing.T) {
 	require.Equal(t, "home", sess.Location())
 	require.Equal(t, 0, sess.SimulationLevel())
 }
+
+// TestReturnHomeExecute_SealedVaultInsideBranch_TravelsHome proves the
+// no-hard-lock invariant for traps end-to-end: a sealed vault has no physical
+// exit, so a walk home is impossible, yet return-home must still escape it. The
+// traveller shifts into quantum branch Q1, a dead end there spawns a sealed
+// vault, and they drop in. return-home unwinds the quantum shift and then, with
+// no pure physical walk available, follows the full FindRoute across the vault's
+// non-physical drift back to the surface — ending at home rather than stranded.
+func TestReturnHomeExecute_SealedVaultInsideBranch_TravelsHome(t *testing.T) {
+	u := mocks.NewTestUniverse()
+	loc, _ := u.GetLocation("home")
+	sess := exploration.NewEntity("home", loc.Coordinate)
+	pf := navigation.NewBFSPathfinder()
+
+	// Enter Q1 (records a quantum transition and clones the physical graph).
+	_, err := (&commands.ShiftCommand{Universe: u, Session: sess}).Execute()
+	require.NoError(t, err)
+	require.Equal(t, "home-q1", sess.Location())
+
+	// A dead end inside Q1 spawns a sealed vault; drop into it.
+	vaultLocs, vaultEdges, err := universe.GenerateTrap(u, sess.Location(), sess.Coordinate(), universe.TrapSealedVault)
+	require.NoError(t, err)
+	require.Len(t, vaultLocs, 1)
+	for _, l := range vaultLocs {
+		require.NoError(t, u.AddLocation(l))
+	}
+	for _, e := range vaultEdges {
+		require.NoError(t, u.AddEdge(e))
+	}
+	vault := vaultLocs[0]
+	require.False(t, universe.HasPhysicalExit(u, vault.ID), "a sealed vault has no walkable exit")
+	sess.MoveTo(vault, 1)
+	require.Equal(t, vault.ID, sess.Location())
+
+	steps, err := (&commands.ReturnHomeCommand{Universe: u, Session: sess, Pathfinder: pf, HomeID: "home"}).Execute()
+	require.NoError(t, err)
+	require.NotEmpty(t, steps)
+	require.Equal(t, "home", sess.Location())
+	require.Equal(t, 0, sess.QuantumLevel())
+	require.Empty(t, sess.ContextTransitions())
+}

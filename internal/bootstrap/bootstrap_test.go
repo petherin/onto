@@ -181,6 +181,20 @@ func TestLoadDotEnv(t *testing.T) {
 	loadDotEnv(filepath.Join(dir, "does-not-exist.env"))
 }
 
+// TestBuildDefaultUniverse_WellIsSealedVault confirms the hand-placed well is a
+// first-class member of the trap system: it carries TrapSealedVault (so it
+// surfaces identically to a generated sealed vault) yet, being in base reality,
+// has no physical exit — its only way out is the non-physical drift.
+func TestBuildDefaultUniverse_WellIsSealedVault(t *testing.T) {
+	u, err := buildDefaultUniverse()
+	require.NoError(t, err)
+
+	well, ok := u.GetLocation("well")
+	require.True(t, ok)
+	assert.Equal(t, universe.TrapSealedVault, well.Trap)
+	assert.False(t, universe.HasPhysicalExit(u, "well"), "the well is a sealed sink")
+}
+
 // testState builds a State on the shared default universe, starting at home.
 func testState(t *testing.T) State {
 	t.Helper()
