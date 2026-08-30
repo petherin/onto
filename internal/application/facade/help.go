@@ -75,7 +75,7 @@ func (a *App) Commands() []CommandInfo {
 		{Name: "drift", Description: "Enter the next consensus divergence"},
 		{Name: "align", Description: "Return one level toward shared consensus"},
 		{Name: "simulate", Description: "Enter the next nested simulation layer"},
-		{Name: "shift", Description: "Jump to the nearest quantum branch of your current location"},
+		{Name: "shift", Description: "Jump to the next quantum branch of your current location"},
 		{Name: "time", Description: "Enter a temporal branch at an RFC3339 timestamp"},
 		{Name: "jump", Description: "Jump to the next timeline branch of your current location"},
 		{Name: "universe", Description: "Shift to the next bubble universe of your current location"},

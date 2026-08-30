@@ -17,7 +17,7 @@ func (a *App) Commands() []Command {
 		{Name: cmdTravel, Description: "Travel to a destination"},
 		{Name: cmdHome, Description: "Return home, unwinding quantum and timeline branches as needed"},
 		{Name: cmdCost, Description: "Show travel cost information"},
-		{Name: cmdShift, Description: "Jump to the nearest quantum branch of your current location"},
+		{Name: cmdShift, Description: "Jump to the next quantum branch of your current location"},
 		{Name: cmdJump, Description: "Jump to the next timeline branch of your current location"},
 		{Name: cmdUniverse, Description: "Shift to the next bubble universe of your current location"},
 		{Name: cmdStructure, Description: "Shift to the next mathematical structure of your current location"},
