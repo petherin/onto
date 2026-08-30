@@ -229,7 +229,7 @@ The graph distinguishes two kinds of terminal location, and the distinction is
 structural — it keys off edge *modes*, never off a location's name or ID.
 
 - **Dead end (leaf).** A node whose only physical edge is back the way you came.
-  Ordinary leaves and auto-generated "Nearby N" chains are dead ends: on arrival
+  Ordinary leaves and auto-generated nearby clusters are dead ends: on arrival
   `travel` auto-expands them into a fresh nearby node, so exploration never
   bottoms out. `HasPhysicalExit` returns `true` for these (there is at least one
   physical edge), which is what permits the expansion.
@@ -311,7 +311,7 @@ The well is currently a single, hand-placed sink. The same machinery — a sink 
 "no outgoing physical edge" (`HasPhysicalExit`), escape is the cost-scaled gamble
 (`HasPhysicalEscape`) or a non-physical drift, and `home` is the guaranteed
 safety hatch — generalises naturally into **traps generated at random as you
-explore**. Every so often, instead of an ordinary "Nearby N" leaf, arriving at a
+explore**. Every so often, instead of an ordinary generated cluster, arriving at a
 dead end (or crossing into a nested reality) would spawn a *trap*: a themed
 location that is harder than usual to leave, so exploration occasionally turns
 tense without ever becoming a soft-lock.
@@ -325,7 +325,7 @@ Generation policy (mirrors the existing deterministic gambles):
   occasional rather than constant.
 - A new domain policy — a `TrapGeneratorService` beside
   `LocationGeneratorService`, or a trap branch inside
-  `SequentialLocationGenerator.Generate` — would decide the trap and wire its
+  `ClusterLocationGenerator.Generate` — would decide the trap and wire its
   edges. The trap *type* is a value object (an enum carried on the
   location/coordinate), never inferred from the ID or name, matching the
   "structural, not by name" rule the sink/dead-end distinction already follows.
@@ -366,31 +366,34 @@ This shares the tension goal of the gamification ideas below (return probability
 reality debt) but is a *world-generation* mechanic rather than a game-mode-only
 one, so it would enrich free exploration too.
 
-### Richer auto-generation (a future idea)
+### Richer auto-generation (mostly shipped)
 
-Today a dead end expands into exactly **one** node — a single `LocationEntity`
-plus its two bidirectional physical edges — named `Nearby N` off a universe-wide
-counter (`NewNearbyLocation` / `nextNearbyNumber`). Two enrichments would make
-expansion feel like discovering a place rather than incrementing a counter:
+A dead end now expands into a deterministic **1–3 node cluster**
+(`NewNearbyCluster`), each node wired to the origin by a bidirectional physical
+edge (a star, not a clique) so every generated node is itself a leaf that expands
+again — letting the map chain outward without bound. The cluster size, IDs, and
+names are **seeded from the origin coordinate** (`coordinateSeed`), so the same
+reality always expands the same way, reproducibly across reloads and in tests yet
+varying reality-to-reality.
 
-- **More than one node per expansion.** Arriving at a frontier could open a small
-  *cluster* — say 1–3 nodes — wired to the origin (and optionally to each other),
-  so the map grows in organic pockets instead of a single chain. The count would
-  be **seeded from the coordinate** (`coordinateSeed`) like the escape gamble, so
-  it is reproducible yet varies reality-to-reality.
-- **A rich variety of names and types.** Instead of `Nearby N`, nodes would draw
-  evocative, deterministic names from a seeded corpus/templates, and carry a
-  **type** value object (ordinary place, landmark, and — overlapping the *Random
-  traps* idea above — the trap archetypes). Type would drive the name style, the
-  generated description (`GenerateDescription`), and the edge modes/costs wired in.
+- **More than one node per expansion — shipped.** Arriving at a frontier opens a
+  1–3 node pocket rather than a single chain link.
+- **A rich variety of names — shipped.** Names are drawn from a seeded corpus
+  (`nearby_names.go`) as a `"<qualifier> <noun>"` pair (e.g. "The Quiet Wharf"),
+  kept unique across the whole universe, so nodes read as distinct places rather
+  than a `Nearby N` counter. Each carries a full `GenerateDescription`.
+- **A node type value object — still open.** Nodes do not yet carry a **type**
+  (ordinary place, landmark, and — overlapping the *Random traps* idea above —
+  the trap archetypes) to drive the name style, description, and edge
+  modes/costs. That is the remaining enrichment.
 
-Both reuse the existing seam: `LocationGeneratorService` is already an injected
-domain policy (DIP), so a richer generator can be substituted without touching the
-command or facade *logic* — only the batch shape crosses the boundary. The one
-coupling to untangle first: the literal `"Nearby "` name prefix currently doubles
-as the marker `make validate-locations` uses to skip auto-generated nodes, so
-varied names need a separate "generated" marker (a flag/field, not the name)
-before the prefix can be dropped.
+The coupling that used to block varied names has been removed: the literal
+`"Nearby "` name prefix no longer doubles as the marker `make validate-locations`
+keys off — that signal is now an explicit `Generated bool` field on
+`LocationEntity`, so display names are free to vary. A future typed generator
+reuses the existing seam: `LocationGeneratorService` is an injected domain policy
+(DIP), so it can replace `ClusterLocationGenerator` without touching the command
+or facade *logic* — only the batch shape crosses the boundary.
 
 ## Future gamification ideas
 
@@ -458,8 +461,10 @@ Presentation — interaction, usability, performance:
 - **First-run tour** explaining the colour legend and the physical-vs-contextual
   distinction.
 - **Layout performance** — the `tick()` repulsion loop is O(n²) over all node
-  pairs every frame; a spatial grid / Barnes-Hut approximation would keep it
-  smooth as the universe grows.
+  pairs every frame. It is now skipped above a node-count cap
+  (`REPULSION_MAX_NODES`) so enormous, deeply-chained maps stay responsive (the
+  deterministic target spring still lays every node out); a spatial grid /
+  Barnes-Hut approximation would restore gentle anti-overlap at that scale.
 
 Enriching the graph-travel model:
 

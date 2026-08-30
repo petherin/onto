@@ -34,7 +34,7 @@ flowchart TB
         Aggregate["Aggregate: universe.Aggregate<br/>Owns graph state and enforces invariants"]
         Entities["Entities: LocationEntity, exploration.Entity<br/>Carry identity and changing session state"]
         Values["Value objects: CoordinateVO, EdgeVO, TravelModeVO<br/>Describe reality positions and transitions"]
-        Services["Domain functions, services, and factories<br/>Branch functions, NewNearbyLocation, PathfinderService"]
+        Services["Domain functions, services, and factories<br/>Branch functions, LocationGeneratorService, PathfinderService"]
         Repository["Repository: universe.Repository<br/>Defines persistence operations"]
         Aggregate --> Entities
         Aggregate --> Values
@@ -116,11 +116,16 @@ injected into callers rather than called as a free function. The supplied
 `BFSPathfinder` is the domain's route-selection policy: it finds the route with
 the fewest traversable transitions while enforcing reality-boundary rules.
 
-`NewNearbyLocation` is a domain factory that defines how a dead end expands into
-a nearby location and its bidirectional physical connections. `TravelCommand`
-only reports that a destination is a dead end; `GenerateNearbyLocationCommand`
-performs the resulting mutation and persistence. This keeps terminal interaction
-and graph mutation out of the same code path.
+`LocationGeneratorService` in `internal/domain/universe/nearby.go` is a genuine
+domain service — an interface with a swappable implementation
+(`ClusterLocationGenerator`), injected into `GenerateNearbyLocationCommand` rather
+than called as a free function. Its policy (`NewNearbyCluster`) expands a dead end
+into a deterministic 1–3 node cluster, each node wired to the origin by a
+bidirectional physical edge (a star, not a clique). `TravelCommand` only reports
+that a destination is a dead end; `GenerateNearbyLocationCommand` performs the
+resulting mutation and persistence. This keeps terminal interaction and graph
+mutation out of the same code path, and lets a different nearby-location policy be
+substituted without changing the command that uses it.
 
 ### Repository — `universe.Repository`
 
@@ -207,8 +212,9 @@ without leaking responsibilities across boundaries.
    is returned all the way back to the interface layer, which prints it verbatim.
 7. **Dead-end branch (conditional).** If `DeadEndHandled` is true, `facade.App.Travel`
    runs a second use case, `commands.GenerateNearbyLocationCommand`, which
-   uses the domain factory `NewNearbyLocation` to materialise a new location
-   and bidirectional edges from `station`, then persists the updated universe
+   uses the injected `LocationGeneratorService` (`ClusterLocationGenerator`) to
+   materialise a 1–3 node cluster and its bidirectional edges from `station`,
+   then persists the updated universe
    via the `Repository`. This keeps "report a dead end" (a read-like concern
    inside `TravelCommand`) separate from "expand the graph" (a distinct
    mutating use case), even though both are triggered by the same user input.
