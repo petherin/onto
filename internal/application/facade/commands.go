@@ -69,7 +69,7 @@ func (a *App) Travel(target string) string {
 	if !universe.HasPhysicalExit(a.univ, result.Location.ID) {
 		return output
 	}
-	location, err := (&commands.GenerateNearbyLocationCommand{
+	locations, err := (&commands.GenerateNearbyLocationCommand{
 		Universe:  a.univ,
 		Generator: a.locationGenerator,
 		OriginID:  result.Location.ID,
@@ -78,7 +78,26 @@ func (a *App) Travel(target string) string {
 		return fmt.Sprintf("%s\n\nUnable to generate a nearby location: %v", output, err)
 	}
 	a.markDirty()
-	return fmt.Sprintf("%s\n\nAuto-generated: %s (%s)", output, location.Name, location.ID)
+	return fmt.Sprintf("%s\n\n%s", output, formatGenerated(locations))
+}
+
+// nearbyList renders a cluster of generated locations as a comma-separated
+// "Name (id)" list for user-facing messages.
+func nearbyList(locs []universe.LocationEntity) string {
+	parts := make([]string, len(locs))
+	for i, l := range locs {
+		parts[i] = fmt.Sprintf("%s (%s)", l.Name, l.ID)
+	}
+	return strings.Join(parts, ", ")
+}
+
+// formatGenerated describes a dead-end expansion: a single node reads
+// "Auto-generated: Name (id)", a cluster "Auto-generated N nearby places: ...".
+func formatGenerated(locs []universe.LocationEntity) string {
+	if len(locs) == 1 {
+		return "Auto-generated: " + nearbyList(locs)
+	}
+	return fmt.Sprintf("Auto-generated %d nearby places: %s", len(locs), nearbyList(locs))
 }
 
 // Shift advances the session to the next quantum branch of the current location.
@@ -324,7 +343,7 @@ func (a *App) maybeGenerateEscape(landed universe.LocationEntity, transitionCost
 		return fmt.Sprintf("%s\n\nNo way out: this reality offers no physical route from %s. Try another reality.",
 			output, a.locationName(landed.ID))
 	}
-	location, err := (&commands.GenerateNearbyLocationCommand{
+	locations, err := (&commands.GenerateNearbyLocationCommand{
 		Universe:  a.univ,
 		Generator: a.locationGenerator,
 		OriginID:  landed.ID,
@@ -333,7 +352,7 @@ func (a *App) maybeGenerateEscape(landed universe.LocationEntity, transitionCost
 		return fmt.Sprintf("%s\n\nUnable to generate a nearby location: %v", output, err)
 	}
 	a.markDirty()
-	return fmt.Sprintf("%s\n\nA way out: %s (%s)", output, location.Name, location.ID)
+	return fmt.Sprintf("%s\n\nA way out: %s", output, nearbyList(locations))
 }
 
 func (a *App) markDirty() { a.dirty = true }

@@ -14,24 +14,27 @@ type GenerateNearbyLocationCommand struct {
 	OriginID  string
 }
 
-// Execute creates the next nearby location.
-func (c *GenerateNearbyLocationCommand) Execute() (universe.LocationEntity, error) {
+// Execute creates the nearby-location cluster for the dead end. It commits every
+// generated location first, then every edge, so both endpoints of each edge
+// already exist when it is added. It returns the created locations.
+func (c *GenerateNearbyLocationCommand) Execute() ([]universe.LocationEntity, error) {
 	origin, ok := c.Universe.GetLocation(c.OriginID)
 	if !ok {
-		return universe.LocationEntity{}, fmt.Errorf("%w: %s", universe.ErrUnknownEdgeEndpoint, c.OriginID)
+		return nil, fmt.Errorf("%w: %s", universe.ErrUnknownEdgeEndpoint, c.OriginID)
 	}
-	location, outbound, returning, err := c.Generator.Generate(c.Universe, c.OriginID, origin.Coordinate)
+	locations, edges, err := c.Generator.Generate(c.Universe, c.OriginID, origin.Coordinate)
 	if err != nil {
-		return universe.LocationEntity{}, err
+		return nil, err
 	}
-	if err := c.Universe.AddLocation(location); err != nil {
-		return universe.LocationEntity{}, err
+	for _, location := range locations {
+		if err := c.Universe.AddLocation(location); err != nil {
+			return nil, err
+		}
 	}
-	if err := c.Universe.AddEdge(outbound); err != nil {
-		return universe.LocationEntity{}, err
+	for _, edge := range edges {
+		if err := c.Universe.AddEdge(edge); err != nil {
+			return nil, err
+		}
 	}
-	if err := c.Universe.AddEdge(returning); err != nil {
-		return universe.LocationEntity{}, err
-	}
-	return location, nil
+	return locations, nil
 }

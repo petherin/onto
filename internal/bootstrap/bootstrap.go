@@ -236,6 +236,7 @@ func buildDefaultUniverse() (*universe.Aggregate, error) {
 		{ID: "park", Name: "Park", Description: "A green public park.", Coordinate: coordFor("Park", base)},
 		{ID: "city-centre", Name: "City Centre", Description: "The centre of town.", Coordinate: coordFor("City Centre", base)},
 		{ID: "well", Name: "Well", Description: "The bottom of an old stone well. The walls are sheer — there is no walking out of here.", Coordinate: coordFor("Well", base)},
+		{ID: "kirkstall-abbey", Name: "Kirkstall Abbey", Description: "The ruins of a Cistercian abbey by the River Aire. The lane ends here among the cloisters.", Coordinate: coordFor("Kirkstall Abbey", base)},
 	}
 	for _, loc := range locations {
 		if err := u.AddLocation(loc); err != nil {
@@ -247,9 +248,11 @@ func buildDefaultUniverse() (*universe.Aggregate, error) {
 	// node), so every walk/rail leg is paired with its return so the starter world
 	// is fully two-way: if you can walk somewhere, you can walk back. The return
 	// legs mirror the outbound distance/cost. Auto-generated nearby locations
-	// already come with both directions (NewNearbyLocation), and isDeadEnd ignores
-	// the edge you arrived on, so a leaf like park still triggers nearby
-	// generation while remaining walkable back the way you came.
+	// already come with both directions (NewNearbyCluster), and isDeadEnd ignores
+	// the edge you arrived on, so a genuine leaf like Kirkstall Abbey — reachable
+	// only by a single there-and-back walk — still counts as a dead end (its one
+	// physical edge leads back the way you came) yet keeps a physical exit, so
+	// travel expands it into a fresh nearby cluster on arrival.
 	edges := []universe.EdgeVO{
 		{From: "home", To: "station", Mode: universe.Walk, Distance: 1.6, Cost: 1, Description: "Walk to the station"},
 		{From: "station", To: "home", Mode: universe.Walk, Distance: 1.6, Cost: 1, Description: "Walk home from the station"},
@@ -259,6 +262,12 @@ func buildDefaultUniverse() (*universe.Aggregate, error) {
 		{From: "city-centre", To: "station", Mode: universe.Rail, Distance: 2.0, Cost: 3, Description: "Take the rail line back"},
 		{From: "city-centre", To: "home", Mode: universe.Walk, Distance: 2.4, Cost: 2, Description: "Walk home"},
 		{From: "home", To: "city-centre", Mode: universe.Walk, Distance: 2.4, Cost: 2, Description: "Walk to the city centre"},
+		// Kirkstall Abbey is a genuine leaf dead end: a single there-and-back walk
+		// from the city centre along the river, with no onward physical route. On
+		// arrival isDeadEnd is true (its only physical edge leads back) while
+		// HasPhysicalExit stays true, so travel auto-expands it into a nearby cluster.
+		{From: "city-centre", To: "kirkstall-abbey", Mode: universe.Walk, Distance: 3.0, Cost: 2, Description: "Walk the towpath to the abbey"},
+		{From: "kirkstall-abbey", To: "city-centre", Mode: universe.Walk, Distance: 3.0, Cost: 2, Description: "Walk back to the city centre"},
 		// The well is a genuine physical dead end: you fall in from the park
 		// (a one-way physical drop, no walking back up), so travel and physical
 		// reachability treat it as a sink and return-home reports no walkable

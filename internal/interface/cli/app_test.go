@@ -45,7 +45,7 @@ func newTestApp(t *testing.T) *App {
 		state.Repo,
 		state.StartID,
 		navigation.NewBFSPathfinder(),
-		universe.NewSequentialLocationGenerator(),
+		universe.NewClusterLocationGenerator(),
 	)
 	require.NoError(t, err)
 	return New(f)
@@ -63,7 +63,7 @@ func newMockedApp(t *testing.T) (*App, *mocks.MockRepository) {
 	t.Helper()
 	u := mocks.NewTestUniverse()
 	repo := mocks.NewMockRepository(t)
-	f, err := facade.New(u, repo, "home", navigation.NewBFSPathfinder(), universe.NewSequentialLocationGenerator())
+	f, err := facade.New(u, repo, "home", navigation.NewBFSPathfinder(), universe.NewClusterLocationGenerator())
 	require.NoError(t, err)
 	return New(f), repo
 }
@@ -569,6 +569,18 @@ func TestGoHome_EscapesWellSinkViaSafetyHatch(t *testing.T) {
 		"the safety hatch must land the traveller home, not strand them in the well")
 }
 
+// idFromWayOut extracts the first generated location ID from an "A way out: ..."
+// escape message, whose list entries read "Name (id)". Tests travel onto the
+// generated ladder by ID because auto-generated names are no longer fixed.
+func idFromWayOut(out string) string {
+	open := strings.Index(out, "(")
+	close := strings.Index(out, ")")
+	if open < 0 || close < 0 || close < open {
+		return ""
+	}
+	return out[open+1 : close]
+}
+
 // A harder reproduction of the reported strand: escape the well by drifting into
 // nested realities until one offers a physical ladder, walk onto it, then head
 // home. Even after unwinding the recorded context lands the traveller back in the
@@ -584,7 +596,7 @@ func TestGoHome_EscapesWellAfterNestedLadder(t *testing.T) {
 	for i := 0; i < 30 && !laddered; i++ {
 		out := app.Execute("drift")
 		if strings.Contains(out, "A way out") {
-			app.Execute("travel Nearby 1")
+			app.Execute("travel " + idFromWayOut(out))
 			laddered = true
 		}
 	}

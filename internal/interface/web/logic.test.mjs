@@ -49,6 +49,9 @@ import {
   AXIS_DIR,
   REALITY_SPREAD,
   PHYS_RADIUS,
+  CHAIN_STEP,
+  CHAIN_FAN,
+  chainIndices,
   edgeRestLength,
   REST_PHYSICAL,
   REST_TRANSITION,
@@ -67,6 +70,7 @@ import {
   fitView,
   FIT_MARGIN,
   FIT_GROUP_MARGIN,
+  FIT_GROUP_MIN_SPAN,
   depthAlpha,
   MIN_DEPTH_ALPHA,
   abbreviateLabel,
@@ -750,6 +754,76 @@ test("layoutTarget is deterministic for the same node", () => {
   assert.deepEqual(layoutTarget(node), layoutTarget(node));
 });
 
+test("chainIndices: splits a generated ID into its anchor and numeric chain", () => {
+  // A base-reality chain and a branched chain both keep the seed slug as anchor
+  // (hyphenated slugs included) and expose only the pure-digit chain segments;
+  // reality-axis suffixes (q1/t1) are neither anchor nor chain.
+  assert.deepEqual(chainIndices("well-1-2-3"), { anchor: "well", indices: ["1", "2", "3"] });
+  assert.deepEqual(chainIndices("well-1-1-q1-t1"), { anchor: "well", indices: ["1", "1"] });
+  assert.deepEqual(chainIndices("kirkstall-abbey-1"), { anchor: "kirkstall-abbey", indices: ["1"] });
+});
+
+test("chainIndices: a named seed place (no chain, or a reality suffix only) has no indices", () => {
+  // Empty indices is what marks a node as a non-generated seed place; the anchor
+  // is only consumed when indices are present, so only the indices are asserted.
+  assert.deepEqual(chainIndices("kirkstall-abbey").indices, []);
+  assert.deepEqual(chainIndices("kirkstall-abbey-c1").indices, []);
+});
+
+test("layoutTarget: a generated chain node descends one CHAIN_STEP per depth", () => {
+  // A chain is laid out as a strictly-downward tree: each step down the chain
+  // drops the node exactly one CHAIN_STEP further down the screen (world +y), so
+  // depth d sits at y = centre + PHYS_RADIUS + d*CHAIN_STEP. Because y only ever
+  // increases with depth, a child is always below its parent — new nodes are
+  // created downward and never come back up.
+  const c = realityCenter({ Quantum: "Q1", Timeline: "T1" });
+  let lastY = -Infinity;
+  for (let d = 1; d <= 4; d++) {
+    const id = "well-" + Array(d).fill("1").join("-") + "-q1-t1";
+    const p = layoutTarget({ ID: id, Location: "Node", Quantum: "Q1", Timeline: "T1" });
+    assert.ok(Math.abs((p.y - c.y) - (PHYS_RADIUS + d * CHAIN_STEP)) < 1e-9, `depth ${d} y offset`);
+    assert.ok(p.y > lastY, `depth ${d} sits strictly below depth ${d - 1}`);
+    lastY = p.y;
+  }
+});
+
+test("layoutTarget: a generated chain child never rises above its parent", () => {
+  // The core "new nodes come back up" regression: walking any chain from its
+  // shallowest node to its deepest, y must be monotonically non-decreasing, for
+  // several distinct anchors and branch indices — no step ever moves upward.
+  const chains = [
+    ["well-1-q1", "well-1-1-q1", "well-1-1-1-q1", "well-1-1-1-1-q1"],
+    ["snicket-2-t1", "snicket-2-1-t1", "snicket-2-1-3-t1"],
+    ["ginnel-3-2-q2-t1", "ginnel-3-2-1-q2-t1"],
+  ];
+  for (const chain of chains) {
+    let lastY = -Infinity;
+    for (const id of chain) {
+      const p = layoutTarget({ ID: id, Location: "Node", Quantum: "Q1", Timeline: "T1" });
+      assert.ok(p.y >= lastY - 1e-9, `${id} must not rise above its parent (y ${p.y} < ${lastY})`);
+      lastY = p.y;
+    }
+  }
+});
+
+test("layoutTarget: sibling generated nodes separate horizontally instead of stacking", () => {
+  // Same anchor and depth but a different final chain index must fan apart across
+  // x (at the same y row), so a cluster's siblings are individually clickable
+  // rather than collapsed onto one point.
+  const base = { Quantum: "Q1", Timeline: "T1", Location: "Node" };
+  const a = layoutTarget({ ...base, ID: "well-1-1-q1-t1" });
+  const b = layoutTarget({ ...base, ID: "well-1-2-q1-t1" });
+  // Siblings share a depth, so they share a row.
+  assert.ok(Math.abs(a.y - b.y) < 1e-9, "siblings sit on the same downward row");
+  // Adjacent indices fan a full CHAIN_FAN apart — enough to hit-test each one.
+  assert.ok(Math.abs(a.x - b.x) >= CHAIN_FAN - 1e-9, `siblings should fan apart, got ${Math.abs(a.x - b.x)}`);
+});
+
+test("layoutTarget: a generated chain node is deterministic", () => {
+  const node = { ID: "well-1-2-1-q1-t1", Location: "Node", Quantum: "Q1", Timeline: "T1" };
+  assert.deepEqual(layoutTarget(node), layoutTarget(node));
+});
+
 const IDENTITY_VIEW = { rotX: 0, rotY: 0, scale: 1, ox: 0, oy: 0 };
 
 test("fitView returns a centred, unit-scale frame for an empty set", () => {
@@ -868,4 +942,55 @@ test("fitView centres a deep group at a steep pitch on the canvas (no bottom dri
   cx /= group.length; cy /= group.length;
   assert.ok(Math.abs(cx - w / 2) < 1e-6, `deep group must centre horizontally, got ${cx}`);
   assert.ok(Math.abs(cy - h / 2) < 1e-6, `deep group must centre vertically, got ${cy}`);
+});
+
+test("FIT_GROUP_MIN_SPAN keeps a single generated node at a steady, moderate zoom (regression)", () => {
+  // Regression for auto-generation framing: a one-node cluster has a zero-size
+  // box, so fitView with no floor leaves the scale at its default 1 — snapping the
+  // camera far out from wherever the traveller was zoomed. Flooring the box to
+  // FIT_GROUP_MIN_SPAN instead zooms in on the node at a bounded, moderate scale
+  // (never all the way in to MAX_SCALE), and still centres it.
+  const w = 1280, h = 800;
+  const group = [{ x: 120, y: 90, z: 0 }];
+
+  const noFloor = fitView(group, IDENTITY_VIEW, w, h, FIT_GROUP_MARGIN);
+  assert.equal(noFloor.scale, 1, "an unfloored single-node box collapses to the default scale");
+
+  const floored = fitView(group, IDENTITY_VIEW, w, h, FIT_GROUP_MARGIN, FIT_GROUP_MIN_SPAN);
+  assert.ok(floored.scale > noFloor.scale, "the floor zooms in on the node rather than snapping out");
+  assert.ok(floored.scale < MAX_SCALE, "but never all the way in — not too close");
+  assert.ok(Number.isFinite(floored.scale) && floored.scale > 0);
+
+  const framed = { ...IDENTITY_VIEW, scale: floored.scale, ox: floored.ox, oy: floored.oy };
+  const p = project(group[0], framed, w, h);
+  assert.ok(Math.abs(p.x - w / 2) < 1e-6, "the single node centres horizontally");
+  assert.ok(Math.abs(p.y - h / 2) < 1e-6, "the single node centres vertically");
+});
+
+test("FIT_GROUP_MIN_SPAN stops a tight cluster from maxing the zoom, but leaves a wide reveal untouched", () => {
+  const w = 1280, h = 800;
+
+  // A tight auto-generated cluster (all within a PHYS_RADIUS of each other) maxes
+  // the scale without a floor — zoomed in far too close. The floor pulls it back.
+  // Kept a few world units across so the required scale sits well above MAX_SCALE
+  // and still clamps to it regardless of how high the ceiling is set.
+  const tight = [
+    { x: 0, y: 0, z: 0 },
+    { x: 4, y: 0, z: 0 },
+    { x: 0, y: 4, z: 0 },
+  ];
+  const tightNoFloor = fitView(tight, IDENTITY_VIEW, w, h, FIT_GROUP_MARGIN);
+  assert.equal(tightNoFloor.scale, MAX_SCALE, "an unfloored tight cluster pins the scale to the ceiling");
+  const tightFloored = fitView(tight, IDENTITY_VIEW, w, h, FIT_GROUP_MARGIN, FIT_GROUP_MIN_SPAN);
+  assert.ok(tightFloored.scale < MAX_SCALE, "the floor keeps a tight cluster from zooming in too close");
+
+  // A genuinely wide reveal exceeds the floor, so it is a no-op — the group still
+  // fits exactly as it would without a floor.
+  const wide = [
+    { x: -4000, y: 0, z: 0 },
+    { x: 4000, y: 0, z: 0 },
+  ];
+  const wideNoFloor = fitView(wide, IDENTITY_VIEW, w, h, FIT_GROUP_MARGIN);
+  const wideFloored = fitView(wide, IDENTITY_VIEW, w, h, FIT_GROUP_MARGIN, FIT_GROUP_MIN_SPAN);
+  assert.ok(Math.abs(wideFloored.scale - wideNoFloor.scale) < 1e-9, "the floor must not shrink a wide reveal");
 });

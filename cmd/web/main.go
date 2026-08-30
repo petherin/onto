@@ -29,7 +29,7 @@ func main() {
 		state.Repo,
 		state.StartID,
 		navigation.NewBFSPathfinder(),
-		universe.NewSequentialLocationGenerator(),
+		universe.NewClusterLocationGenerator(),
 		bootstrap.GameOptions(cfg, state)...,
 	)
 	if err != nil {

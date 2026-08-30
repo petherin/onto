@@ -20,7 +20,7 @@ func newGameApp(t *testing.T, opts ...Option) *App {
 	repo := mocks.NewMockRepository(t)
 	app, err := New(u, repo, "home",
 		navigation.NewBFSPathfinder(),
-		universe.NewSequentialLocationGenerator(),
+		universe.NewClusterLocationGenerator(),
 		opts...,
 	)
 	require.NoError(t, err)
@@ -431,7 +431,7 @@ func newDeadEndApp(t *testing.T) *App {
 	repo := mocks.NewMockRepository(t)
 	app, err := New(u, repo, "well",
 		navigation.NewBFSPathfinder(),
-		universe.NewSequentialLocationGenerator(),
+		universe.NewClusterLocationGenerator(),
 	)
 	require.NoError(t, err)
 	return app

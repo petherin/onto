@@ -197,7 +197,7 @@ func newApp(t *testing.T, state State, opts []facade.Option) *facade.App {
 		nil,
 		state.StartID,
 		navigation.NewBFSPathfinder(),
-		universe.NewSequentialLocationGenerator(),
+		universe.NewClusterLocationGenerator(),
 		opts...,
 	)
 	require.NoError(t, err)

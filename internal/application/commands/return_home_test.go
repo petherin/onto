@@ -153,22 +153,25 @@ func TestReturnHomeExecute_AfterOutOfOrderBack_NoStaleTransitions(t *testing.T) 
 	require.Equal(t, "home", sess.Location())
 }
 
-// expandNearbyAndTravel generates the next nearby location off originID, commits
-// it and its bidirectional edges, then walks the session there via TravelCommand
-// — mirroring what the facade does when a user travels past the edge of a
-// branch's graph. It returns the new location's ID.
+// expandNearbyAndTravel expands the nearby-location cluster off originID,
+// commits every node and its bidirectional edges, then walks the session to the
+// first — mirroring what the facade does when a user travels past the edge of a
+// branch's graph. It returns the first new location's ID.
 func expandNearbyAndTravel(t *testing.T, u *universe.Aggregate, sess *exploration.Entity, pf navigation.PathfinderService, originID string) string {
 	t.Helper()
 	origin, ok := u.GetLocation(originID)
 	require.True(t, ok)
-	loc, out, back, err := universe.NewNearbyLocation(u, originID, origin.Coordinate)
+	locs, edges, err := universe.NewNearbyCluster(u, originID, origin.Coordinate)
 	require.NoError(t, err)
-	require.NoError(t, u.AddLocation(loc))
-	require.NoError(t, u.AddEdge(out))
-	require.NoError(t, u.AddEdge(back))
-	_, err = (&commands.TravelCommand{Universe: u, Session: sess, Pathfinder: pf}).Execute(loc.ID)
+	for _, loc := range locs {
+		require.NoError(t, u.AddLocation(loc))
+	}
+	for _, edge := range edges {
+		require.NoError(t, u.AddEdge(edge))
+	}
+	_, err = (&commands.TravelCommand{Universe: u, Session: sess, Pathfinder: pf}).Execute(locs[0].ID)
 	require.NoError(t, err)
-	return loc.ID
+	return locs[0].ID
 }
 
 // TestReturnHomeExecute_NearbyInsideBranch_TravelsHome reproduces the reported

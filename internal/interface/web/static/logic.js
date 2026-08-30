@@ -522,6 +522,18 @@ export const AXIS_DIR = {
 // rather than drifting far apart as the map grows.
 export const REALITY_SPREAD = 80;
 export const PHYS_RADIUS = 34;
+// CHAIN_STEP / CHAIN_FAN lay an auto-generated chain out as a downward tree from
+// its reality centre. Infinite chaining (each generated node is a leaf that
+// spawns the next) would otherwise pile every generated node in a reality onto
+// the one PHYS_RADIUS ring — an unclickable heap. Instead each step down a chain
+// drops the node CHAIN_STEP further down the screen (world +y) and siblings of
+// one parent fan CHAIN_FAN world units apart across the x axis. Because y only
+// ever *increases* with chain depth, a child never rises above its parent — new
+// nodes are always created downward, matching how realities themselves fan down.
+// Both are world-unit distances (unlike the reality-axis directions, which are
+// unit vectors scaled by REALITY_SPREAD).
+export const CHAIN_STEP = 30;
+export const CHAIN_FAN = 40;
 
 // realityCenter sums each axis's direction × its level × REALITY_SPREAD, giving
 // the x/y anchor for a node's whole reality. Base reality resolves to {0,0}.
@@ -544,12 +556,49 @@ export function realityCenter(node) {
   return { x, y };
 }
 
-// layoutTarget is the node's full x/y home: its reality centre plus a fixed
-// physical offset. The reality's "Home" sits at the centre; every other place
-// rings around it at a stable, name-derived angle so the same place occupies the
-// same relative position in every reality.
+// chainIndices splits a location ID into its stable anchor (the seed slug, e.g.
+// "well" or "kirkstall-abbey") and the run of numeric chain indices an
+// auto-generated expansion appends ("well-1-2-3" → indices ["1","2","3"]). Chain
+// indices are the only pure-digit segments in an ID: the anchor slug carries no
+// digit-only segment and every reality-axis suffix ("q1", "t1", "c1", …) starts
+// with a letter, so a simple digit test cleanly separates the three. A node with
+// no chain indices is a named seed place, not a generated chain node.
+export function chainIndices(id) {
+  const anchorSegs = [];
+  const indices = [];
+  let seenDigit = false;
+  for (const seg of String(id).split("-")) {
+    if (/^[0-9]+$/.test(seg)) { seenDigit = true; indices.push(seg); }
+    else if (!seenDigit) anchorSegs.push(seg);
+  }
+  return { anchor: anchorSegs.join("-"), indices };
+}
+
+// layoutTarget is the node's full x/y home: its reality centre plus a physical
+// offset. The reality's "Home" sits at the centre. A named place rings around it
+// at a stable, name-derived angle so the same place occupies the same relative
+// position in every reality. An auto-generated chain node instead descends as a
+// tree from the centre: y grows one CHAIN_STEP per chain level (strictly
+// downward, so a child never rises above its parent — new nodes are created
+// downward), while x fans siblings CHAIN_FAN apart. A per-anchor x column and a
+// small per-parent x meander keep distinct chains and distinct branches from
+// overlapping, so a long chain reads as a spreading downward trail of
+// individually clickable nodes rather than a heap on the ring.
 export function layoutTarget(node) {
   const c = realityCenter(node);
+  const { anchor, indices } = chainIndices(node.ID || "");
+  if (indices.length > 0) {
+    let dx = ((hashString(anchor) % 201) - 100);
+    let dy = PHYS_RADIUS;
+    let prefix = anchor;
+    for (const idx of indices) {
+      const meander = (((hashString(prefix) % 61) - 30) / 30) * (CHAIN_FAN * 0.25);
+      dx += (Number(idx) - 1) * CHAIN_FAN + meander;
+      dy += CHAIN_STEP;
+      prefix += "-" + idx;
+    }
+    return { x: c.x + dx, y: c.y + dy };
+  }
   const place = String(node.Location || node.Name || node.ID || "");
   if (place.trim().toLowerCase() === "home") return c;
   const angle = (hashString(place) % 360) * (Math.PI / 180);
@@ -587,10 +636,13 @@ export function project(n, view, width, height) {
 export const ROTATE_SPEED = 0.006;
 
 // clampScale bounds wheel zoom. The floor is very low so a big, sprawling map
-// can be pulled right out to fit on screen; the ceiling keeps a single node from
-// filling the canvas. Non-finite input falls back to the floor.
+// can be pulled right out to fit on screen; the ceiling is deliberately high so a
+// deep, far-flung reality (e.g. M9/U3/Q2/cons:24, whose centre sits thousands of
+// world units from the origin and whose nodes cluster tightly there) can be
+// zoomed right in on to read and click individual places. Non-finite input falls
+// back to the floor.
 export const MIN_SCALE = 0.003;
-export const MAX_SCALE = 3;
+export const MAX_SCALE = 40;
 export function clampScale(scale) {
   if (!Number.isFinite(scale)) return MIN_SCALE;
   return scale < MIN_SCALE ? MIN_SCALE : scale > MAX_SCALE ? MAX_SCALE : scale;
@@ -661,7 +713,17 @@ export const FIT_MARGIN = 0.12;
 // the middle ~40% of the canvas rather than filling it, leaving the surrounding
 // old realities visible around the edges for context. Used by frameToGroup.
 export const FIT_GROUP_MARGIN = 0.6;
-export function fitView(nodes, view, width, height, margin = FIT_MARGIN) {
+// FIT_GROUP_MIN_SPAN is the smallest world-space span frameToGroup frames a
+// revealed group as. A freshly auto-generated cluster is tiny — one node has a
+// zero-size box (which would leave the scale at its default 1, snapping the
+// camera far out from wherever you were zoomed), and a 2–3 node cluster sits
+// within one PHYS_RADIUS (which would pin the scale to MAX_SCALE, zooming in too
+// close). Flooring the box to this span makes such a cluster frame at a steady,
+// moderate zoom instead: zoomed in on the new node(s), but never all the way out
+// or all the way in. Larger groups (a reality reveal) exceed it, so they still
+// fit exactly. Only frameToGroup passes it; the full-map fits use the default 0.
+export const FIT_GROUP_MIN_SPAN = 256;
+export function fitView(nodes, view, width, height, margin = FIT_MARGIN, minSpan = 0) {
   const arr = [...nodes];
   if (!arr.length || !(width > 0) || !(height > 0)) {
     return { scale: 1, ox: 0, oy: 0 };
@@ -689,9 +751,12 @@ export function fitView(nodes, view, width, height, margin = FIT_MARGIN) {
     sumPY += y1 * persp;
   }
   // Grow the box by the strongest magnification so magnified near nodes still
-  // fit; guard against a degenerate/non-finite factor.
+  // fit; guard against a degenerate/non-finite factor. Then floor each extent to
+  // minSpan so a tiny or single-node group (frameToGroup) frames at a steady,
+  // moderate zoom rather than collapsing to the default scale or maxing out.
   const grow = Number.isFinite(maxPersp) && maxPersp > 1 ? maxPersp : 1;
-  const boxW = (maxX - minX) * grow, boxH = (maxY - minY) * grow;
+  const boxW = Math.max((maxX - minX) * grow, minSpan);
+  const boxH = Math.max((maxY - minY) * grow, minSpan);
   const availW = width * (1 - margin), availH = height * (1 - margin);
   let scale = 1;
   if (boxW > 0 || boxH > 0) {

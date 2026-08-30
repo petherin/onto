@@ -10,102 +10,83 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// addNearby generates the next nearby location off originID and commits it (and
-// its bidirectional edges) to u, mirroring what the travel command does when it
-// expands a dead end. It returns the new location so callers can chain from it.
-func addNearby(t *testing.T, u *universe.Aggregate, originID string, coord universe.CoordinateVO) universe.LocationEntity {
+// addCluster generates the nearby cluster off originID and commits it (every
+// location, then every edge) to u, mirroring what the travel command does when
+// it expands a dead end. It returns the created locations so callers can chain.
+func addCluster(t *testing.T, u *universe.Aggregate, originID string, coord universe.CoordinateVO) []universe.LocationEntity {
 	t.Helper()
-	loc, out, back, err := universe.NewNearbyLocation(u, originID, coord)
+	locs, edges, err := universe.NewNearbyCluster(u, originID, coord)
 	require.NoError(t, err)
-	require.NoError(t, u.AddLocation(loc))
-	require.NoError(t, u.AddEdge(out))
-	require.NoError(t, u.AddEdge(back))
-	return loc
+	for _, loc := range locs {
+		require.NoError(t, u.AddLocation(loc))
+	}
+	for _, e := range edges {
+		require.NoError(t, u.AddEdge(e))
+	}
+	return locs
 }
 
-// TestNewNearbyLocation_ChainedDeadEnds_UniqueNames reproduces the reported bug
+// TestNewNearbyCluster_ChainedDeadEnds_UniqueNames reproduces the reported bug
 // where chaining through dead ends produced several distinct nodes all named
-// "Nearby 1". Each expansion must now get a universe-wide-unique display name
-// while the ID keeps its origin-suffix scheme.
-func TestNewNearbyLocation_ChainedDeadEnds_UniqueNames(t *testing.T) {
+// "Nearby 1". Each expansion now yields a 1–3 node cluster; every node carries
+// the Generated flag, and IDs and display names stay unique as the traveller
+// chains from one cluster into the next.
+func TestNewNearbyCluster_ChainedDeadEnds_UniqueNames(t *testing.T) {
 	u := universe.NewAggregate()
 	coord := universe.DefaultCoordinateVO()
 	coord.Location = "Park"
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: coord}))
 
-	first := addNearby(t, u, "park", coord)
-	second := addNearby(t, u, first.ID, first.Coordinate)
-	third := addNearby(t, u, second.ID, second.Coordinate)
-
-	assert.Equal(t, "park-1", first.ID)
-	assert.Equal(t, "park-1-1", second.ID)
-	assert.Equal(t, "park-1-1-1", third.ID)
-
-	assert.Equal(t, "Nearby 1", first.Name)
-	assert.Equal(t, "Nearby 2", second.Name)
-	assert.Equal(t, "Nearby 3", third.Name)
-
-	distinct := map[string]struct{}{first.Name: {}, second.Name: {}, third.Name: {}}
-	assert.Len(t, distinct, 3, "chained dead-end names must all be distinct")
+	ids := map[string]struct{}{}
+	names := map[string]struct{}{}
+	originID, originCoord := "park", coord
+	for step := 0; step < 3; step++ {
+		locs := addCluster(t, u, originID, originCoord)
+		require.GreaterOrEqual(t, len(locs), 1)
+		require.LessOrEqual(t, len(locs), 3)
+		for _, l := range locs {
+			assert.True(t, l.Generated, "auto-generated node must carry the Generated flag")
+			_, dupID := ids[l.ID]
+			assert.False(t, dupID, "IDs must be unique across chained clusters")
+			ids[l.ID] = struct{}{}
+			_, dupName := names[l.Name]
+			assert.False(t, dupName, "display names must be distinct across chained clusters")
+			names[l.Name] = struct{}{}
+		}
+		originID, originCoord = locs[0].ID, locs[0].Coordinate
+	}
 }
 
-// TestNewNearbyLocation_NumbersFromUniverseWideMax checks the display name is
-// numbered one past the highest existing "Nearby N" anywhere in the universe,
-// skipping gaps and ignoring non-nearby names.
-func TestNewNearbyLocation_NumbersFromUniverseWideMax(t *testing.T) {
-	u := universe.NewAggregate()
-	base := universe.DefaultCoordinateVO()
-
-	park := base
-	park.Location = "Park"
-	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: park}))
-
-	// Pre-existing nearby nodes with a gap (1 and 5), plus a non-nearby node
-	// the scan must ignore.
-	n1 := base
-	n1.Location = "Nearby 1"
-	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "a", Name: "Nearby 1", Coordinate: n1}))
-	n5 := base
-	n5.Location = "Nearby 5"
-	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "b", Name: "Nearby 5", Coordinate: n5}))
-	cottage := base
-	cottage.Location = "Cottage"
-	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "cottage", Name: "Cottage", Coordinate: cottage}))
-
-	loc, _, _, err := universe.NewNearbyLocation(u, "park", park)
-	require.NoError(t, err)
-	assert.Equal(t, "Nearby 6", loc.Name, "name is one past the highest existing Nearby N")
-}
-
-// TestNewNearbyLocation_InsideBranch_CanonicalID reproduces the reported bug
+// TestNewNearbyCluster_InsideBranch_CanonicalID reproduces the reported bug
 // where returning home from a parallel universe failed with "no universe path
 // back from here". A nearby location spawned inside a branch was named by
 // appending "-i" to the branched origin ID (e.g. "park-u1-1"), placing a bare
 // index after the "-u1" axis suffix. That made the ID's encoded axes disagree
 // with its coordinate, so LowerContextID/EnsureLowerContext saw universe level
-// 0 and refused to step back. The ID must instead stay canonical.
-func TestNewNearbyLocation_InsideBranch_CanonicalID(t *testing.T) {
+// 0 and refused to step back. Every node's ID must instead stay canonical.
+func TestNewNearbyCluster_InsideBranch_CanonicalID(t *testing.T) {
 	u := universe.NewAggregate()
 	coord := universe.DefaultCoordinateVO()
 	coord.Location = "Park"
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: coord}))
 
-	// Shift into universe U1, then generate a nearby location while inside it.
+	// Shift into universe U1, then generate a cluster while inside it.
 	require.NoError(t, universe.BranchUniverse(u, "park", coord, "Park", "park-u1", "U1"))
 	u1, ok := u.GetLocation("park-u1")
 	require.True(t, ok)
-	nearby := addNearby(t, u, "park-u1", u1.Coordinate)
+	locs := addCluster(t, u, "park-u1", u1.Coordinate)
 
-	// The index belongs on the base, not after the -u1 axis suffix, so the ID
-	// stays canonical and its encoded universe axis matches the coordinate.
-	assert.Equal(t, "park-1-u1", nearby.ID)
-	assert.Equal(t, "U1", nearby.Coordinate.Universe)
+	for _, l := range locs {
+		assert.False(t, universe.LocationIDIsMalformed(l.ID), "each node ID stays canonical")
+		assert.Equal(t, "U1", l.Coordinate.Universe)
 
-	// universe back must now resolve (creating the Origin counterpart) rather
-	// than reporting no path back.
-	destID, err := universe.EnsureLowerContext(u, nearby.ID, universe.UniverseShift)
-	require.NoError(t, err)
-	assert.Equal(t, "park-1", destID)
+		// universe back must resolve (creating the Origin counterpart) rather
+		// than reporting no path back, and land on the branch-free counterpart.
+		destID, err := universe.EnsureLowerContext(u, l.ID, universe.UniverseShift)
+		require.NoError(t, err)
+		assert.NotEqual(t, l.ID, destID)
+		assert.NotContains(t, destID, "-u1", "the lower counterpart drops the universe suffix")
+	}
 }
 
 // physicallyReachable reports whether targetID is reachable from fromID by
@@ -135,8 +116,8 @@ func physicallyReachable(u *universe.Aggregate, fromID, targetID string) bool {
 // have no counterpart in the parent reality, so stepping one back down a
 // universe used to manufacture an isolated Origin node connected only by the
 // universe edge — stranding the final walk home. EnsureLowerContext must instead
-// mirror the branch node's physical edges onto the lower counterpart so it stays
-// connected back to home.
+// mirror the branch node's physical edges (the star edges back to its origin)
+// onto the lower counterpart so it stays connected back to home.
 func TestEnsureLowerContext_NearbyInsideBranch_ConnectsHome(t *testing.T) {
 	u := universe.NewAggregate()
 	coord := universe.DefaultCoordinateVO()
@@ -148,46 +129,118 @@ func TestEnsureLowerContext_NearbyInsideBranch_ConnectsHome(t *testing.T) {
 	require.NoError(t, universe.BranchUniverse(u, "park", coord, "Park", "park-u1", "U1"))
 	root, ok := u.GetLocation("park-u1")
 	require.True(t, ok)
-	first := addNearby(t, u, "park-u1", root.Coordinate)
-	second := addNearby(t, u, first.ID, first.Coordinate)
-	require.Equal(t, "park-1-u1", first.ID)
-	require.Equal(t, "park-1-1-u1", second.ID)
+	first := addCluster(t, u, "park-u1", root.Coordinate)[0]
+	second := addCluster(t, u, first.ID, first.Coordinate)[0]
 
 	// Stepping the deepest branch node down a universe must land on a node that
 	// is physically connected back to park (home), not an isolated counterpart.
 	destID, err := universe.EnsureLowerContext(u, second.ID, universe.UniverseShift)
 	require.NoError(t, err)
-	assert.Equal(t, "park-1-1", destID)
 	assert.True(t, physicallyReachable(u, destID, "park"),
 		"lower-context counterpart of a nearby-in-branch node must reach home via physical edges")
 }
 
-// TestNewNearbyLocation_UnknownOrigin_Errors confirms expanding from a missing
-// origin is rejected rather than silently generating an orphan node.
-func TestNewNearbyLocation_UnknownOrigin_Errors(t *testing.T) {
+// TestNewNearbyCluster_UnknownOrigin_Errors confirms expanding from a missing
+// origin is rejected rather than silently generating orphan nodes.
+func TestNewNearbyCluster_UnknownOrigin_Errors(t *testing.T) {
 	u := universe.NewAggregate()
 
-	_, _, _, err := universe.NewNearbyLocation(u, "ghost", universe.DefaultCoordinateVO())
+	_, _, err := universe.NewNearbyCluster(u, "ghost", universe.DefaultCoordinateVO())
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, universe.ErrUnknownEdgeEndpoint))
 }
 
-// TestNewNearbyLocation_GeneratesRichDescription confirms auto-generated nearby
-// nodes no longer share a flat placeholder: the description is non-empty, drops
-// the old "Auto-generated nearby location" string, and anchors on the spatial
-// setting so it reads as a real place.
-func TestNewNearbyLocation_GeneratesRichDescription(t *testing.T) {
+// TestNewNearbyCluster_GeneratesRichDescription confirms auto-generated nodes no
+// longer share a flat placeholder or a bare "Nearby N" name: every node's
+// description is non-empty, drops the old "Auto-generated nearby location"
+// string, and anchors on the spatial setting so it reads as a real place.
+func TestNewNearbyCluster_GeneratesRichDescription(t *testing.T) {
 	u := universe.NewAggregate()
 	coord := universe.DefaultCoordinateVO()
 	coord.Location = "Park"
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: coord}))
 
-	loc := addNearby(t, u, "park", coord)
+	locs := addCluster(t, u, "park", coord)
 
-	assert.NotEmpty(t, loc.Description)
-	assert.NotEqual(t, "Auto-generated nearby location", loc.Description)
-	assert.Contains(t, loc.Description, "Leeds", "base-reality description anchors on the city")
+	for _, loc := range locs {
+		assert.NotEmpty(t, loc.Description)
+		assert.NotEqual(t, "Auto-generated nearby location", loc.Description)
+		assert.Contains(t, loc.Description, "Leeds", "base-reality description anchors on the city")
+		assert.False(t, strings.HasPrefix(loc.Name, "Nearby "), "names are varied, not a Nearby N counter")
+	}
+}
+
+// TestNewNearbyCluster_Deterministic confirms the same origin coordinate expands
+// identically on two fresh aggregates: same count, IDs, and names.
+func TestNewNearbyCluster_Deterministic(t *testing.T) {
+	build := func() []universe.LocationEntity {
+		u := universe.NewAggregate()
+		coord := universe.DefaultCoordinateVO()
+		coord.Location = "Park"
+		require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: coord}))
+		locs, _, err := universe.NewNearbyCluster(u, "park", coord)
+		require.NoError(t, err)
+		return locs
+	}
+
+	a, b := build(), build()
+	require.Equal(t, len(a), len(b))
+	for i := range a {
+		assert.Equal(t, a[i].ID, b[i].ID)
+		assert.Equal(t, a[i].Name, b[i].Name)
+	}
+}
+
+// TestNewNearbyCluster_WiresOriginAsStar confirms each generated node is wired
+// to the origin with a bidirectional Walk edge and to nothing else: the cluster
+// is a star, not a clique. Leaving siblings unconnected keeps each node a
+// physical leaf (its only physical edge is back to the origin), so travelling to
+// any generated node is itself a dead end that expands again — the property that
+// lets the map chain outward indefinitely.
+func TestNewNearbyCluster_WiresOriginAsStar(t *testing.T) {
+	u := universe.NewAggregate()
+	coord := universe.DefaultCoordinateVO()
+	coord.Location = "Park"
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "park", Name: "Park", Coordinate: coord}))
+
+	locs, edges, err := universe.NewNearbyCluster(u, "park", coord)
+	require.NoError(t, err)
+
+	hasWalk := func(from, to string) bool {
+		for _, e := range edges {
+			if e.From == from && e.To == to && e.Mode == universe.Walk {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, l := range locs {
+		assert.True(t, hasWalk("park", l.ID), "origin -> node walk edge present")
+		assert.True(t, hasWalk(l.ID, "park"), "node -> origin walk edge present")
+	}
+	// No edge may connect one cluster node to another: each must remain a leaf so
+	// it expands again when reached.
+	for i := 0; i < len(locs); i++ {
+		for j := 0; j < len(locs); j++ {
+			if i == j {
+				continue
+			}
+			assert.False(t, hasWalk(locs[i].ID, locs[j].ID),
+				"cluster nodes must not be interconnected, so each stays a leaf")
+		}
+	}
+	// Every physical edge out of a generated node points back to the origin, so
+	// each node has exactly one onward physical route: it is a dead end.
+	for _, l := range locs {
+		for _, e := range edges {
+			if e.From == l.ID && e.Mode.IsPhysical() {
+				assert.Equal(t, "park", e.To,
+					"a generated node's only physical edge is back to the origin")
+			}
+		}
+	}
 }
 
 // TestGenerateDescription_Deterministic confirms the generator is a pure

@@ -24,6 +24,7 @@ import {
   zoomOffset,
   fitView,
   FIT_GROUP_MARGIN,
+  FIT_GROUP_MIN_SPAN,
   unproject,
   panToScreen,
   ROTATE_SPEED,
@@ -160,11 +161,15 @@ function frameToFit() {
 // centres and zooms the camera on just those nodes (FIT_GROUP_MARGIN leaves them
 // in the middle of the canvas with the surrounding old realities still visible
 // around the edges), so a travelled-to location is focused and never off-screen.
-// Falls back to frameToFit if the group is empty or somehow un-framable.
+// FIT_GROUP_MIN_SPAN floors the framing box so a small auto-generated cluster
+// (one to three nodes) settles at a steady, moderate zoom — zoomed in on the new
+// node(s), never snapped far out (a single node's zero-size box) or in too close
+// (a tight cluster maxing the scale). Falls back to frameToFit if the group is
+// empty or somehow un-framable.
 function frameToGroup(ids) {
   const group = ids.map((id) => nodes.get(id)).filter(Boolean);
   if (!group.length) { frameToFit(); return; }
-  const fit = fitView(group, view, canvas.clientWidth, canvas.clientHeight, FIT_GROUP_MARGIN);
+  const fit = fitView(group, view, canvas.clientWidth, canvas.clientHeight, FIT_GROUP_MARGIN, FIT_GROUP_MIN_SPAN);
   viewAnim = {
     t0: performance.now(),
     dur: 600,
@@ -539,21 +544,33 @@ function renderDirty(s) {
 
 // ── Force-directed layout ──────────────────────────────────────────────────
 
+// REPULSION_MAX_NODES caps the all-pairs anti-overlap force. It is O(n²) per
+// frame, so on an enormous, deeply-chained map (hundreds of generated nodes in
+// one reality) it is what makes the map feel sluggish. Above this count we skip
+// it entirely: repulsion only ever nudged co-located nodes apart, and the
+// deterministic target spring below already lays every node out at its own home
+// (the downward chain tree spreads siblings and depth on its own), so dropping
+// it costs almost nothing visually while keeping the frame responsive.
+const REPULSION_MAX_NODES = 350;
+
 function tick() {
   const arr = [...nodes.values()];
   // Repulsion between every pair of nodes, now in three dimensions. It is only
   // there to keep nodes that share a layout home from overlapping, so it is
-  // gentle — the deterministic target spring below owns the overall shape.
-  for (let i = 0; i < arr.length; i++) {
-    for (let j = i + 1; j < arr.length; j++) {
-      const a = arr[i], b = arr[j];
-      let dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
-      let d2 = dx * dx + dy * dy + dz * dz || 0.01;
-      const f = 1400 / d2;
-      const d = Math.sqrt(d2);
-      const ux = dx / d, uy = dy / d, uz = dz / d;
-      a.vx += ux * f; a.vy += uy * f; a.vz += uz * f;
-      b.vx -= ux * f; b.vy -= uy * f; b.vz -= uz * f;
+  // gentle — the deterministic target spring below owns the overall shape. On a
+  // huge map (see REPULSION_MAX_NODES) it is skipped to keep the frame quick.
+  if (arr.length <= REPULSION_MAX_NODES) {
+    for (let i = 0; i < arr.length; i++) {
+      for (let j = i + 1; j < arr.length; j++) {
+        const a = arr[i], b = arr[j];
+        let dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
+        let d2 = dx * dx + dy * dy + dz * dz || 0.01;
+        const f = 1400 / d2;
+        const d = Math.sqrt(d2);
+        const ux = dx / d, uy = dy / d, uz = dz / d;
+        a.vx += ux * f; a.vy += uy * f; a.vz += uz * f;
+        b.vx -= ux * f; b.vy -= uy * f; b.vz -= uz * f;
+      }
     }
   }
   // Springs along edges pull connected nodes toward a rest length. They act in
@@ -1003,6 +1020,12 @@ renderLabels();
   });
 })();
 
+// CUR_MIN_RADIUS is the on-screen radius the current location never drops below,
+// whatever the zoom or map size. It is deliberately well above the ordinary dot
+// floor (1.5) so the "you are here" marker (plus its green glow, drawn at
+// r + 10) stays easy to spot even pulled right out over an enormous graph.
+const CUR_MIN_RADIUS = 8;
+
 function draw() {
   const dpr = window.devicePixelRatio || 1;
   if (canvas.width !== canvas.clientWidth * dpr) {
@@ -1069,9 +1092,16 @@ function draw() {
   }
 
   // Project every node, then paint far-to-near so nearer nodes overlap farther
-  // ones — the depth cue that sells the 3D rotation.
+  // ones — the depth cue that sells the 3D rotation. The current location is
+  // forced to the very end so it always paints on top: on an enormous map a
+  // nearer node could otherwise cover it, and you must never lose track of where
+  // you are.
   const drawn = [...nodes.values()].map((n) => ({ n, p: toScreen(n) }));
-  drawn.sort((a, b) => b.p.depth - a.p.depth);
+  drawn.sort((a, b) => {
+    if (a.n.id === cur) return 1;
+    if (b.n.id === cur) return -1;
+    return b.p.depth - a.p.depth;
+  });
   // Depth range of what's on screen drives the relative fade (see depthAlpha).
   let minDepth = Infinity, maxDepth = -Infinity;
   for (const { p } of drawn) {
@@ -1080,9 +1110,12 @@ function draw() {
   }
   for (const { n, p } of drawn) {
     const isCur = n.id === cur;
-    // Keep a small floor on the radius so nodes stay visible (as dots) even when
-    // zoomed right out, instead of shrinking to sub-pixel and vanishing.
-    const r = Math.max((isCur ? 9 : 6) * view.scale * p.persp, isCur ? 2.5 : 1.5);
+    // Keep a floor on the radius so nodes stay visible (as dots) even when zoomed
+    // right out, instead of shrinking to sub-pixel and vanishing. The current
+    // location gets a much larger floor (CUR_MIN_RADIUS) that never shrinks with
+    // zoom or map size, so however far out you pull an enormous map you can still
+    // find where you are; other nodes keep the small dot floor.
+    const r = Math.max((isCur ? 9 : 6) * view.scale * p.persp, isCur ? CUR_MIN_RADIUS : 1.5);
     // Fade nodes by depth so a busy map stays readable; the current location
     // always stays at full opacity so you never lose track of where you are.
     const nodeAlpha = isCur ? 1 : depthAlpha(p.depth, minDepth, maxDepth);
@@ -1299,13 +1332,31 @@ const EFFECT_RENDERERS = {
 
 // ── Interaction ────────────────────────────────────────────────────────────
 
+// nodeAt returns the node under the screen point, matching what the user sees and
+// can act on. Among every node within the hit radius it prefers the nearest
+// *reachable* one (the blue "travel here" nodes), falling back to the nearest node
+// of any kind so unreachable places can still be hovered and inspected. This
+// matters where nodes crowd a single spot — as an auto-generated chain does, since
+// every node in a reality springs to the same layout home — because the old
+// first-in-insertion-order pick often returned the current location (a click on
+// your own node just starts a drag, so it silently "fails to move") or an
+// unreachable node stacked on top (travel refused), even though a reachable node
+// sat right there. "Nearest" is the smallest projected depth — the same
+// front-to-back order draw() paints in — so the pick is the one on top.
 function nodeAt(sx, sy) {
+  const cur = state && state.session ? state.session.Location : null;
+  let top = null, topDepth = Infinity;
+  let reachable = null, reachableDepth = Infinity;
   for (const n of nodes.values()) {
     const p = toScreen(n);
     const dx = sx - p.x, dy = sy - p.y;
-    if (dx * dx + dy * dy <= (10 * view.scale + 4) ** 2) return n;
+    if (dx * dx + dy * dy > (10 * view.scale + 4) ** 2) continue;
+    if (p.depth < topDepth) { topDepth = p.depth; top = n; }
+    if (n.reachable && n.id !== cur && p.depth < reachableDepth) {
+      reachableDepth = p.depth; reachable = n;
+    }
   }
-  return null;
+  return reachable || top;
 }
 
 let dragging = null;

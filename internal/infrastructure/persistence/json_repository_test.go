@@ -29,6 +29,7 @@ func TestSaveAndLoad_RoundTrip(t *testing.T) {
 	coord := universe.DefaultCoordinateVO()
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home", Name: "Home", Coordinate: coord}))
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "station", Name: "Station", Coordinate: coord}))
+	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-1", Name: "The Quiet Wharf", Coordinate: coord, Generated: true}))
 	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home", To: "station", Mode: universe.Walk, Distance: 1.6, Cost: 1}))
 
 	require.NoError(t, repo.Save(u))
@@ -40,6 +41,14 @@ func TestSaveAndLoad_RoundTrip(t *testing.T) {
 	_, okStation := loaded.GetLocation("station")
 	assert.True(t, okHome)
 	assert.True(t, okStation)
+
+	// A hand-seeded location keeps Generated false; an auto-generated one must
+	// round-trip with the flag set so the validator keeps skipping it.
+	home, _ := loaded.GetLocation("home")
+	assert.False(t, home.Generated, "hand-seeded location must not be marked Generated")
+	generated, okGenerated := loaded.GetLocation("home-1")
+	require.True(t, okGenerated)
+	assert.True(t, generated.Generated, "auto-generated flag must survive save/load")
 
 	edges := loaded.EdgesFrom("home")
 	require.Len(t, edges, 1)

@@ -100,12 +100,11 @@ func fail(format string, args ...any) {
 // boundary" data corruption fixed in this repo's history.
 //
 // Auto-generated nearby/dead-end locations (see internal/domain/universe/nearby.go)
-// are intentionally skipped: their IDs use plain sequential numbering (e.g.
-// "home-1") rather than reality-branch suffixes, and NewNearbyLocation marks
-// them with a generic Coordinate.Location of "Nearby N" — that's the signal
-// used here to exclude them from this check.
+// are intentionally skipped: their IDs use plain index numbering (e.g. "home-1")
+// rather than reality-branch suffixes, and NewNearbyCluster marks them with the
+// Generated flag — that's the signal used here to exclude them from this check.
 func checkIDMatchesCoordinate(location universe.LocationEntity) []string {
-	if strings.HasPrefix(location.Coordinate.Location, "Nearby ") {
+	if location.Generated {
 		return nil
 	}
 

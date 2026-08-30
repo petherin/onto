@@ -171,28 +171,29 @@ func (e *modelExplorer) applyMove(u *universe.Aggregate, sess *exploration.Entit
 	return fmt.Errorf("unknown move kind %q", m.kind)
 }
 
-// doExplore expands the next nearby location off the current position, commits
-// it with its bidirectional walk edges, and travels there — the facade's
-// dead-end behaviour.
+// doExplore expands the nearby-location cluster off the current position,
+// commits every node with its bidirectional walk edges, and travels to the
+// first — the facade's dead-end behaviour.
 func (e *modelExplorer) doExplore(u *universe.Aggregate, sess *exploration.Entity) error {
 	origin, ok := u.GetLocation(sess.Location())
 	if !ok {
 		return fmt.Errorf("current location %q missing", sess.Location())
 	}
-	loc, out, back, err := universe.NewNearbyLocation(u, sess.Location(), origin.Coordinate)
+	locs, edges, err := universe.NewNearbyCluster(u, sess.Location(), origin.Coordinate)
 	if err != nil {
 		return err
 	}
-	if err := u.AddLocation(loc); err != nil {
-		return err
+	for _, loc := range locs {
+		if err := u.AddLocation(loc); err != nil {
+			return err
+		}
 	}
-	if err := u.AddEdge(out); err != nil {
-		return err
+	for _, edge := range edges {
+		if err := u.AddEdge(edge); err != nil {
+			return err
+		}
 	}
-	if err := u.AddEdge(back); err != nil {
-		return err
-	}
-	_, err = (&commands.TravelCommand{Universe: u, Session: sess, Pathfinder: e.pf}).Execute(loc.ID)
+	_, err = (&commands.TravelCommand{Universe: u, Session: sess, Pathfinder: e.pf}).Execute(locs[0].ID)
 	return err
 }
 
@@ -255,7 +256,7 @@ func (e *modelExplorer) checkInvariants(u *universe.Aggregate, sess *exploration
 		}
 	}
 	for _, loc := range u.AllLocations() {
-		if !strings.HasPrefix(loc.Coordinate.Location, "Nearby ") {
+		if !loc.Generated {
 			continue
 		}
 		var originID string

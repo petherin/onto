@@ -30,7 +30,7 @@ func newTestServer(t *testing.T, opts ...facade.Option) *Server {
 		state.Repo,
 		state.StartID,
 		navigation.NewBFSPathfinder(),
-		universe.NewSequentialLocationGenerator(),
+		universe.NewClusterLocationGenerator(),
 		opts...,
 	)
 	require.NoError(t, err)
@@ -148,7 +148,7 @@ func TestHandlers(t *testing.T) {
 
 // TestReset_RestoresStartingMap covers the full server-side reset: after a
 // reality transition has grown the graph and moved the session off base
-// reality, POST /api/reset rebuilds the starting map (only the five starter
+// reality, POST /api/reset rebuilds the starting map (only the six starter
 // nodes) and returns the session home in base reality.
 func TestReset_RestoresStartingMap(t *testing.T) {
 	s := newTestServer(t)
@@ -156,17 +156,17 @@ func TestReset_RestoresStartingMap(t *testing.T) {
 	defer srv.Close()
 
 	starterIDs := s.app.GraphSnapshot().Nodes
-	require.Len(t, starterIDs, 5, "the starter map has five nodes")
+	require.Len(t, starterIDs, 6, "the starter map has six nodes")
 
 	// Grow the graph with a reality transition; the branch adds new locations.
 	postJSON(t, srv.URL+"/api/execute", `{"command":"shift"}`, &stateDTO{})
 	grown := s.app.GraphSnapshot()
-	require.Greater(t, len(grown.Nodes), 5, "shift must branch new locations onto the map")
+	require.Greater(t, len(grown.Nodes), len(starterIDs), "shift must branch new locations onto the map")
 
 	var reset stateDTO
 	postJSON(t, srv.URL+"/api/reset", `{}`, &reset)
 
-	assert.Len(t, reset.Graph.Nodes, 5, "reset restores only the starter nodes")
+	assert.Len(t, reset.Graph.Nodes, 6, "reset restores only the starter nodes")
 	assert.Equal(t, "home", reset.Session.Location, "reset returns the session home")
 	assert.Equal(t, "Q0", reset.Session.Quantum, "reset returns to base reality")
 	assert.Equal(t, 0.0, reset.Session.CumulativeCost, "reset clears the journey cost")

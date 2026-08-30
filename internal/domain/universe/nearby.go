@@ -4,76 +4,104 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"strconv"
-	"strings"
 )
 
-// nearbyNamePrefix is the display-name prefix shared by every auto-generated
-// nearby location. It is also the signal the location validator uses to skip
-// these nodes, so it must not change casually.
-const nearbyNamePrefix = "Nearby "
-
 // LocationGeneratorService is a domain service interface for the policy that
-// expands a dead end into a new nearby location and its bidirectional
-// physical connections. Depending on this abstraction — rather than the
-// concrete SequentialLocationGenerator — lets callers substitute a different
-// nearby-location policy without changing the command that uses it.
+// expands a dead end into a small cluster of new nearby locations and their
+// bidirectional physical connections. Depending on this abstraction — rather
+// than the concrete ClusterLocationGenerator — lets callers substitute a
+// different nearby-location policy without changing the command that uses it.
 type LocationGeneratorService interface {
-	Generate(u *Aggregate, originID string, coordinate CoordinateVO) (LocationEntity, EdgeVO, EdgeVO, error)
+	Generate(u *Aggregate, originID string, coordinate CoordinateVO) ([]LocationEntity, []EdgeVO, error)
 }
 
-// SequentialLocationGenerator is the domain's standard nearby-location policy:
-// it numbers new locations sequentially off the origin ID (e.g. "home-1",
-// "home-2", ...).
-type SequentialLocationGenerator struct{}
+// ClusterLocationGenerator is the domain's standard nearby-location policy: it
+// expands a dead end into a deterministic 1–3 node cluster, wiring each node to
+// the origin only (a star, not a clique). Leaving the cluster nodes
+// unconnected to one another keeps each of them a physical leaf, so walking to
+// any generated node is itself a dead end that expands again — letting the map
+// grow outward indefinitely as the traveller explores.
+type ClusterLocationGenerator struct{}
 
-// NewSequentialLocationGenerator returns the standard, sequential-numbering
-// nearby-location generator.
-func NewSequentialLocationGenerator() *SequentialLocationGenerator {
-	return &SequentialLocationGenerator{}
+// NewClusterLocationGenerator returns the standard cluster nearby-location
+// generator.
+func NewClusterLocationGenerator() *ClusterLocationGenerator {
+	return &ClusterLocationGenerator{}
 }
 
-// Generate implements LocationGeneratorService using the sequential-numbering policy.
-func (SequentialLocationGenerator) Generate(u *Aggregate, originID string, coordinate CoordinateVO) (LocationEntity, EdgeVO, EdgeVO, error) {
-	return NewNearbyLocation(u, originID, coordinate)
+// Generate implements LocationGeneratorService using the cluster policy.
+func (ClusterLocationGenerator) Generate(u *Aggregate, originID string, coordinate CoordinateVO) ([]LocationEntity, []EdgeVO, error) {
+	return NewNearbyCluster(u, originID, coordinate)
 }
 
-// NewNearbyLocation returns the next available nearby location and its
-// bidirectional physical connections. It contains the domain policy for
+// NewNearbyCluster expands a dead end into a deterministic cluster of 1–3
+// distinctly-named nearby locations, each wired to the origin by a bidirectional
+// physical connection (a star, not a clique). It contains the domain policy for
 // expanding a dead end without performing any persistence or user interaction.
-func NewNearbyLocation(u *Aggregate, originID string, coordinate CoordinateVO) (LocationEntity, EdgeVO, EdgeVO, error) {
+// The cluster size, IDs, and names are seeded from the origin coordinate, so the
+// same reality always expands the same way. Crucially, the cluster nodes are not
+// linked to one another: each therefore has exactly one physical edge (back to
+// the origin), so it is itself a dead end that expands again on arrival, letting
+// the traveller chain deeper and grow the map without bound.
+func NewNearbyCluster(u *Aggregate, originID string, coordinate CoordinateVO) ([]LocationEntity, []EdgeVO, error) {
 	if _, exists := u.GetLocation(originID); !exists {
-		return LocationEntity{}, EdgeVO{}, EdgeVO{}, fmt.Errorf("%w: %s", ErrUnknownEdgeEndpoint, originID)
+		return nil, nil, fmt.Errorf("%w: %s", ErrUnknownEdgeEndpoint, originID)
 	}
-	// Number the nearby index onto the origin's stable base and reassemble
+	rng := rand.New(rand.NewSource(coordinateSeed(coordinate)))
+	count := 1 + rng.Intn(3)
+
+	// Number each nearby index onto the origin's stable base and reassemble
 	// canonically, so a location spawned inside a reality branch keeps its
 	// axis suffixes in canonical order (e.g. "park-1-u1", not "park-u1-1").
 	// A bare "-i" appended after an axis suffix would make the ID's encoded
 	// axes disagree with its coordinate, breaking LowerContextID and hence
 	// every *back / return-home step for that axis.
 	base, ax := parseLocationID(originID)
-	for i := 1; i < 1000; i++ {
+	ids := make([]string, 0, count)
+	for i := 1; i < 1000 && len(ids) < count; i++ {
 		id := buildLocationID(fmt.Sprintf("%s-%d", base, i), ax)
 		if _, exists := u.GetLocation(id); exists {
 			continue
 		}
-		// The display name is numbered from a universe-wide count of existing
-		// nearby locations, not the per-origin index i. A dead end spawns its
-		// first nearby node with i == 1, so numbering by i would name every
-		// dead end's child "Nearby 1" — producing many distinct nodes with
-		// identical names as the user chains through them.
-		coordinate.Location = fmt.Sprintf("%s%d", nearbyNamePrefix, nextNearbyNumber(u))
-		location := LocationEntity{
-			ID:          id,
-			Name:        coordinate.Location,
-			Description: GenerateDescription(coordinate),
-			Coordinate:  coordinate,
-		}
-		outbound := EdgeVO{From: originID, To: id, Mode: Walk, Distance: 1, Cost: 1, Description: "Auto-generated path"}
-		returning := EdgeVO{From: id, To: originID, Mode: Walk, Distance: 1, Cost: 1, Description: "Auto-generated return path"}
-		return location, outbound, returning, nil
+		ids = append(ids, id)
 	}
-	return LocationEntity{}, EdgeVO{}, EdgeVO{}, fmt.Errorf("%w: no nearby location ID available", ErrInvalidLocation)
+	if len(ids) < count {
+		return nil, nil, fmt.Errorf("%w: no nearby location ID available", ErrInvalidLocation)
+	}
+
+	// Seed the name-uniqueness set with every existing display name so cluster
+	// names are unique across the whole universe, and grow it per node so two
+	// siblings in the same batch cannot collide either.
+	used := make(map[string]bool)
+	for _, loc := range u.AllLocations() {
+		used[loc.Name] = true
+	}
+
+	locations := make([]LocationEntity, 0, count)
+	var edges []EdgeVO
+	for _, id := range ids {
+		name := generateNearbyName(rng, used)
+		used[name] = true
+		nodeCoord := coordinate
+		nodeCoord.Location = name
+		locations = append(locations, LocationEntity{
+			ID:          id,
+			Name:        name,
+			Description: GenerateDescription(nodeCoord),
+			Coordinate:  nodeCoord,
+			Generated:   true,
+		})
+		edges = append(edges,
+			EdgeVO{From: originID, To: id, Mode: Walk, Distance: 1, Cost: 1, Description: "Auto-generated path"},
+			EdgeVO{From: id, To: originID, Mode: Walk, Distance: 1, Cost: 1, Description: "Auto-generated return path"},
+		)
+	}
+	// Deliberately leave the cluster nodes unconnected to one another. Each node
+	// then has a single physical edge — back to the origin — so it is itself a
+	// dead end that auto-expands on arrival, letting the traveller chain deeper
+	// and grow the map without bound. Interconnecting them would make each node a
+	// non-leaf and stop the chain.
+	return locations, edges, nil
 }
 
 // IsPhysicalDeadEnd reports whether a location has no outgoing physical edge
@@ -145,21 +173,4 @@ func HasPhysicalEscape(coord CoordinateVO, transitionCost float64) bool {
 	}
 	rng := rand.New(rand.NewSource(coordinateSeed(coord)))
 	return rng.Float64() < EscapeProbability(transitionCost)
-}
-
-// nextNearbyNumber returns one past the highest "Nearby N" sequence number
-// currently present in the universe, so each auto-generated nearby location
-// gets a name unique across all dead ends rather than one reset per origin.
-func nextNearbyNumber(u *Aggregate) int {
-	highest := 0
-	for _, loc := range u.AllLocations() {
-		if !strings.HasPrefix(loc.Coordinate.Location, nearbyNamePrefix) {
-			continue
-		}
-		suffix := strings.TrimSpace(strings.TrimPrefix(loc.Coordinate.Location, nearbyNamePrefix))
-		if n, err := strconv.Atoi(suffix); err == nil && n > highest {
-			highest = n
-		}
-	}
-	return highest + 1
 }
