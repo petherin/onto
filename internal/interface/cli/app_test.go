@@ -295,8 +295,8 @@ func TestAppContextualLocation_OffersTransitionsAndReturns(t *testing.T) {
 
 	assert.Contains(t, app.Execute("shift"), "Quantum branch entered")
 	assert.Contains(t, app.Execute("shift back"), "Quantum branch exited")
-	assert.Contains(t, app.Execute("jump"), "Timeline branch entered")
-	assert.Contains(t, app.Execute("jump back"), "Timeline branch exited")
+	assert.Contains(t, app.Execute("jump"), "Arrived in a distant Hubble volume")
+	assert.Contains(t, app.Execute("jump back"), "Returned from the distant Hubble volume")
 	assert.Contains(t, app.Execute("universe"), "Bubble universe entered")
 	assert.Contains(t, app.Execute("universe back"), "Bubble universe exited")
 	assert.Contains(t, app.Execute("align"), "Shared consensus approached")

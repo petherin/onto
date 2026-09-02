@@ -45,11 +45,15 @@ var universeClauses = []string{
 	"You are in bubble universe %s, where the fundamentals were dialled to other values.",
 }
 
-// timelineClauses describe an alternate timeline (%s = timeline token).
+// timelineClauses describe a Hubble volume reached by timeline jump: the same
+// physics, the same local geography, but far enough away that history had
+// room to diverge (%s = timeline token). Unlike the quantum/universe/
+// mathematics clauses, nothing about the physics changed to get here — only
+// distance.
 var timelineClauses = []string{
-	"History took a different turning to reach timeline %s; the details are subtly wrong.",
-	"This is timeline %s, where some old decision went the other way.",
-	"An alternate history clings to the place — the branch known as %s.",
+	"The stars overhead are wrong; you have crossed to timeline %s, a Hubble volume distant, where some old decision went the other way.",
+	"This is timeline %s — same laws, same street plan, but far enough from home that its history had room to diverge.",
+	"No physics changed to reach timeline %s, only unthinkable distance; the place is the one you know, remade by a different past.",
 }
 
 // quantumClauses describe a quantum branch (%s = quantum token).

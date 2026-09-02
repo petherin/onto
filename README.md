@@ -48,7 +48,7 @@ Level I + Level III: Spatial regions with quantum branching (same physics, diffe
 **The key insight:** Level III (quantum branches) is not a separate level in the hierarchy above Level I. Instead, Level III and Level I are **orthogonal dimensions of the same universe**. Every location in space (Level I) has quantum branches threading through it (Level III). You do not move to "Level III space" — rather, you shift to a different quantum branch *at your current location*.
 
 #### Spatial regions _(Tegmark Level I)_
-Distant regions of our own universe beyond the observable horizon. Same physical laws, same constants — just unreachably far away. Local travel (walking, driving, flying) operates entirely within this level. `travel` is the command.
+Distant regions of our own universe beyond the observable horizon. Same physical laws, same constants, same particle types — just unreachably far away, with different initial arrangements of that matter. Space is (effectively) infinite but the ways a finite volume of particles can be arranged are not (a Hubble volume — the size of our observable universe, radius ~4.6×10²⁶ m — holds ~10¹¹⁸ particles, and the pigeonhole principle guarantees every arrangement of them recurs), so every arrangement recurs somewhere: past roughly 10^(10^29) metres, and thus that many Hubble volumes, sits an identical copy of you; past roughly 10^(10^115) metres sits an identical copy of the entire observable universe. Every distance short of that holds a *near*-match — including copies of Earth where history unfolded differently, a war lost instead of won, a coin landing the other way. Crucially, this is all still ordinary space and ordinary travel, just at a distance no engine we model can cover except the dedicated `jump`. Local travel (walking, driving, flying) operates within reach of any physical mode. `travel` is the command. (For the scale and reasoning behind these numbers, see Max Tegmark's ["Parallel Universes"](https://www.scientificamerican.com/article/parallel-universes/), *Scientific American*, 2003.)
 
 #### Bubble universes _(Tegmark Level II)_
 Other universes produced by the same inflationary process as ours, but with different physical constants — a different speed of light, different fundamental forces. Not quantum branches; entirely separate bubbles. Each bubble has its own Level I spatial structure, and quantum branches (Level III) thread through all of it. A `universe` shift moves between bubbles; `universe back` returns to the previous one. (Very expensive — see the [contextual transition reference](#contextual-transition-reference) for exact costs.)
@@ -70,7 +70,7 @@ You have identified your bubble and mathematical structure (Tegmark II and IV). 
 On top of these, four more independent dimensions allow you to navigate *how* you exist:
 
 #### Timeline
-A coarser historical fork than quantum mechanics — a macroscopic divergence point. A timeline marks where a significant historical event went differently — a war, a technology, a civilisation. Multiple timelines can exist within a single quantum branch. `jump` moves forward into an alternate history; `jump back` returns. _(Not a Tegmark level: it branches within a single Level I + III address.)_
+A macroscopic divergence point — a war, a technology, a civilisation that went differently. This isn't a mechanism of its own; it's Tegmark Level I made navigable, and **it is still physical travel, not a different kind of reality**. A timeline is another real Level I region, one that happens to share your local geography (same Earth, same city) but sits an astronomical distance away — many Hubble volumes out — in that (effectively) infinite space, where the accumulated distance meant history had room to diverge. `jump` is a journey to one of those regions — you don't rewrite history, you travel to the address where it already went the other way. No amount of speed gets you there, though: even `warp` still crosses every metre of intervening space, and the distance is too vast for that to ever finish. What makes `jump` a separate command instead of a very long `travel` is a dedicated jump drive that threads a wormhole straight to the target Hubble volume — a shortcut through spacetime, not a faster crossing of it. `jump back` returns. Multiple timelines can exist within a single quantum branch, since Level I addresses and Level III branches are orthogonal.
 
 #### Time
 Every universe has a temporal dimension. Navigating to a different point in time within the same location, branch, and timeline — past or future — is cheaper than most transitions, but increasingly expensive the further you travel.
@@ -101,7 +101,7 @@ Reality exists on a spectrum between collective consensus (everyone agrees on th
    - These determine your *where* and *which outcome*.
 
 3. **Experience overlays** (five independent axes you navigate within your universe):
-   - Which timeline (macroscopic history branch)?
+   - Which timeline (a Level I journey to a region where history diverged)?
    - Which time (temporal position)?
    - Which simulation depth (base or nested, computational)?
    - Which consensus divergence (consensus reality or divergent state)?
@@ -115,7 +115,7 @@ Reality exists on a spectrum between collective consensus (everyone agrees on th
 
 - **Timeline, Time, Simulation, Consensus divergence, and Observer are independent overlays.** You can:
   - Shift quantum branches without changing your timeline
-  - Jump to a different timeline without changing your location or branch
+  - Jump to a different timeline (a Level I journey to a region sharing your local geography but not your history) without changing your quantum branch
   - Move through time without leaving your timeline
   - Enter a simulation while staying in the same branch, location, and timeline (the simulation contains its own nested Level I/III structure)
   - Drift into a divergent state (dream, delusion, hallucination, psychosis) without leaving your simulation, location, or timeline (you can dream while awake, hallucinate while in a simulation, be delusional within a dream)
@@ -128,7 +128,7 @@ Reality exists on a spectrum between collective consensus (everyone agrees on th
 - **Very cheap**: observer shifts — changing perceptual perspective (2 σ), imagination transitions — entering/exiting dreams, stories (5 σ)
 - **Low**: simulation boundary crossings (10 σ in / 50 σ out), quantum shifts — Level III branches (20 σ)
 - **Moderate**: time travel (100 σ)
-- **High**: timeline jumps — macroscopic history shifts (800 σ)
+- **High**: timeline jumps — threading a wormhole to a distant Hubble volume with diverged history (800 σ)
 - **Very expensive**: universe shifts — Level II bubbles (5000 σ)
 - **Extreme**: mathematical structure transitions — Level IV (50000 σ)
 
@@ -254,6 +254,8 @@ LOCAL COORDINATES (nested within Level I region)
 
 - **The five experience axes** (Timeline, Time, Simulation, Consensus divergence, Observer) can all change independently. You can be at the same location in multiple different combinations of these. Consensus divergence is particularly flexible: you can dream while physically awake, hallucinate within a simulation, fall into psychosis within a timeline, or stack divergences (a delusion within a dream).
 
+- **Timeline is Level I, abstracted — and still just travel.** T1, T2, T3 aren't a separate kind of branch — they're labels for distinct, real Level I regions that happen to share your local geography. Level I is (effectively) infinite, and the pigeonhole principle guarantees every historical divergence already exists somewhere out there — identical copies of you within ~10^(10^29) m, identical copies of the whole observable universe within ~10^(10^115) m. `jump` is shorthand for travelling to one of the nearer, near-identical regions; it's grouped with the exotic transitions only because reaching that distance takes a jump drive that threads a wormhole there, not because it's a different kind of reality.
+
 - **The local hierarchy** (Galaxy → Location) exists entirely within your Level I region and is the same across all quantum branches, timelines, and observer perspectives (only your perception changes).
 
 ## Coordinate model
@@ -281,7 +283,7 @@ type CoordinateVO struct {
 }
 ```
 
-The current implementation navigates the physical layers (planet through location), quantum, timeline, consensus, observer, simulation, universe (Tegmark Level II), and mathematical-structure (Tegmark Level IV) axes.
+The current implementation navigates the physical layers (planet through location), quantum, timeline (Tegmark Level I), consensus, observer, simulation, universe (Tegmark Level II), and mathematical-structure (Tegmark Level IV) axes.
 
 ### Two kinds of movement: physical travel vs. contextual transitions
 
@@ -289,9 +291,11 @@ Every move in Onto is an edge in the same graph, but those edges come in exactly
 
 - **Physical travel** — the `travel` command (and the final leg of `home`). This is the *only* kind of movement that is **not** contextual. It moves you around the *local hierarchy* (galaxy → system → planet → country → region → city → location) **without changing any reality axis**. You stay in the same quantum branch, timeline, simulation depth, consensus level, universe, structure, and observer. These physical edges are the only ones `travel` is allowed to cross.
 
-- **Contextual transitions** — *everything else*. A contextual transition changes exactly one **non-spatial reality axis** while keeping your physical location fixed: it changes your *context*, not your whereabouts. This one label covers the whole range, from the cheap experience overlays right up to the exotic Tegmark levels: quantum branch (`shift`, Tegmark III), timeline (`jump`), consensus divergence (`drift` / `align`), simulation depth (`simulate`), observer / umwelt (`observe`), time (`time`), bubble universe (`universe`, Tegmark II), and mathematical structure (`structure`, Tegmark IV). Their exact costs are in the reference table below.
+- **Contextual transitions** — *everything else*. A contextual transition changes exactly one **non-spatial reality axis** while keeping your physical location fixed: it changes your *context*, not your whereabouts. This one label covers the whole range, from the cheap experience overlays right up to the exotic Tegmark levels: quantum branch (`shift`, Tegmark III), timeline (`jump`, a Tegmark I journey), consensus divergence (`drift` / `align`), simulation depth (`simulate`), observer / umwelt (`observe`), time (`time`), bubble universe (`universe`, Tegmark II), and mathematical structure (`structure`, Tegmark IV). Their exact costs are in the reference table below.
 
 So to answer the obvious question directly: **yes** — changing your Tegmark bubble universe or mathematical structure is contextual, and so are observer, timeline, simulation, and consensus shifts. They all share the same machinery. Physical `travel` is the one thing that is *not* contextual.
+
+**Timeline is the one exception worth calling out.** Quantum, universe, and mathematical-structure shifts are contextual for a *conceptual* reason — they are not journeys through space at all (a different outcome, a different physics, a different formal system). Timeline is contextual only for an *engineering* reason: `jump` is, physically, still travel through ordinary space to a real, distant Level I region — it is just travel across a distance so extreme (many Hubble volumes) that no modeled physical mode, not even `warp`, can make the trip in finite time (you would still be crossing every metre of intervening space). It is grouped with the contextual commands because reaching it takes a dedicated jump drive that threads a wormhole straight to the target Hubble volume — a shortcut through spacetime, not a faster crossing of it — not because the destination is a different kind of reality.
 
 "Contextual" is simply shorthand for "changes a reality-context axis, not a physical one." Whenever you make a contextual transition, Onto materializes coordinate-matched copies of every physical location reachable from where you stand, so ordinary local `travel` — and the route back — keeps working inside the new context.
 
@@ -318,7 +322,7 @@ Contextual transitions **stack**: each one changes only its own axis and preserv
 | Simulation entry | `simulate` / `simulate back` | Simulation depth | 10 / 50 |
 | Quantum shift | `shift` / `shift back` | Quantum branch (Tegmark III) | 20 / 20 |
 | Time travel | `time <RFC3339>` / `time back` | Time | 100 / 100 |
-| Timeline jump | `jump` / `jump back` | Timeline (macro history) | 800 / 800 |
+| Timeline jump | `jump` / `jump back` | Timeline (Tegmark I, a jump drive threading a wormhole to a distant Hubble volume) | 800 / 800 |
 | Universe shift | `universe` / `universe back` | Bubble universe (Tegmark II) | 5000 / 5000 |
 | Structure shift | `structure` / `structure back` | Mathematical structure (Tegmark IV) | 50000 / 50000 |
 

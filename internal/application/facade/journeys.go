@@ -15,8 +15,8 @@ const (
 	JourneyTravel        JourneyKind = iota // physical travel to an adjacent location
 	JourneyShift                            // advance to the next quantum branch
 	JourneyShiftBack                        // return to the previous quantum branch
-	JourneyJump                             // advance to the next timeline branch
-	JourneyJumpBack                         // return to the previous timeline branch
+	JourneyJump                             // jump drive: thread a wormhole to a distant Hubble volume (timeline)
+	JourneyJumpBack                         // return to the previous Hubble volume
 	JourneyUniverse                         // shift to the next bubble universe
 	JourneyUniverseBack                     // return to the previous bubble universe
 	JourneyStructure                        // shift to the next mathematical structure
@@ -132,9 +132,9 @@ func (a *App) JourneyOptions(edges []universe.EdgeVO) ([]JourneyOption, bool) {
 	if hasReverseQuantum {
 		options = append(options, JourneyOption{Kind: JourneyShiftBack, Description: "Return to the previous quantum branch (shift back)"})
 	}
-	options = append(options, JourneyOption{Kind: JourneyJump, Description: fmt.Sprintf("%s (timeline, %.0f — jump)", a.session.NextTimelineID(), universe.TimelineShiftCost)})
+	options = append(options, JourneyOption{Kind: JourneyJump, Description: fmt.Sprintf("%s (Hubble volume, %.0f — jump)", a.session.NextTimelineID(), universe.TimelineShiftCost)})
 	if hasReverseTimeline {
-		options = append(options, JourneyOption{Kind: JourneyJumpBack, Description: "Return to the previous timeline branch (jump back)"})
+		options = append(options, JourneyOption{Kind: JourneyJumpBack, Description: "Return to the previous Hubble volume (jump back)"})
 	}
 	options = append(options, JourneyOption{Kind: JourneyUniverse, Description: fmt.Sprintf("%s (universe, %.0f — universe)", a.session.NextUniverseID(), universe.UniverseShiftCost)})
 	if hasReverseUniverse {

@@ -103,11 +103,11 @@ func (a *App) formatShiftResult(r *commands.ShiftResult) string {
 }
 
 func (a *App) formatJumpResult(r *commands.JumpResult) string {
-	verb := "Timeline branch entered"
+	verb := "Arrived in a distant Hubble volume"
 	if r.Reversed {
-		verb = "Timeline branch exited"
+		verb = "Returned from the distant Hubble volume"
 	}
-	return fmt.Sprintf("Jumping...\n\n%s: %s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
+	return fmt.Sprintf("Jumping (threading a wormhole to a farther Hubble volume)...\n\n%s: %s\n\n%s\n\nCumulative journey cost\n%.0f\n\nPossible journeys\n%s",
 		verb, r.NextTimeline, r.Location.Description, a.session.CumulativeCost(), a.formatEdges(r.Edges),
 	)
 }
