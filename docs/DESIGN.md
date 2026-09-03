@@ -145,6 +145,7 @@ onto://<meta>.<math>/<universe>/<timeline>/<quantum>/<galaxy>/<system>/<planet>/
 - `sim:<n>` and `cons:<n>` are omitted when their value is 0
 - `+<RFC3339>` is omitted when time is the zero value
 - Spaces in field values are encoded as `_` (e.g. `United_Kingdom`)
+- `<timeline>` is the Level I **Hubble-volume** coordinate — which observable-universe-sized region of our own space you occupy (same physics, different history); see [Timeline axis and Level I Hubble volumes](#timeline-axis-and-level-i-hubble-volumes) below
 
 Example (default position):
 
@@ -181,7 +182,7 @@ Treat coordinates as vectors in a reality space: each field is an axis, and jour
 
 - Walk to a station: change only the `Location` axis.
 - Shift quantum variant: change `Quantum`.
-- Enter alternate history: change `Timeline`.
+- Enter alternate history — jump to a different Level I **Hubble volume**: change `Timeline`.
 - Jump universes: change `Universe`.
 
 ## Costs
@@ -205,6 +206,29 @@ underlying numbers. The speculative example at the top of this document already
 uses this σ notation.
 
 This model keeps the CLI surface stable (same commands) while the routing backend interprets edges and costs across axes.
+
+## Timeline axis and Level I Hubble volumes
+
+The `Timeline` axis is not a mechanism of its own layered on top of space — it *is*
+Tegmark Level I made addressable. Space is (effectively) infinite, so it holds
+infinitely many **Hubble volumes**: regions the size of our own observable
+universe, each one another universe in the everyday sense — the *same* physical
+laws, constants, and particle types as ours, but a different arrangement of matter
+and therefore a different history. The pigeonhole principle guarantees every
+history that *can* happen already plays out in some Hubble volume: a coin that
+landed the other way, a war lost instead of won, an Earth where you were never
+born.
+
+**The `Timeline` field is the Hubble-volume coordinate.** Each distinct timeline
+value names a different Level I Hubble volume — one that shares your local geography
+(same Earth, same city) but sits an astronomical distance away, where the
+accumulated separation left history room to diverge. So in the `onto://` address
+the `<timeline>` segment is precisely *which Hubble volume*; changing it is a Level
+I move, not a jump to a different kind of reality. `jump` does not rewrite history
+— it travels to the Hubble-volume address where history already went the other way,
+threading a wormhole across a distance no modeled physical mode could otherwise
+cross (see the README for the physical-vs-contextual reasoning behind why `jump` is
+grouped with the exotic transitions).
 
 ## Observer axis and the umwelt
 

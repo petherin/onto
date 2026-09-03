@@ -48,6 +48,8 @@ Level I + Level III: Spatial regions with quantum branching (same physics, diffe
 **The key insight:** Level III (quantum branches) is not a separate level in the hierarchy above Level I. Instead, Level III and Level I are **orthogonal dimensions of the same universe**. Every location in space (Level I) has quantum branches threading through it (Level III). You do not move to "Level III space" — rather, you shift to a different quantum branch *at your current location*.
 
 #### Spatial regions _(Tegmark Level I)_
+**Level I is infinite Hubble volumes, and every one of them is another universe** — not in the Level II sense of different physics, but in the plainest sense: each Hubble volume is a whole observable-universe-sized region of *our* space, running the *same* physical laws, constants, and particle types, but holding a different arrangement of matter and therefore a different history. There are infinitely many of them, so every history that *can* happen already plays out in one of them somewhere. Onto addresses *which* Hubble volume you occupy on the [`Timeline`](#timeline) axis.
+
 Distant regions of our own universe beyond the observable horizon. Same physical laws, same constants, same particle types — just unreachably far away, with different initial arrangements of that matter. Space is (effectively) infinite but the ways a finite volume of particles can be arranged are not (a Hubble volume — the size of our observable universe, radius ~4.6×10²⁶ m — holds ~10¹¹⁸ particles, and the pigeonhole principle guarantees every arrangement of them recurs), so every arrangement recurs somewhere: past roughly 10^(10^29) metres, and thus that many Hubble volumes, sits an identical copy of you; past roughly 10^(10^115) metres sits an identical copy of the entire observable universe. Every distance short of that holds a *near*-match — including copies of Earth where history unfolded differently, a war lost instead of won, a coin landing the other way. Crucially, this is all still ordinary space and ordinary travel, just at a distance no engine we model can cover except the dedicated `jump`. Local travel (walking, driving, flying) operates within reach of any physical mode. `travel` is the command. (For the scale and reasoning behind these numbers, see Max Tegmark's ["Parallel Universes"](https://www.scientificamerican.com/article/parallel-universes/), *Scientific American*, 2003.)
 
 #### Bubble universes _(Tegmark Level II)_
@@ -70,7 +72,7 @@ You have identified your bubble and mathematical structure (Tegmark II and IV). 
 On top of these, four more independent dimensions allow you to navigate *how* you exist:
 
 #### Timeline
-A macroscopic divergence point — a war, a technology, a civilisation that went differently. This isn't a mechanism of its own; it's Tegmark Level I made navigable, and **it is still physical travel, not a different kind of reality**. A timeline is another real Level I region, one that happens to share your local geography (same Earth, same city) but sits an astronomical distance away — many Hubble volumes out — in that (effectively) infinite space, where the accumulated distance meant history had room to diverge. `jump` is a journey to one of those regions — you don't rewrite history, you travel to the address where it already went the other way. No amount of speed gets you there, though: even `warp` still crosses every metre of intervening space, and the distance is too vast for that to ever finish. What makes `jump` a separate command instead of a very long `travel` is a dedicated jump drive that threads a wormhole straight to the target Hubble volume — a shortcut through spacetime, not a faster crossing of it. `jump back` returns. Multiple timelines can exist within a single quantum branch, since Level I addresses and Level III branches are orthogonal.
+A macroscopic divergence point — a war, a technology, a civilisation that went differently. This isn't a mechanism of its own; it's Tegmark Level I made navigable, and **it is still physical travel, not a different kind of reality**. In the coordinate model the `Timeline` axis *is* the Hubble-volume address: each distinct timeline value names one of Level I's infinitely many Hubble volumes — an observable-universe-sized region of our own space with the same physics but a different history. A timeline is another real Level I region, one that happens to share your local geography (same Earth, same city) but sits an astronomical distance away — many Hubble volumes out — in that (effectively) infinite space, where the accumulated distance meant history had room to diverge. `jump` is a journey to one of those regions — you don't rewrite history, you travel to the address where it already went the other way. No amount of speed gets you there, though: even `warp` still crosses every metre of intervening space, and the distance is too vast for that to ever finish. What makes `jump` a separate command instead of a very long `travel` is a dedicated jump drive that threads a wormhole straight to the target Hubble volume — a shortcut through spacetime, not a faster crossing of it. `jump back` returns. Multiple timelines can exist within a single quantum branch, since Level I addresses and Level III branches are orthogonal.
 
 #### Time
 Every universe has a temporal dimension. Navigating to a different point in time within the same location, branch, and timeline — past or future — is cheaper than most transitions, but increasingly expensive the further you travel.
@@ -101,7 +103,7 @@ Reality exists on a spectrum between collective consensus (everyone agrees on th
    - These determine your *where* and *which outcome*.
 
 3. **Experience overlays** (five independent axes you navigate within your universe):
-   - Which timeline (a Level I journey to a region where history diverged)?
+   - Which timeline — i.e. which Level I **Hubble volume** (a journey to an observable-universe-sized region of our own space where history diverged)?
    - Which time (temporal position)?
    - Which simulation depth (base or nested, computational)?
    - Which consensus divergence (consensus reality or divergent state)?
@@ -283,7 +285,7 @@ type CoordinateVO struct {
 }
 ```
 
-The current implementation navigates the physical layers (planet through location), quantum, timeline (Tegmark Level I), consensus, observer, simulation, universe (Tegmark Level II), and mathematical-structure (Tegmark Level IV) axes.
+The current implementation navigates the physical layers (planet through location), quantum, timeline (Tegmark Level I — the Hubble-volume coordinate), consensus, observer, simulation, universe (Tegmark Level II), and mathematical-structure (Tegmark Level IV) axes. The `Timeline` field is the **Hubble-volume** coordinate: which of Level I's infinitely many observable-universe-sized regions (same physics, different history) you occupy, changed by `jump`.
 
 ### Two kinds of movement: physical travel vs. contextual transitions
 
@@ -322,7 +324,7 @@ Contextual transitions **stack**: each one changes only its own axis and preserv
 | Simulation entry | `simulate` / `simulate back` | Simulation depth | 10 / 50 |
 | Quantum shift | `shift` / `shift back` | Quantum branch (Tegmark III) | 20 / 20 |
 | Time travel | `time <RFC3339>` / `time back` | Time | 100 / 100 |
-| Timeline jump | `jump` / `jump back` | Timeline (Tegmark I, a jump drive threading a wormhole to a distant Hubble volume) | 800 / 800 |
+| Timeline jump | `jump` / `jump back` | Timeline / Hubble volume (Tegmark I — selects a different Level I Hubble volume; a jump drive threads a wormhole to it) | 800 / 800 |
 | Universe shift | `universe` / `universe back` | Bubble universe (Tegmark II) | 5000 / 5000 |
 | Structure shift | `structure` / `structure back` | Mathematical structure (Tegmark IV) | 50000 / 50000 |
 
