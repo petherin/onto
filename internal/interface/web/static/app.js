@@ -20,6 +20,8 @@ import {
   colorFor,
   layerZ,
   layoutTarget,
+  realityShells,
+  shellStyle,
   clampScale,
   zoomOffset,
   fitView,
@@ -27,6 +29,7 @@ import {
   FIT_GROUP_MIN_SPAN,
   unproject,
   panToScreen,
+  panToScreenOrbit,
   ROTATE_SPEED,
   edgeRestLength,
   spawnHalo,
@@ -54,6 +57,10 @@ const questBtn = document.getElementById("quest-btn");
 let state = null;
 let edges = [];
 const nodes = new Map(); // id -> {id, name, x, y, z, vx, vy, vz}
+// The latest NodeSnapshot list, kept as-is so drawRealityShells can regroup it
+// into nested reality shells each frame (realityShells reuses layoutTarget/layerZ
+// to place each shell exactly where the layout settles its nodes).
+let graphNodes = [];
 
 // Hovered route preview: the physical path (EdgeSnapshot list) a click would
 // travel from the current location to the hovered reachable node, plus its
@@ -87,6 +94,12 @@ const view = { scale: 1, ox: 0, oy: 0, rotX: 0, rotY: 0 };
 // glides to the new framing instead of snapping. Any manual camera change (drag,
 // wheel, or a view button) clears it so the user always wins.
 let viewAnim = null;
+// pivot is the world point a Shift+drag orbit rotates about, drawn as a small
+// crosshair. Until the user drags it (pivotPinned), it tracks the current
+// location ("you are here") so rotation already spins about something meaningful;
+// dragging the crosshair pins it to a fixed world point of the user's choosing.
+const pivot = { x: 0, y: 0, z: 0 };
+let pivotPinned = false;
 
 // The two orientation presets (Ladder / Angled) back the segmented view toggle
 // and the initial framing; Fit is an independent framing action. Ladder is a
@@ -317,6 +330,7 @@ function renderConfirm(s) {
 // live edge list. Positions persist across refreshes so the map stays stable.
 function syncNodes(graph) {
   edges = graph.Edges || [];
+  graphNodes = graph.Nodes || [];
   const added = [];
   for (const n of graph.Nodes || []) {
     // Every node has a deterministic x/y home (layoutTarget): its reality's
@@ -1026,6 +1040,141 @@ renderLabels();
 // r + 10) stays easy to spot even pulled right out over an enormous graph.
 const CUR_MIN_RADIUS = 8;
 
+// drawRealityShells paints the nested reality shells (realityShells in logic.js)
+// as faint circles behind the graph, so the map's Tegmark nesting reads at rest:
+// the mathematical structure (Level IV) as the outermost shell, a bubble universe
+// (Level II) nested inside it, and a timeline (Level I) as the innermost thin
+// dashed ring. The quantum branch (Level III) has no shell — its nodes stay
+// tinted.
+//
+// The shells are computed directly in *screen space*: every node is projected
+// first (toScreen), and realityShells is handed those projected points so it
+// measures each ring's centre/radius from where the nodes actually land on the
+// canvas. This makes containment hold by construction at any zoom or rotation —
+// a ring encloses the exact screen positions of its members, so a node can never
+// project outside its shell (the failure of the old world-space ring, which was a
+// flat circle at one averaged depth that perspective could tip an off-depth node
+// out of). encloseChildren still runs inside realityShells, now in screen space,
+// so the Tegmark nesting holds on screen too. Shells arrive outermost-first, so
+// painting in order lays the big faint math shell behind the nested ones.
+function drawRealityShells() {
+  if (!graphNodes.length) return;
+  const cur = state && state.session ? state.session.Location : null;
+  // Project every node up front to its live (force-settled) screen position,
+  // falling back to its deterministic home for one not yet seeded, and track the
+  // largest on-screen node-dot radius (matching the dot sizing in draw()). The
+  // rings are then padded by that so a node's whole disc — not just its centre —
+  // stays inside its shell. Adding one constant to every shell radius preserves
+  // the nesting encloseChildren guarantees, since it grows parent and child alike.
+  const screen = new Map();
+  let maxDot = 0;
+  for (const n of graphNodes) {
+    const live = nodes.get(n.ID);
+    let world;
+    if (live) {
+      world = { x: live.x, y: live.y, z: live.z };
+    } else {
+      const home = layoutTarget(n);
+      world = { x: home.x, y: home.y, z: layerZ(n.Depth) };
+    }
+    const p = toScreen(world);
+    screen.set(n.ID, p);
+    const isCur = n.ID === cur;
+    const dot = Math.max((isCur ? 9 : 6) * view.scale * p.persp, isCur ? CUR_MIN_RADIUS : 1.5);
+    if (dot > maxDot) maxDot = dot;
+  }
+  const screenPos = (n) => {
+    const p = screen.get(n.ID);
+    return p ? { x: p.x, y: p.y, z: p.depth } : { x: 0, y: 0, z: 0 };
+  };
+  ctx.save();
+  ctx.textAlign = "center";
+  const shells = realityShells(graphNodes, screenPos);
+  for (const s of shells) {
+    const st = shellStyle(s.kind);
+    // s.cx/s.cy/s.radius are already screen-space; pad by the node-dot size so the
+    // disc stays inside. No per-shell perspective scale — that is baked into the
+    // projected points the shell was measured from.
+    const r = s.radius + maxDot;
+    if (!(r > 0)) continue;
+    ctx.beginPath();
+    ctx.arc(s.cx, s.cy, r, 0, Math.PI * 2);
+    if (st.fill > 0) {
+      ctx.fillStyle = `rgba(${st.rgb},${st.fill})`;
+      ctx.fill();
+    }
+    ctx.lineWidth = st.width;
+    ctx.strokeStyle = `rgba(${st.rgb},${st.line})`;
+    ctx.setLineDash(st.dash);
+    ctx.stroke();
+    // Label the shell with the reality version it denotes (its universe / maths /
+    // timeline name), sitting just outside the ring at its top. Nested shells have
+    // strictly smaller radii, so their labels stack clear of one another there.
+    if (s.label) {
+      ctx.setLineDash([]);
+      ctx.font = `${11 * Math.max(view.scale, 0.7)}px ui-monospace, monospace`;
+      ctx.fillStyle = `rgba(${st.rgb},0.85)`;
+      ctx.fillText(abbreviateLabel(s.label, 22), s.cx, s.cy - r - 4);
+    }
+  }
+  ctx.restore();
+  ctx.setLineDash([]);
+}
+
+// PIVOT_HIT_R is the screen-space radius (px) within which a mousedown grabs the
+// pivot crosshair to reposition it, rather than starting a pan.
+const PIVOT_HIT_R = 16;
+
+// syncPivotToCurrent keeps an un-pinned pivot on the current location so a
+// Shift+drag orbit spins about "you are here" by default. Once the user drags
+// the crosshair (pivotPinned), the pivot stays wherever they put it.
+function syncPivotToCurrent(curId) {
+  if (pivotPinned) return;
+  const node = curId ? nodes.get(curId) : null;
+  if (node) { pivot.x = node.x; pivot.y = node.y; pivot.z = node.z; }
+}
+
+// pivotAt reports whether screen point (sx, sy) is close enough to the pivot
+// crosshair to grab it (within PIVOT_HIT_R px of its projected centre).
+function pivotAt(sx, sy) {
+  const p = toScreen(pivot);
+  return Math.hypot(sx - p.x, sy - p.y) <= PIVOT_HIT_R;
+}
+
+// drawPivot renders the rotation pivot as a gapped crosshair reticle with a ring.
+// It sits over the current-location dot by default, so it's drawn larger than the
+// node halo, with a light stroke over a dark backing to stay legible against both
+// the green node and the dark background. It reads brighter once pinned (a fixed
+// user-chosen point) than while it follows the current location.
+function drawPivot() {
+  const p = toScreen(pivot);
+  const ring = 13;   // reticle ring radius — wider than the current-node halo (r+10)
+  const arm = 20;    // outer reach of each crosshair arm
+  const gap = 6;     // inner gap so the point/node underneath stays visible
+  const draw = () => {
+    ctx.beginPath();
+    ctx.moveTo(p.x - arm, p.y); ctx.lineTo(p.x - gap, p.y);
+    ctx.moveTo(p.x + gap, p.y); ctx.lineTo(p.x + arm, p.y);
+    ctx.moveTo(p.x, p.y - arm); ctx.lineTo(p.x, p.y - gap);
+    ctx.moveTo(p.x, p.y + gap); ctx.lineTo(p.x, p.y + arm);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, ring, 0, Math.PI * 2);
+    ctx.stroke();
+  };
+  ctx.save();
+  ctx.globalAlpha = pivotPinned ? 1 : 0.75;
+  // Dark backing for contrast against the light nodes/shells.
+  ctx.strokeStyle = "rgba(0,0,0,0.65)";
+  ctx.lineWidth = 3.5;
+  draw();
+  // Bright foreground line.
+  ctx.strokeStyle = themeColors.ink;
+  ctx.lineWidth = 1.5;
+  draw();
+  ctx.restore();
+}
+
 function draw() {
   const dpr = window.devicePixelRatio || 1;
   if (canvas.width !== canvas.clientWidth * dpr) {
@@ -1035,6 +1184,11 @@ function draw() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const cur = state && state.session ? state.session.Location : null;
+  syncPivotToCurrent(cur);
+
+  // Reality shells first, so the nested Tegmark-level circles sit behind the
+  // edges and nodes as faint context rather than over them.
+  drawRealityShells();
 
   for (const e of edges) {
     const a = nodes.get(e.From), b = nodes.get(e.To);
@@ -1164,6 +1318,7 @@ function draw() {
   ctx.globalAlpha = 1;
 
   drawEffects(cur);
+  drawPivot();
 }
 
 // drawEffects advances each active transition and hands it to the renderer for
@@ -1369,17 +1524,27 @@ canvas.addEventListener("mousedown", (e) => {
     runMove("travel " + hit.id);
     return;
   }
-  // A plain drag pans the map; Shift+drag orbits it in 3D. When starting an
-  // orbit we capture the pivot — the world point under the cursor — so the drag
-  // spins the view about that point rather than the canvas centre.
-  // A manual pan/orbit cancels any in-flight auto-framing so the user always wins.
+  // A manual pan/orbit/pivot-move cancels any in-flight auto-framing so the user
+  // always wins.
   viewAnim = null;
+  // Grabbing the pivot crosshair (within PIVOT_HIT_R) starts a pivot-move drag:
+  // dragging it repositions and pins the rotation centre to a new world point.
+  if (pivotAt(e.offsetX, e.offsetY)) {
+    dragging = { x: e.offsetX, y: e.offsetY, movePivot: true };
+    return;
+  }
+  // A plain drag pans the map; Shift+drag orbits it in 3D about the pivot.
   dragging = { x: e.offsetX, y: e.offsetY, rotate: e.shiftKey };
   if (dragging.rotate) {
     // An orbit leaves both orientation presets behind, so drop the toggle
     // highlight — it should only be lit while the view matches a preset angle.
     clearActiveView();
-    dragging.pivot = unproject(e.offsetX, e.offsetY, view, canvas.clientWidth, canvas.clientHeight);
+    // Anchor the orbit on the pivot's current screen position so the crosshair
+    // stays fixed while the scene spins about it.
+    dragging.pivot = pivot;
+    const sp = toScreen(pivot);
+    dragging.x = sp.x;
+    dragging.y = sp.y;
   }
 });
 // Hint clickability: show a pointer cursor over reachable nodes (the blue
@@ -1393,21 +1558,36 @@ canvas.addEventListener("mousemove", (e) => {
   const hit = nodeAt(e.offsetX, e.offsetY);
   const id = hit ? hit.id : null;
   if (id !== hoveredId) { hoveredId = id; updatePreview(); renderInspector(); }
-  canvas.style.cursor = hit && hit.reachable ? "pointer" : "default";
+  // Over the pivot crosshair, hint that it can be grabbed and moved.
+  if (pivotAt(e.offsetX, e.offsetY)) canvas.style.cursor = "move";
+  else canvas.style.cursor = hit && hit.reachable ? "pointer" : "default";
 });
 canvas.addEventListener("mouseleave", () => {
   if (hoveredId !== null) { hoveredId = null; updatePreview(); renderInspector(); }
 });
 window.addEventListener("mousemove", (e) => {
   if (!dragging) return;
+  if (dragging.movePivot) {
+    // Reposition the pivot by unprojecting the cursor onto the view plane through
+    // the origin, then pin it there so it stops following the current location.
+    const rect = canvas.getBoundingClientRect();
+    const p = unproject(e.clientX - rect.left, e.clientY - rect.top, view, canvas.clientWidth, canvas.clientHeight);
+    pivot.x = p.x; pivot.y = p.y; pivot.z = p.z;
+    pivotPinned = true;
+    return;
+  }
   if (dragging.rotate) {
-    // Orbit about the grabbed pivot: apply the free rotation deltas (horizontal
-    // motion turns yaw, vertical turns pitch), then re-pan so the pivot stays
-    // anchored under the point where the drag began — the map spins about the
-    // cursor, not the canvas centre.
+    // Orbit about the pivot: apply the free rotation deltas (horizontal motion
+    // turns yaw, vertical turns pitch), then re-pan so the pivot stays anchored at
+    // its screen position captured at drag start — the map spins about the visible
+    // crosshair, not the canvas centre. The re-pan uses panToScreenOrbit (an
+    // orthographic anchor), not the perspective panToScreen: the latter let the
+    // pivot's perspective factor blow up as the angle swung it toward the focal
+    // plane and threw the map off screen ("flies away when I rotate"). The
+    // orthographic pan is bounded by the on-screen extent, so the orbit stays put.
     view.rotY += e.movementX * ROTATE_SPEED;
     view.rotX += e.movementY * ROTATE_SPEED;
-    const pan = panToScreen(dragging.pivot, view, canvas.clientWidth, canvas.clientHeight, dragging.x, dragging.y);
+    const pan = panToScreenOrbit(dragging.pivot, view, canvas.clientWidth, canvas.clientHeight, dragging.x, dragging.y);
     view.ox = pan.ox;
     view.oy = pan.oy;
   } else {
@@ -1554,6 +1734,26 @@ window.addEventListener("keydown", (e) => {
     TRANSITION_LEGEND.map(({ mode, label, command }) => {
       const st = modeStyle(mode);
       return `<span class="legend-item"><i class="line" style="background:rgb(${st.rgb})"></i>${escapeHtml(label)}<span class="legend-cmd">${escapeHtml(command)}</span></span>`;
+    }).join("");
+})();
+
+// Populate the reality-shell key from SHELL_STYLE so the ring colours match the
+// nested circles drawRealityShells paints. Each row names a Tegmark level and its
+// shell, outermost first; the quantum branch (Level III) is intentionally absent
+// since it has no shell (its nodes are tinted instead — see the node-colour key).
+(function buildShellsLegend() {
+  const el = document.getElementById("legend-shells");
+  if (!el) return;
+  const rows = [
+    { kind: "math", label: "structure", level: "IV" },
+    { kind: "universe", label: "universe", level: "II" },
+    { kind: "timeline", label: "timeline", level: "I" },
+  ];
+  el.innerHTML =
+    '<span class="legend-title">reality shells</span>' +
+    rows.map(({ kind, label, level }) => {
+      const st = shellStyle(kind);
+      return `<span class="legend-item"><i class="ring" style="border-color:rgba(${st.rgb},0.8)"></i>${escapeHtml(label)}<span class="legend-cmd">Lvl ${escapeHtml(level)}</span></span>`;
     }).join("");
 })();
 

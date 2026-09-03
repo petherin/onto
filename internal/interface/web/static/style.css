@@ -240,7 +240,8 @@ main { display: flex; flex: 1; min-height: 0; }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .legend .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
 
-.legend-transitions {
+.legend-transitions,
+.legend-shells {
   right: 16px;
   top: 16px;
   bottom: auto;
@@ -250,8 +251,14 @@ main { display: flex; flex: 1; min-height: 0; }
   justify-content: flex-start;
   gap: 4px;
 }
+/* The reality-shell key stacks directly beneath the transitions key, which has a
+   fixed set of rows, so a static offset keeps the two clear of each other. */
+.legend-shells { top: 210px; }
 .legend-title { text-transform: uppercase; letter-spacing: 1px; font-size: 10px; opacity: 0.75; }
 .legend .line { width: 16px; height: 3px; border-radius: 2px; flex: 0 0 auto; }
+/* A hollow ring marks a reality-shell row, echoing the faint circles drawn on the
+   map, so a shell reads differently from a solid edge (.line) or node (.dot). */
+.legend .ring { width: 11px; height: 11px; border-radius: 50%; border: 2px solid; background: transparent; flex: 0 0 auto; }
 /* The traversal command for each transition, so every legend row consistently
    shows how that reality shift is made (e.g. quantum · shift). */
 .legend-cmd { font-family: ui-monospace, monospace; opacity: 0.7; margin-left: 4px; }

@@ -515,13 +515,22 @@ export const AXIS_DIR = {
   observer:   [-0.643, 0.766], // 130°
   quantum:    [-0.866, 0.5],   // 150° — down and to the left
 };
-// REALITY_SPREAD sets the distance between reality group centres (per axis
-// level); PHYS_RADIUS is the radius of the physical ring within a group. The
+// REALITY_SPREAD sets the distance between adjacent reality group centres (each
+// reality-transition edge spans one such step), so it is kept as small as the
+// layout allows to keep those edges short. Two things set its floor. First, the
 // spread must clear the ring on the shallowest downward axis (min downward
-// component 0.5, timeline/quantum) so a new reality always lands below base:
-// REALITY_SPREAD * 0.5 > PHYS_RADIUS. Kept compact so groups sit close together
-// rather than drifting far apart as the map grows.
-export const REALITY_SPREAD = 80;
+// component 0.5, timeline/quantum) so a new reality always lands below its parent:
+// REALITY_SPREAD * 0.5 > PHYS_RADIUS (= 34). Second, adjacent reality shells
+// (realityShells) should not overlap. The binding shell is the outermost (math)
+// one: it wraps a universe shell which wraps a timeline shell, so in a single-
+// reality cluster its radius is PHYS_RADIUS + SHELL_PAD + 2*SHELL_GAP (= 48), and
+// two math siblings must sit more than twice that (~96) apart for the common
+// (short-chain) case. This value sits just above that floor — the minimum that
+// keeps sibling shells clear — so transition edges stay as short as possible.
+// Nesting (a universe inside its structure shell) is guaranteed separately by
+// construction (each parent shell grows to enclose its children), so it never
+// constrains the spread.
+export const REALITY_SPREAD = 104;
 export const PHYS_RADIUS = 34;
 // CHAIN_STEP / CHAIN_FAN lay an auto-generated chain out as a downward tree from
 // its reality centre. Infinite chaining (each generated node is a leaf that
@@ -606,6 +615,146 @@ export function layoutTarget(node) {
   return { x: c.x + Math.cos(angle) * PHYS_RADIUS, y: c.y + Math.sin(angle) * PHYS_RADIUS };
 }
 
+// ── Reality shells (Tegmark nesting) ────────────────────────────────────────
+//
+// Every node belongs to a stack of nested realities; realityShells turns that
+// nesting into faint enclosing circles the canvas (app.js drawRealityShells)
+// draws behind the graph, so the structure reads at rest rather than only from
+// the edge colours. The nesting mirrors Tegmark's levels, outermost first:
+//   math      — the mathematical structure (Level IV): the outermost shell.
+//   universe  — a bubble universe with different constants (Level II): nested
+//               inside its math shell.
+//   timeline  — a distant Hubble volume (Level I): the innermost, drawn as a
+//               thin dashed ring with the weakest weight.
+// The quantum branch (Everett, Level III) deliberately gets no shell — its
+// nodes stay tinted pink (colorFor) instead — so the shells don't drown the map.
+//
+// Colours match MODE_STYLE so a shell, the transition edges that cross it, and
+// the legend never drift. fill is the faint interior wash alpha, line the ring
+// stroke alpha, width the stroke width, dash the ring dash pattern.
+export const SHELL_STYLE = {
+  math:     { rgb: "120,220,200", dash: [],     fill: 0.05, line: 0.30, width: 1.5 },
+  universe: { rgb: "178,123,255", dash: [],     fill: 0.05, line: 0.30, width: 1.5 },
+  timeline: { rgb: "255,176,64",  dash: [6, 5], fill: 0,    line: 0.16, width: 1 },
+};
+// SHELL_PAD is the world-unit breathing room between a shell's ring and its
+// outermost node. SHELL_GAP is the clearance a parent shell leaves outside a
+// nested child's ring: realityShells grows each outer shell to enclose its inner
+// shells by this margin, so the Tegmark nesting (math ⊃ universe ⊃ timeline) holds
+// by construction — a universe can never escape its structure shell however far
+// its cluster has drifted from the structure's centroid. Both are kept small so a
+// shell hugs its cluster tightly: a tighter shell means a smaller non-overlap
+// floor for REALITY_SPREAD, which is what keeps the reality-transition edges short.
+export const SHELL_PAD = 6;
+export const SHELL_GAP = 4;
+export function shellStyle(kind) { return SHELL_STYLE[kind] || SHELL_STYLE.math; }
+
+// shellAxisValue normalises a reality-axis value into a stable grouping key: an
+// empty/missing axis groups with its base value, everything else groups by its
+// own string. Only distinctness matters here (unlike axisLevel, which needs a
+// distance), so a plain string coercion is enough.
+function shellAxisValue(value, base) {
+  if (value === undefined || value === null || value === "") return String(base);
+  return String(value);
+}
+
+// buildShell turns a group of member items (each carrying its layout point p and
+// depth-layer z) into one shell descriptor: the centroid centre (cx, cy, cz), an
+// enclosing x/y radius, and the nesting info the drawer and legend read. Radius is
+// the distance to the farthest member plus SHELL_PAD, so the shell always encloses
+// every member wherever it currently sits — grow the members (or move them out)
+// and the shell grows with them. realityShells then grows the radius further so it
+// also encloses any nested child shells. Radius is measured in the x/y plane only,
+// since a shell is a flat ring; cz is averaged so the ring sits with its nodes'
+// depth layer. label is the reality version the shell denotes (its maths /
+// universe / timeline name), which the drawer prints on it.
+function buildShell(kind, depth, members) {
+  let cx = 0, cy = 0, cz = 0;
+  for (const m of members) { cx += m.p.x; cy += m.p.y; cz += m.z; }
+  cx /= members.length; cy /= members.length; cz /= members.length;
+  let radius = 0;
+  for (const m of members) {
+    const d = Math.hypot(m.p.x - cx, m.p.y - cy);
+    if (d > radius) radius = d;
+  }
+  radius += SHELL_PAD;
+  const first = members[0];
+  const label = kind === "math" ? first.math : kind === "universe" ? first.universe : first.timeline;
+  return {
+    kind, depth, cx, cy, cz, radius, count: members.length, label,
+    math: first.math,
+    universe: kind === "math" ? undefined : first.universe,
+    timeline: kind === "timeline" ? first.timeline : undefined,
+  };
+}
+
+// shellGroups buckets the items by the given axis keys (joined with a NUL so
+// distinct values never collide) and returns one shell per bucket.
+function shellGroups(items, keys, kind, depth) {
+  const groups = new Map();
+  for (const it of items) {
+    const key = keys.map((k) => it[k]).join("\u0000");
+    let g = groups.get(key);
+    if (!g) { g = []; groups.set(key, g); }
+    g.push(it);
+  }
+  return [...groups.values()].map((members) => buildShell(kind, depth, members));
+}
+
+// encloseChildren grows every parent shell's radius until it also contains each of
+// its children (matched by keyOf) with SHELL_GAP clearance, so a nested shell can
+// never poke outside its parent however far the child's cluster sits from the
+// parent's centroid. This is what makes math ⊃ universe ⊃ timeline hold by
+// construction rather than only when the clusters happen to coincide.
+function encloseChildren(parents, children, keyOf) {
+  const byKey = new Map();
+  for (const p of parents) byKey.set(keyOf(p), p);
+  for (const c of children) {
+    const p = byKey.get(keyOf(c));
+    if (!p) continue;
+    const need = Math.hypot(c.cx - p.cx, c.cy - p.cy) + c.radius + SHELL_GAP;
+    if (need > p.radius) p.radius = need;
+  }
+}
+
+// realityShells is the pure grouping behind the map's nested shells: it takes the
+// live NodeSnapshot-shaped nodes and returns the shell descriptors app.js draws.
+// By default each node's x/y home comes from layoutTarget (which itself reuses
+// realityCenter) and its z from layerZ(depth), so the shells wrap where the layout
+// settles the nodes. Pass posOf(node) -> {x, y, z} to measure from live positions
+// instead (app.js hands in each node's force-settled point), so a shell grows to
+// enclose the actual rendered nodes — including ones generated after the layout
+// has drifted from the static homes. Nodes are bucketed at three levels — by math
+// (Level IV), by (math, universe) (Level II nested inside), and by
+// (math, universe, timeline) (Level I innermost). The inner shells are built
+// first, then each outer shell is grown to enclose the inner shells nested within
+// it (encloseChildren), so a universe always sits inside its structure shell no
+// matter how far its cluster has drifted. The result is sorted outermost-first (by
+// nesting depth) so the caller paints big faint shells behind the nested ones. An
+// empty input returns an empty list.
+export function realityShells(nodes, posOf) {
+  const arr = [...nodes];
+  if (!arr.length) return [];
+  const at = typeof posOf === "function" ? posOf : null;
+  const items = arr.map((n) => {
+    const p = at ? at(n) : layoutTarget(n);
+    const z = at && Number.isFinite(p.z) ? p.z : layerZ(n.Depth);
+    return {
+      p: { x: p.x, y: p.y },
+      z,
+      math: shellAxisValue(n.Mathematics, DEFAULTS.Mathematics),
+      universe: shellAxisValue(n.Universe, DEFAULTS.Universe),
+      timeline: shellAxisValue(n.Timeline, DEFAULTS.Timeline),
+    };
+  });
+  const timeline = shellGroups(items, ["math", "universe", "timeline"], "timeline", 2);
+  const universe = shellGroups(items, ["math", "universe"], "universe", 1);
+  const math = shellGroups(items, ["math"], "math", 0);
+  encloseChildren(universe, timeline, (s) => s.math + "\u0000" + s.universe);
+  encloseChildren(math, universe, (s) => s.math);
+  return [...math, ...universe, ...timeline].sort((a, b) => a.depth - b.depth);
+}
+
 // project maps a node's world position to screen space. It rotates about the Y
 // (yaw) then X (pitch) axes, then applies a perspective divide so depth reads as
 // size. Pulled out of the canvas so the maths is testable in isolation; app.js's
@@ -687,6 +836,31 @@ export function unproject(sx, sy, view, width, height) {
 export function panToScreen(p, view, width, height, tx, ty) {
   const proj = project(p, { ...view, ox: 0, oy: 0 }, width, height);
   return { ox: tx - proj.x, oy: ty - proj.y };
+}
+
+// panToScreenOrbit is panToScreen for the interactive orbit (the shift-drag).
+// It anchors the grabbed pivot *orthographically* — the same rotation as project
+// but with the perspective divide pinned to 1 — instead of through the full
+// perspective projection. This matters because the pivot comes from unproject,
+// which lives on the view plane through the origin where the perspective factor is
+// exactly 1; holding it there under that same assumption keeps the re-pan bounded
+// and continuous. The perspective panToScreen instead lets the pivot's factor blow
+// up as a rotation swings it toward the focal plane (FOCAL + z2 → 0): the pan then
+// scales with that exploding factor and hurls the whole map off screen — the
+// "flies away / swings wildly when I rotate" bug, worst when zoomed out (a deep
+// pivot) at a grazing angle like the Ladder view. The orthographic offset is
+// bounded by the on-screen pixel extent (x1·scale tracks the cursor offset, not
+// the divide), so it can never run away. At the drag's start (rotation unchanged)
+// the pivot's rotated depth is still 0, so this lands it exactly under the cursor,
+// identical to the perspective path; only as the angle changes do they diverge,
+// the pivot drifting sub-pixel under perspective in exchange for never flying off.
+export function panToScreenOrbit(p, view, width, height, tx, ty) {
+  const cy = Math.cos(view.rotY), sy = Math.sin(view.rotY);
+  const cx = Math.cos(view.rotX), sx = Math.sin(view.rotX);
+  const x1 = p.x * cy - p.z * sy;
+  const z1 = p.x * sy + p.z * cy;
+  const y1 = p.y * cx - z1 * sx;
+  return { ox: tx - (width / 2 + x1 * view.scale), oy: ty - (height / 2 + y1 * view.scale) };
 }
 
 // fitView computes the scale + pan ({scale, ox, oy}) that frames every node in

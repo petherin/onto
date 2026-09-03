@@ -42,6 +42,7 @@ import {
   zoomOffset,
   unproject,
   panToScreen,
+  panToScreenOrbit,
   hashString,
   axisLevel,
   realityCenter,
@@ -52,6 +53,11 @@ import {
   CHAIN_STEP,
   CHAIN_FAN,
   chainIndices,
+  realityShells,
+  SHELL_STYLE,
+  SHELL_PAD,
+  SHELL_GAP,
+  shellStyle,
   edgeRestLength,
   REST_PHYSICAL,
   REST_TRANSITION,
@@ -641,16 +647,40 @@ test("panToScreen: places a world point exactly under the screen target", () => 
   assert.ok(Math.abs(proj.x - 510) < 1e-9 && Math.abs(proj.y - 220) < 1e-9);
 });
 
-test("orbit: rotating about the cursor keeps the grabbed pivot under the pointer", () => {
-  // Grab the point under the cursor, rotate, re-pan via panToScreen, and the
-  // pivot must still project to the original cursor position.
+test("panToScreenOrbit: at the drag start it lands the grabbed pivot exactly under the cursor", () => {
+  // The orbit anchor. At drag start the rotation is unchanged, so the pivot (from
+  // unproject) still has rotated depth 0 and perspective factor 1 — the orthographic
+  // anchor and the perspective projection agree, so the pivot sits exactly under the
+  // cursor. Tested at the near-edge-on Ladder angle, where the fly-away used to bite.
   const cursorX = 520, cursorY = 250;
-  const view = { scale: 1.2, ox: 40, oy: -30, rotX: 0.5, rotY: 0.35 };
+  const view = { scale: 1.2, ox: 40, oy: -30, rotX: -1.42, rotY: 0 };
   const pivot = unproject(cursorX, cursorY, view, 800, 600);
-  const rotated = { ...view, rotY: view.rotY + 0.4, rotX: view.rotX - 0.25 };
-  const pan = panToScreen(pivot, rotated, 800, 600, cursorX, cursorY);
-  const proj = project(pivot, { ...rotated, ...pan }, 800, 600);
+  const pan = panToScreenOrbit(pivot, view, 800, 600, cursorX, cursorY);
+  const proj = project(pivot, { ...view, ...pan }, 800, 600);
   assert.ok(Math.abs(proj.x - cursorX) < 1e-9 && Math.abs(proj.y - cursorY) < 1e-9);
+});
+
+test("panToScreenOrbit: the pan stays bounded through a pitch sweep that sends the perspective pan flying", () => {
+  // The "flies away when I rotate" regression. Zoomed out (small scale) at the
+  // grazing Ladder angle, a pivot grabbed away from centre sits deep in world space.
+  // Sweeping the pitch swings it across the focal plane, where the perspective
+  // panToScreen's factor (FOCAL/(FOCAL+z2)) blows up and hurls the pan tens of
+  // thousands of pixels off screen. The orthographic panToScreenOrbit is bounded by
+  // the on-screen extent, so it never runs away.
+  const W = 800, H = 600;
+  const view = { scale: 0.05, ox: 40, oy: -30, rotX: -1.42, rotY: 0 };
+  const cursorX = 700, cursorY = 120;
+  const pivot = unproject(cursorX, cursorY, view, W, H);
+  let orbitMax = 0, perspMax = 0;
+  for (let d = -1.5; d <= 1.5 + 1e-9; d += 0.05) {
+    const rot = { ...view, rotX: view.rotX + d };
+    const o = panToScreenOrbit(pivot, rot, W, H, cursorX, cursorY);
+    const p = panToScreen(pivot, rot, W, H, cursorX, cursorY);
+    orbitMax = Math.max(orbitMax, Math.abs(o.ox), Math.abs(o.oy));
+    perspMax = Math.max(perspMax, Math.abs(p.ox), Math.abs(p.oy));
+  }
+  assert.ok(orbitMax < 5000, `orbit pan stayed bounded (was ${orbitMax})`);
+  assert.ok(perspMax > 50000, `perspective pan blew up (was ${perspMax})`);
 });
 
 test("hashString is deterministic and non-negative", () => {
@@ -822,6 +852,273 @@ test("layoutTarget: sibling generated nodes separate horizontally instead of sta
 test("layoutTarget: a generated chain node is deterministic", () => {
   const node = { ID: "well-1-2-1-q1-t1", Location: "Node", Quantum: "Q1", Timeline: "T1" };
   assert.deepEqual(layoutTarget(node), layoutTarget(node));
+});
+
+test("realityShells: an empty set yields no shells", () => {
+  assert.deepEqual(realityShells([]), []);
+});
+
+test("realityShells: base-only nodes nest one shell per level, outermost first", () => {
+  // All base (Classical/Origin/Prime), so the three levels share the same member
+  // cloud: one math shell (Level IV), one universe shell (Level II) and one
+  // timeline shell (Level I). They arrive outermost-first (math, universe,
+  // timeline) so the caller paints big faint shells behind the nested ones.
+  const shells = realityShells([
+    { ID: "a", Location: "Alpha" },
+    { ID: "b", Location: "Beta" },
+    { ID: "c", Location: "Gamma" },
+  ]);
+  assert.deepEqual(shells.map((s) => s.kind), ["math", "universe", "timeline"]);
+  for (const s of shells) assert.equal(s.count, 3);
+});
+
+test("realityShells: a nested shell's radius sits inside its parent's", () => {
+  // One member cloud shared across all three levels, so the levels share a centroid
+  // and raw radius. Each parent is then grown to enclose its child by SHELL_GAP
+  // (encloseChildren), so math ⊃ universe ⊃ timeline holds by exactly one gap each.
+  const [math, universe, timeline] = realityShells([
+    { ID: "a", Location: "Alpha" },
+    { ID: "b", Location: "Beta" },
+  ]);
+  assert.ok(math.radius > universe.radius, "math shell encloses the universe shell");
+  assert.ok(universe.radius > timeline.radius, "universe shell encloses the timeline shell");
+  assert.ok(Math.abs((math.radius - universe.radius) - SHELL_GAP) < 1e-9);
+  assert.ok(Math.abs((universe.radius - timeline.radius) - SHELL_GAP) < 1e-9);
+});
+
+test("realityShells: a shell's centre is the centroid of its members' homes", () => {
+  const nodes = [{ ID: "a", Location: "Alpha" }, { ID: "b", Location: "Beta" }];
+  const homes = nodes.map((n) => layoutTarget(n));
+  const cx = (homes[0].x + homes[1].x) / 2;
+  const cy = (homes[0].y + homes[1].y) / 2;
+  const math = realityShells(nodes).find((s) => s.kind === "math");
+  assert.ok(Math.abs(math.cx - cx) < 1e-9);
+  assert.ok(Math.abs(math.cy - cy) < 1e-9);
+});
+
+test("realityShells: two universes under one structure share a math shell but split the universe shell", () => {
+  // Both nodes keep Classical maths, so there is a single math shell enclosing
+  // both; they differ by Universe, so each gets its own universe shell (and its
+  // own timeline shell, since a timeline is nested inside a universe).
+  const shells = realityShells([
+    { ID: "a", Location: "Home" },
+    { ID: "b", Location: "Home", Universe: "U1" },
+  ]);
+  const math = shells.filter((s) => s.kind === "math");
+  const universe = shells.filter((s) => s.kind === "universe");
+  const timeline = shells.filter((s) => s.kind === "timeline");
+  assert.equal(math.length, 1);
+  assert.equal(math[0].count, 2);
+  assert.equal(universe.length, 2);
+  assert.equal(timeline.length, 2);
+});
+
+test("realityShells: a quantum branch adds no shell of its own", () => {
+  // The quantum axis (Tegmark Level III) is deliberately not a shell level, so
+  // two nodes differing only by Quantum still share one shell at every level —
+  // exactly three shells, each enclosing both nodes.
+  const shells = realityShells([
+    { ID: "a", Location: "Home" },
+    { ID: "b", Location: "Home", Quantum: "Q1" },
+  ]);
+  assert.deepEqual(shells.map((s) => s.kind), ["math", "universe", "timeline"]);
+  for (const s of shells) assert.equal(s.count, 2);
+});
+
+test("realityShells: a distinct mathematical structure gets its own math shell", () => {
+  const shells = realityShells([
+    { ID: "a", Location: "Home" },
+    { ID: "b", Location: "Home", Mathematics: "M1" },
+  ]);
+  const math = shells.filter((s) => s.kind === "math");
+  assert.equal(math.length, 2);
+  assert.deepEqual(math.map((s) => s.count).sort(), [1, 1]);
+});
+
+test("realityShells is deterministic for the same nodes", () => {
+  const nodes = [
+    { ID: "a", Location: "Alpha", Universe: "U1", Timeline: "T1" },
+    { ID: "b", Location: "Beta", Quantum: "Q2" },
+  ];
+  assert.deepEqual(realityShells(nodes), realityShells(nodes));
+});
+
+test("realityShells: grows a shell to enclose the live positions it is given", () => {
+  // With a posOf that reports a node far from its layout home, the shell stretches
+  // to wrap that live position (plus padding) rather than the static home — so a
+  // shell grows to contain generated nodes wherever the layout settles them.
+  const nodes = [{ ID: "a", Location: "Home" }, { ID: "b", Location: "Home" }];
+  const live = { a: { x: 0, y: 0, z: 0 }, b: { x: 400, y: 0, z: 0 } };
+  const math = realityShells(nodes, (n) => live[n.ID]).find((s) => s.kind === "math");
+  // Centre is the midpoint (200,0); the far member sits 200 out, plus SHELL_PAD.
+  // These base-only nodes also share a nested universe and timeline shell at the
+  // same centroid, so the math shell is grown two SHELL_GAP steps to enclose them.
+  assert.ok(Math.abs(math.cx - 200) < 1e-9);
+  assert.ok(Math.abs(math.radius - (200 + SHELL_PAD + 2 * SHELL_GAP)) < 1e-9);
+});
+
+test("realityShells: an outlying universe stays inside its structure shell", () => {
+  // Two universes under one structure, one far from the structure centroid. The
+  // math shell is grown (encloseChildren) so it fully contains the distant universe
+  // shell — nesting holds by construction, not by the clusters happening to align.
+  const nodes = [{ ID: "a", Location: "Home" }, { ID: "b", Location: "Home", Universe: "U1" }];
+  const live = { a: { x: 0, y: 0, z: 0 }, b: { x: 900, y: 0, z: 0 } };
+  const shells = realityShells(nodes, (n) => live[n.ID]);
+  const math = shells.find((s) => s.kind === "math");
+  for (const u of shells.filter((s) => s.kind === "universe")) {
+    const reach = Math.hypot(u.cx - math.cx, u.cy - math.cy) + u.radius;
+    assert.ok(reach <= math.radius + 1e-9, "universe shell is fully inside the math shell");
+  }
+});
+
+// ── Shell containment / nesting invariants ───────────────────────────────────
+// The map's central promise is that no node ever renders outside its shell and no
+// shell escapes its parent. app.js secures this by computing the shells from the
+// nodes' already-projected screen positions (drawRealityShells passes a screen-
+// space resolver into realityShells), so the ring is measured from exactly where
+// the dots land. These tests exercise that contract directly: they hand
+// realityShells arbitrary positions (standing in for force-settled / projected
+// coordinates) and assert both invariants hold whatever those positions are.
+
+// keyOf mirrors shellAxisValue in logic.js: an empty/missing axis groups with its
+// base value, everything else by its own string.
+function keyOf(value, base) {
+  return value === undefined || value === null || value === "" ? String(base) : String(value);
+}
+
+// nodeShells finds the three shells a node belongs to (its math / universe /
+// timeline), matched by the same axis keys realityShells groups on.
+function nodeShells(shells, n) {
+  const m = keyOf(n.Mathematics, DEFAULTS.Mathematics);
+  const u = keyOf(n.Universe, DEFAULTS.Universe);
+  const t = keyOf(n.Timeline, DEFAULTS.Timeline);
+  return {
+    math: shells.find((s) => s.kind === "math" && s.math === m),
+    universe: shells.find((s) => s.kind === "universe" && s.math === m && s.universe === u),
+    timeline: shells.find((s) => s.kind === "timeline" && s.math === m && s.universe === u && s.timeline === t),
+  };
+}
+
+// A spread of nodes across several structures, universes and timelines (plus a
+// quantum branch that adds no shell), used by the containment/nesting tests.
+const SHELL_NODES = [
+  { ID: "n0", Location: "Home" },
+  { ID: "n1", Location: "Home", Universe: "U1" },
+  { ID: "n2", Location: "Home", Universe: "U1", Timeline: "T1" },
+  { ID: "n3", Location: "Home", Mathematics: "M1" },
+  { ID: "n4", Location: "Home", Mathematics: "M1", Universe: "U2", Timeline: "T2" },
+  { ID: "n5", Location: "Home", Quantum: "Q1" },
+];
+
+// scatter maps an index to a deterministic, widely-spread position, standing in
+// for wherever the force layout / projection happens to settle a node.
+function scatter(i) {
+  const a = (i * 2654435761) % 4096;
+  const b = (i * 40503 + 977) % 4096;
+  return { x: (a - 2048) * 0.5, y: (b - 2048) * 0.5, z: (i % 7) * 25 - 75 };
+}
+
+test("realityShells: every node sits inside each of its shells, wherever it is placed", () => {
+  const pos = new Map(SHELL_NODES.map((n, i) => [n.ID, scatter(i)]));
+  const shells = realityShells(SHELL_NODES, (n) => pos.get(n.ID));
+  for (const n of SHELL_NODES) {
+    const p = pos.get(n.ID);
+    const own = nodeShells(shells, n);
+    for (const kind of ["math", "universe", "timeline"]) {
+      const s = own[kind];
+      assert.ok(s, `node ${n.ID} has a ${kind} shell`);
+      const d = Math.hypot(p.x - s.cx, p.y - s.cy);
+      assert.ok(d <= s.radius + 1e-9, `node ${n.ID} is inside its ${kind} shell (d=${d}, r=${s.radius})`);
+    }
+  }
+});
+
+test("realityShells: every child shell is fully enclosed by its parent, wherever nodes are placed", () => {
+  const pos = new Map(SHELL_NODES.map((n, i) => [n.ID, scatter(i)]));
+  const shells = realityShells(SHELL_NODES, (n) => pos.get(n.ID));
+  const maths = shells.filter((s) => s.kind === "math");
+  const universes = shells.filter((s) => s.kind === "universe");
+  for (const u of universes) {
+    const parent = maths.find((s) => s.math === u.math);
+    assert.ok(parent, `universe shell ${u.math}/${u.universe} has a math parent`);
+    const reach = Math.hypot(u.cx - parent.cx, u.cy - parent.cy) + u.radius;
+    assert.ok(reach <= parent.radius + 1e-9, "universe shell is inside its math shell");
+  }
+  for (const t of shells.filter((s) => s.kind === "timeline")) {
+    const parent = universes.find((s) => s.math === t.math && s.universe === t.universe);
+    assert.ok(parent, `timeline shell ${t.math}/${t.universe}/${t.timeline} has a universe parent`);
+    const reach = Math.hypot(t.cx - parent.cx, t.cy - parent.cy) + t.radius;
+    assert.ok(reach <= parent.radius + 1e-9, "timeline shell is inside its universe shell");
+  }
+});
+
+test("realityShells: computed from projected screen positions, nodes stay inside their shells under rotation", () => {
+  // The exact failure the screen-space rework fixes: two universes under one
+  // structure whose nodes sit at different depths, so a flat world-space ring at
+  // one averaged depth would tip an off-depth node out under perspective. Feeding
+  // realityShells the projected screen positions (as drawRealityShells does) makes
+  // every node land inside its ring by construction, whatever the rotation.
+  const view = { rotX: 0.6, rotY: 1.1, scale: 1.4, ox: 0, oy: 0 };
+  const W = 800, H = 600;
+  const world = new Map([
+    ["a", { x: 0, y: 0, z: 0 }],
+    ["b", { x: 40, y: 20, z: 160 }],
+    ["c", { x: 300, y: 10, z: -120 }],
+    ["d", { x: 330, y: 60, z: 240 }],
+  ]);
+  const nodes = [
+    { ID: "a", Location: "Home" },
+    { ID: "b", Location: "Home" },
+    { ID: "c", Location: "Home", Universe: "U1" },
+    { ID: "d", Location: "Home", Universe: "U1" },
+  ];
+  const screen = new Map([...world].map(([id, w]) => [id, project(w, view, W, H)]));
+  const shells = realityShells(nodes, (n) => {
+    const p = screen.get(n.ID);
+    return { x: p.x, y: p.y, z: p.depth };
+  });
+  for (const n of nodes) {
+    const p = screen.get(n.ID);
+    const own = nodeShells(shells, n);
+    for (const kind of ["math", "universe", "timeline"]) {
+      const s = own[kind];
+      assert.ok(s, `node ${n.ID} has a ${kind} shell`);
+      const d = Math.hypot(p.x - s.cx, p.y - s.cy);
+      assert.ok(d <= s.radius + 1e-9, `node ${n.ID} inside its ${kind} shell on screen`);
+    }
+  }
+});
+
+test("realityShells: each shell is labelled with the reality version it denotes", () => {
+  const shells = realityShells([
+    { ID: "a", Location: "Home", Universe: "U1", Timeline: "T1", Mathematics: "M1" },
+  ]);
+  const byKind = Object.fromEntries(shells.map((s) => [s.kind, s.label]));
+  assert.equal(byKind.math, "M1");
+  assert.equal(byKind.universe, "U1");
+  assert.equal(byKind.timeline, "T1");
+});
+
+test("realityShells: a base shell's label falls back to the default reality name", () => {
+  const shells = realityShells([{ ID: "a", Location: "Home" }]);
+  const byKind = Object.fromEntries(shells.map((s) => [s.kind, s.label]));
+  assert.equal(byKind.math, DEFAULTS.Mathematics);
+  assert.equal(byKind.universe, DEFAULTS.Universe);
+  assert.equal(byKind.timeline, DEFAULTS.Timeline);
+});
+
+test("shellStyle: known kinds resolve, unknown falls back to math", () => {
+  assert.equal(shellStyle("universe"), SHELL_STYLE.universe);
+  assert.equal(shellStyle("timeline"), SHELL_STYLE.timeline);
+  assert.equal(shellStyle("nope"), SHELL_STYLE.math);
+});
+
+test("shell colours match their reality transition's edge colour", () => {
+  // A shell, the transition edges that cross it, and the legend all read the same
+  // hue: SHELL_STYLE mirrors MODE_STYLE for math, universe and timeline.
+  assert.equal(SHELL_STYLE.math.rgb, modeStyle("math").rgb);
+  assert.equal(SHELL_STYLE.universe.rgb, modeStyle("universe").rgb);
+  assert.equal(SHELL_STYLE.timeline.rgb, modeStyle("timeline").rgb);
 });
 
 const IDENTITY_VIEW = { rotX: 0, rotY: 0, scale: 1, ox: 0, oy: 0 };
