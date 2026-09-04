@@ -21,7 +21,7 @@ func TestReturnHomePlan_RecordedStackShowsDecreasingLevels(t *testing.T) {
 	require.NoError(t, err)
 	_, err = (&commands.UniverseCommand{Universe: u, Session: sess}).Execute()
 	require.NoError(t, err)
-	_, err = (&commands.StructureCommand{Universe: u, Session: sess}).Execute()
+	_, err = (&commands.MathematicalCommand{Universe: u, Session: sess}).Execute()
 	require.NoError(t, err)
 	_, err = (&commands.DriftCommand{Universe: u, Session: sess}).Execute()
 	require.NoError(t, err)
@@ -59,7 +59,7 @@ func TestReturnHomePlan_RecordedStackShowsDecreasingLevels(t *testing.T) {
 	steps, _ := cmd.Plan()
 	require.NotEmpty(t, steps)
 
-	// LIFO unwind: shift, jump, three aligns, structure, universe, simulate.
+	// LIFO unwind: shift, jump, three aligns, mathematical, universe, simulate.
 	require.Equal(t, "shift back", steps[0].Action)
 	require.Equal(t, "quantum Q1 → Q0", steps[0].Detail)
 
@@ -71,7 +71,7 @@ func TestReturnHomePlan_RecordedStackShowsDecreasingLevels(t *testing.T) {
 	require.Equal(t, "consensus 2 → 1", steps[3].Detail)
 	require.Equal(t, "consensus 1 → 0", steps[4].Detail)
 
-	require.Equal(t, "structure back", steps[5].Action)
+	require.Equal(t, "mathematical back", steps[5].Action)
 	require.Equal(t, "mathematics M1 → Classical", steps[5].Detail)
 
 	require.Equal(t, "universe back", steps[6].Action)

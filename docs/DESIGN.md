@@ -269,7 +269,7 @@ structural — it keys off edge *modes*, never off a location's name or ID.
   is the only *pre-built edge back to the surface*, and so it is the one edge
   `home` (and `FindRoute`) traverses to leave the base-reality well. It is **not**
   the only non-physical move available, though: any contextual command
-  (`shift`, `jump`, `universe`, `structure`, `simulate`, `observe`, `time`,
+  (`shift`, `jump`, `universe`, `mathematical`, `simulate`, `observe`, `time`,
   `drift`) branches the *current location* into a fresh nested reality without
   needing a pre-existing edge, so you can equally leave the well node into
   `well@Q1`, a timeline branch, and so on. Those moves go *deeper* (into a nested
@@ -309,7 +309,7 @@ honest "no route home" error instead of stranding the traveller mid-journey.
 
 ### Cost-scaled escape gamble
 
-When a *non-physical* move (drift, shift, jump, universe, structure, simulate,
+When a *non-physical* move (drift, shift, jump, universe, mathematical, simulate,
 observe, time) lands the traveller on a dead end in a **nested** reality, whether
 that reality offers a physical way out (a "ladder") is decided by a cost-scaled
 gamble in `HasPhysicalEscape`. The odds scale with the σ spent on the move that

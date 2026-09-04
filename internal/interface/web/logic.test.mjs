@@ -472,7 +472,7 @@ test("edgeWeight: cost at/over the cap saturates at the thick, opaque end", () =
 test("edgeWeight: width and alpha rise monotonically with cost", () => {
   const cheap = edgeWeight(2);       // an observe shift
   const mid = edgeWeight(500);
-  const dear = edgeWeight(50000);    // a structure jump
+  const dear = edgeWeight(50000);    // a mathematical jump
   assert.ok(cheap.width < mid.width && mid.width < dear.width);
   assert.ok(cheap.alpha < mid.alpha && mid.alpha < dear.alpha);
 });

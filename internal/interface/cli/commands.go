@@ -20,7 +20,7 @@ func (a *App) Commands() []Command {
 		{Name: cmdShift, Description: "Jump to the next quantum branch of your current location"},
 		{Name: cmdJump, Description: "Jump drive: thread a wormhole to a distant Hubble volume sharing your location's geography but not its history"},
 		{Name: cmdUniverse, Description: "Shift to the next bubble universe of your current location"},
-		{Name: cmdStructure, Description: "Shift to the next mathematical structure of your current location"},
+		{Name: cmdMathematical, Description: "Shift to the next mathematical structure of your current location"},
 		{Name: cmdSimulate, Description: "Enter the next nested simulation layer"},
 		{Name: cmdDrift, Description: "Enter the next consensus divergence"},
 		{Name: cmdAlign, Description: "Return one level toward shared consensus"},

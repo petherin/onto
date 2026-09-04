@@ -124,7 +124,7 @@ func (e *modelExplorer) dfs(u *universe.Aggregate, sess *exploration.Entity, dep
 func (e *modelExplorer) candidateMoves(u *universe.Aggregate, sess *exploration.Entity) []journeyMove {
 	moves := []journeyMove{
 		{kind: "shift"}, {kind: "jump"}, {kind: "universe"},
-		{kind: "structure"}, {kind: "simulate"}, {kind: "drift"},
+		{kind: "mathematical"}, {kind: "simulate"}, {kind: "drift"},
 		{kind: "explore"},
 	}
 	if sess.Coordinate().Observer != modelObserver {
@@ -154,8 +154,8 @@ func (e *modelExplorer) applyMove(u *universe.Aggregate, sess *exploration.Entit
 	case "universe":
 		_, err := (&commands.UniverseCommand{Universe: u, Session: sess}).Execute()
 		return err
-	case "structure":
-		_, err := (&commands.StructureCommand{Universe: u, Session: sess}).Execute()
+	case "mathematical":
+		_, err := (&commands.MathematicalCommand{Universe: u, Session: sess}).Execute()
 		return err
 	case "simulate":
 		_, err := (&commands.SimulateCommand{Universe: u, Session: sess}).Execute()

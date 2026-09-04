@@ -59,7 +59,7 @@ Other universes produced by the same inflationary process as ours, but with diff
 Every quantum event that could have gone differently spawns a parallel branch — the many-worlds interpretation. **Level III branches exist within the same physical universe as Level I regions.** You can occupy the same spatial location (Level I) in different quantum branches (Level III), each with a different history of outcomes. Physics identical, branching trajectories from quantum decisions. `shift` steps into an adjacent branch; `shift back` returns.
 
 #### Mathematical structures _(Tegmark Level IV)_
-Every self-consistent mathematical structure exists as its own reality. Different numbers of spatial dimensions, different rules of logic, laws of nature unrecognisable from ours. Each structure contains all its bubbles and all their Level I regions and Level III branches. Crossing here is not a physical journey; it is a transition into a fundamentally different formal system. `structure` moves forward into the next mathematical structure; `structure back` returns. This is the most expensive implemented transition — see the [contextual transition reference](#contextual-transition-reference).
+Every self-consistent mathematical structure exists as its own reality. Different numbers of spatial dimensions, different rules of logic, laws of nature unrecognisable from ours. Each structure contains all its bubbles and all their Level I regions and Level III branches. Crossing here is not a physical journey; it is a transition into a fundamentally different formal system. `mathematical` moves forward into the next mathematical structure; `mathematical back` returns. This is the most expensive implemented transition — see the [contextual transition reference](#contextual-transition-reference).
 
 ---
 
@@ -293,7 +293,7 @@ Every move in Onto is an edge in the same graph, but those edges come in exactly
 
 - **Physical travel** — the `travel` command (and the final leg of `home`). This is the *only* kind of movement that is **not** contextual. It moves you around the *local hierarchy* (galaxy → system → planet → country → region → city → location) **without changing any reality axis**. You stay in the same quantum branch, timeline, simulation depth, consensus level, universe, structure, and observer. These physical edges are the only ones `travel` is allowed to cross.
 
-- **Contextual transitions** — *everything else*. A contextual transition changes exactly one **non-spatial reality axis** while keeping your physical location fixed: it changes your *context*, not your whereabouts. This one label covers the whole range, from the cheap experience overlays right up to the exotic Tegmark levels: quantum branch (`shift`, Tegmark III), timeline (`jump`, a Tegmark I journey), consensus divergence (`drift` / `align`), simulation depth (`simulate`), observer / umwelt (`observe`), time (`time`), bubble universe (`universe`, Tegmark II), and mathematical structure (`structure`, Tegmark IV). Their exact costs are in the reference table below.
+- **Contextual transitions** — *everything else*. A contextual transition changes exactly one **non-spatial reality axis** while keeping your physical location fixed: it changes your *context*, not your whereabouts. This one label covers the whole range, from the cheap experience overlays right up to the exotic Tegmark levels: quantum branch (`shift`, Tegmark III), timeline (`jump`, a Tegmark I journey), consensus divergence (`drift` / `align`), simulation depth (`simulate`), observer / umwelt (`observe`), time (`time`), bubble universe (`universe`, Tegmark II), and mathematical structure (`mathematical`, Tegmark IV). Their exact costs are in the reference table below.
 
 So to answer the obvious question directly: **yes** — changing your Tegmark bubble universe or mathematical structure is contextual, and so are observer, timeline, simulation, and consensus shifts. They all share the same machinery. Physical `travel` is the one thing that is *not* contextual.
 
@@ -326,7 +326,7 @@ Contextual transitions **stack**: each one changes only its own axis and preserv
 | Time travel | `time <RFC3339>` / `time back` | Time | 100 / 100 |
 | Timeline jump | `jump` / `jump back` | Timeline / Hubble volume (Tegmark I — selects a different Level I Hubble volume; a jump drive threads a wormhole to it) | 800 / 800 |
 | Universe shift | `universe` / `universe back` | Bubble universe (Tegmark II) | 5000 / 5000 |
-| Structure shift | `structure` / `structure back` | Mathematical structure (Tegmark IV) | 50000 / 50000 |
+| Mathematical shift | `mathematical` / `mathematical back` | Mathematical structure (Tegmark IV) | 50000 / 50000 |
 
 Every transition above preserves all other axes and resets nothing on its own —
 simulation entry is the only one whose reverse costs more than its forward
@@ -361,8 +361,8 @@ jump                   Jump to the next timeline branch (cost 800)
 jump back              Return to the previous timeline branch
 universe               Shift forward to the next bubble universe (cost 5000)
 universe back          Return to the previous bubble universe
-structure              Shift forward to the next mathematical structure (cost 50000)
-structure back         Return to the previous mathematical structure
+mathematical           Shift forward to the next mathematical structure (cost 50000)
+mathematical back      Return to the previous mathematical structure
 simulate               Enter the next nested simulation layer (cost 10)
 simulate back          Exit one simulation layer toward base reality (cost 50)
 drift                  Enter the next consensus divergence (cost 5)
@@ -382,7 +382,7 @@ exit                   Leave the CLI
 
 The explorer can run as a small game. When enabled (the default for both `cmd/cli` and `cmd/web`), two rules apply on top of ordinary navigation:
 
-- **Budget.** You start with a finite spending pool (`1000` by default). Every move spends its cost against the pool — physical travel costs the sum of its edges, and each contextual transition costs the amount shown in the [contextual transition reference](#contextual-transition-reference) (e.g. `shift` 20, `jump` 800). A move you cannot afford is **refused and spends nothing**, so the session is never left half-moved. The most expensive transitions (`universe`, `structure`) are out of reach on the starting budget, so the budget is felt.
+- **Budget.** You start with a finite spending pool (`1000` by default). Every move spends its cost against the pool — physical travel costs the sum of its edges, and each contextual transition costs the amount shown in the [contextual transition reference](#contextual-transition-reference) (e.g. `shift` 20, `jump` 800). A move you cannot afford is **refused and spends nothing**, so the session is never left half-moved. The most expensive transitions (`universe`, `mathematical`) are out of reach on the starting budget, so the budget is felt.
 - **Objective.** You are given a **quest chain**: an ordered list of target coordinates, each completed as its own **round trip**. The default chain has two waypoints on different reality axes — first the second quantum branch of home (`Q2`), then one simulation layer deep (`sim:1`). You reach the current waypoint, then return home to complete that objective before the next begins. Reaching a waypoint announces the return-home step ("Objective reached — now return home to complete it."); returning home banks it and names the next ("Objective 1 of 2 complete — next: reach …"); the last return home, once every objective is done, announces "You win!". A single-objective quest is just a chain of length one.
 - **Rating.** Each quest has a **par** — the optimal cost, summed over every objective's round trip out and back (`140` for the default chain: two `shift`s out and two back for `Q2`, then `simulate` in and out for `sim:1`). On winning you earn a **1–3 star efficiency rating**: three stars for finishing at or under par, two within twice par, and one for any slower win. Par is shown from the start so you know the score to beat.
 
@@ -399,10 +399,10 @@ The app is functional. It includes:
 - a command entrypoint in `cmd/cli` (plain REPL) and a browser-based Reality Map in `cmd/web` (interactive 3D graph with reachability colouring and per-transition edge styles — see [Reality Map (browser)](#reality-map-browser))
 - the full command set listed under [Example CLI experience](#example-cli-experience)
 - BFS-based graph routing across locations with travel modes (walk, rail, etc.)
-- contextual navigation along all eight non-physical axes — quantum (`shift`), timeline (`jump`), bubble universe (`universe`), mathematical structure (`structure`), simulation depth (`simulate`), consensus divergence (`drift` / `align`), observer (`observe`), and time (`time`) — each with a paired reverse; see the [contextual transition reference](#contextual-transition-reference) for costs and behaviour
+- contextual navigation along all eight non-physical axes — quantum (`shift`), timeline (`jump`), bubble universe (`universe`), mathematical structure (`mathematical`), simulation depth (`simulate`), consensus divergence (`drift` / `align`), observer (`observe`), and time (`time`) — each with a paired reverse; see the [contextual transition reference](#contextual-transition-reference) for costs and behaviour
 - each contextual transition creates coordinate-matched physical locations and return edges, so local travel and returning remain available throughout a branch
 - `travel` rejects routes that cross any reality boundary — physical and contextual travel are kept separate
-- `home` command: shows the full plan and estimated cost to unwind every contextual axis (restore observer, align consensus, exit simulation, and reverse temporal, timeline, quantum, universe, and structure shifts), then travel back to the start location before asking for confirmation
+- `home` command: shows the full plan and estimated cost to unwind every contextual axis (restore observer, align consensus, exit simulation, and reverse temporal, timeline, quantum, universe, and mathematical shifts), then travel back to the start location before asking for confirmation
 - cumulative journey cost tracked across the session and shown in `where` output and after every move
 - an optional [game mode](#game-mode) (on by default): a finite budget that refuses unaffordable moves, an ordered multi-objective quest chain of round trips (reach each waypoint in order, returning home after each; the last return home wins), and a par-based 1–3 star efficiency rating on winning, surfaced in `where` and the browser HUD
 - a full coordinate model covering mathematical structure, universe, timeline, quantum, simulation, consensus, physical location, observer, and time
@@ -692,7 +692,7 @@ break-glass:
 6. ~~Add `home` command to return to start, unwinding all branches with confirmation.~~ ✓
 7. ~~Support consensus divergence transitions.~~ ✓ (`drift` / `align`)
 8. ~~Support universe transitions (higher-cost exotic modes).~~ ✓ (`universe` / `universe back`)
-9. ~~Support mathematical-structure transitions (Tegmark Level IV).~~ ✓ (`structure` / `structure back`)
+9. ~~Support mathematical-structure transitions (Tegmark Level IV).~~ ✓ (`mathematical` / `mathematical back`)
 10. ~~Expand navigation with simulation depth.~~ ✓ (`simulate` / `simulate back`)
 11. Evolve the CLI into a true reality navigator.
 

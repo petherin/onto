@@ -11,17 +11,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newStructureFixture() (*universe.Aggregate, *exploration.Entity) {
+func newMathematicalFixture() (*universe.Aggregate, *exploration.Entity) {
 	u := mocks.NewTestUniverse()
 	loc, _ := u.GetLocation("home")
 	sess := exploration.NewEntity("home", loc.Coordinate)
 	return u, sess
 }
 
-func TestStructureCommand_CreatesNewMathematicsLocation(t *testing.T) {
-	u, sess := newStructureFixture()
+func TestMathematicalCommand_CreatesNewMathematicsLocation(t *testing.T) {
+	u, sess := newMathematicalFixture()
 
-	cmd := &commands.StructureCommand{Universe: u, Session: sess}
+	cmd := &commands.MathematicalCommand{Universe: u, Session: sess}
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)
@@ -32,10 +32,10 @@ func TestStructureCommand_CreatesNewMathematicsLocation(t *testing.T) {
 	assert.True(t, exists, "new mathematics location should be added to universe")
 }
 
-func TestStructureCommand_AddsMathematicsEdgesBothWays(t *testing.T) {
-	u, sess := newStructureFixture()
+func TestMathematicalCommand_AddsMathematicsEdgesBothWays(t *testing.T) {
+	u, sess := newMathematicalFixture()
 
-	cmd := &commands.StructureCommand{Universe: u, Session: sess}
+	cmd := &commands.MathematicalCommand{Universe: u, Session: sess}
 	_, err := cmd.Execute()
 	require.NoError(t, err)
 
@@ -58,8 +58,8 @@ func TestStructureCommand_AddsMathematicsEdgesBothWays(t *testing.T) {
 	assert.True(t, found, "expected reverse mathematics edge from home-m1 to home")
 }
 
-func TestStructureCommand_ShiftsToExistingMathematicsLocation(t *testing.T) {
-	u, sess := newStructureFixture()
+func TestMathematicalCommand_ShiftsToExistingMathematicsLocation(t *testing.T) {
+	u, sess := newMathematicalFixture()
 
 	m1Coord := universe.DefaultCoordinateVO()
 	m1Coord.Mathematics = "M1"
@@ -68,7 +68,7 @@ func TestStructureCommand_ShiftsToExistingMathematicsLocation(t *testing.T) {
 	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home-m1", To: "home", Mode: universe.MathematicalShift, Cost: universe.MathematicalShiftCost}))
 
 	initialEdgeCount := len(u.EdgesFrom("home"))
-	cmd := &commands.StructureCommand{Universe: u, Session: sess}
+	cmd := &commands.MathematicalCommand{Universe: u, Session: sess}
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)
@@ -76,15 +76,15 @@ func TestStructureCommand_ShiftsToExistingMathematicsLocation(t *testing.T) {
 	assert.Equal(t, initialEdgeCount, len(u.EdgesFrom("home")), "no new edges expected when location already exists")
 }
 
-func TestStructureCommand_MathematicsIncrements(t *testing.T) {
-	u, _ := newStructureFixture()
+func TestMathematicalCommand_MathematicsIncrements(t *testing.T) {
+	u, _ := newMathematicalFixture()
 
 	m1Coord := universe.DefaultCoordinateVO()
 	m1Coord.Mathematics = "M1"
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-m1", Name: "Home (M1)", Coordinate: m1Coord}))
 	sess := exploration.NewEntity("home-m1", m1Coord)
 
-	cmd := &commands.StructureCommand{Universe: u, Session: sess}
+	cmd := &commands.MathematicalCommand{Universe: u, Session: sess}
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)
@@ -92,10 +92,10 @@ func TestStructureCommand_MathematicsIncrements(t *testing.T) {
 	assert.Equal(t, "home-m2", result.Location.ID)
 }
 
-func TestStructureCommand_UpdatesSession(t *testing.T) {
-	u, sess := newStructureFixture()
+func TestMathematicalCommand_UpdatesSession(t *testing.T) {
+	u, sess := newMathematicalFixture()
 
-	cmd := &commands.StructureCommand{Universe: u, Session: sess}
+	cmd := &commands.MathematicalCommand{Universe: u, Session: sess}
 	_, err := cmd.Execute()
 
 	require.NoError(t, err)
@@ -104,10 +104,10 @@ func TestStructureCommand_UpdatesSession(t *testing.T) {
 	assert.Equal(t, universe.MathematicalShiftCost, sess.CumulativeCost())
 }
 
-// ── Structure back ──────────────────────────────────────────────────────────
+// ── Mathematical back ───────────────────────────────────────────────────────
 
-func TestStructureBack_ReturnsToLowerBranch(t *testing.T) {
-	u, _ := newStructureFixture()
+func TestMathematicalBack_ReturnsToLowerBranch(t *testing.T) {
+	u, _ := newMathematicalFixture()
 
 	m1Coord := universe.DefaultCoordinateVO()
 	m1Coord.Mathematics = "M1"
@@ -115,7 +115,7 @@ func TestStructureBack_ReturnsToLowerBranch(t *testing.T) {
 	require.NoError(t, u.AddEdge(universe.EdgeVO{From: "home-m1", To: "home", Mode: universe.MathematicalShift, Cost: universe.MathematicalShiftCost}))
 	sess := exploration.NewEntity("home-m1", m1Coord)
 
-	cmd := &commands.StructureCommand{Universe: u, Session: sess, Back: true}
+	cmd := &commands.MathematicalCommand{Universe: u, Session: sess, Back: true}
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)
@@ -125,24 +125,24 @@ func TestStructureBack_ReturnsToLowerBranch(t *testing.T) {
 	assert.Equal(t, "home", sess.Location())
 }
 
-func TestStructureBack_AtBaseLevel_ReturnsError(t *testing.T) {
-	u, sess := newStructureFixture()
+func TestMathematicalBack_AtBaseLevel_ReturnsError(t *testing.T) {
+	u, sess := newMathematicalFixture()
 
-	cmd := &commands.StructureCommand{Universe: u, Session: sess, Back: true}
+	cmd := &commands.MathematicalCommand{Universe: u, Session: sess, Back: true}
 	_, err := cmd.Execute()
 
 	require.ErrorIs(t, err, commands.ErrAlreadyAtBaseMathematics)
 }
 
-func TestStructureBack_NoReverseEdge_BackfillsPath(t *testing.T) {
-	u, _ := newStructureFixture()
+func TestMathematicalBack_NoReverseEdge_BackfillsPath(t *testing.T) {
+	u, _ := newMathematicalFixture()
 
 	m1Coord := universe.DefaultCoordinateVO()
 	m1Coord.Mathematics = "M1"
 	require.NoError(t, u.AddLocation(universe.LocationEntity{ID: "home-m1", Name: "Home (M1)", Coordinate: m1Coord}))
 	sess := exploration.NewEntity("home-m1", m1Coord)
 
-	cmd := &commands.StructureCommand{Universe: u, Session: sess, Back: true}
+	cmd := &commands.MathematicalCommand{Universe: u, Session: sess, Back: true}
 	result, err := cmd.Execute()
 
 	require.NoError(t, err)

@@ -531,11 +531,11 @@ func (a *App) dispatch(input string) string {
 			return a.UniverseBack()
 		}
 		return a.Universe()
-	case "structure":
+	case "mathematical":
 		if args == "back" {
-			return a.StructureBack()
+			return a.MathematicalBack()
 		}
-		return a.Structure()
+		return a.Mathematical()
 	case "simulate":
 		if args == "back" {
 			return a.SimulateBack()

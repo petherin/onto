@@ -328,7 +328,7 @@ func (c *ReturnHomeCommand) unwind(mode universe.TravelModeVO) error {
 		_, err := (&UniverseCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		return err
 	case universe.MathematicalShift:
-		_, err := (&StructureCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
+		_, err := (&MathematicalCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
 		return err
 	case universe.TimeShift:
 		_, err := (&TimeCommand{Universe: c.Universe, Session: c.Session, Back: true}).Execute()
@@ -352,7 +352,7 @@ func returnAction(mode universe.TravelModeVO) string {
 	case universe.UniverseShift:
 		return "universe back"
 	case universe.MathematicalShift:
-		return "structure back"
+		return "mathematical back"
 	case universe.TimeShift:
 		return "time back"
 	}

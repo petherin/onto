@@ -12,21 +12,21 @@ type JourneyKind int
 
 // Journey kind constants classify each numbered option shown to the player.
 const (
-	JourneyTravel        JourneyKind = iota // physical travel to an adjacent location
-	JourneyShift                            // advance to the next quantum branch
-	JourneyShiftBack                        // return to the previous quantum branch
-	JourneyJump                             // jump drive: thread a wormhole to a distant Hubble volume (timeline)
-	JourneyJumpBack                         // return to the previous Hubble volume
-	JourneyUniverse                         // shift to the next bubble universe
-	JourneyUniverseBack                     // return to the previous bubble universe
-	JourneyStructure                        // shift to the next mathematical structure
-	JourneyStructureBack                    // return to the previous mathematical structure
-	JourneySimulate                         // enter the next nested simulation layer
-	JourneySimulateBack                     // exit one simulation layer toward base reality
-	JourneyDrift                            // enter the next consensus divergence
-	JourneyAlign                            // return one level toward shared consensus
-	JourneyObserveBack                      // restore the previous observer perspective
-	JourneyTimeBack                         // return through the temporal branch
+	JourneyTravel           JourneyKind = iota // physical travel to an adjacent location
+	JourneyShift                               // advance to the next quantum branch
+	JourneyShiftBack                           // return to the previous quantum branch
+	JourneyJump                                // jump drive: thread a wormhole to a distant Hubble volume (timeline)
+	JourneyJumpBack                            // return to the previous Hubble volume
+	JourneyUniverse                            // shift to the next bubble universe
+	JourneyUniverseBack                        // return to the previous bubble universe
+	JourneyMathematical                        // shift to the next mathematical structure
+	JourneyMathematicalBack                    // return to the previous mathematical structure
+	JourneySimulate                            // enter the next nested simulation layer
+	JourneySimulateBack                        // exit one simulation layer toward base reality
+	JourneyDrift                               // enter the next consensus divergence
+	JourneyAlign                               // return one level toward shared consensus
+	JourneyObserveBack                         // restore the previous observer perspective
+	JourneyTimeBack                            // return through the temporal branch
 )
 
 // JourneyOption is a single numbered journey the player can take from the
@@ -117,7 +117,7 @@ func (a *App) JourneyOptions(edges []universe.EdgeVO) ([]JourneyOption, bool) {
 
 	// Contextual transitions are listed cheapest-first by forward cost, each
 	// forward option immediately followed by its return: drift (5), simulate
-	// (10), shift (20), jump (800), universe (5,000), structure (50,000). The
+	// (10), shift (20), jump (800), universe (5,000), mathematical (50,000). The
 	// observer (2) and time (100) affordances are back-only here and trail the
 	// branch group.
 	options = append(options, JourneyOption{Kind: JourneyDrift, Description: fmt.Sprintf("%s (consensus divergence, %.0f — drift)", a.session.NextConsensusID(), universe.ConsensusShiftCost)})
@@ -140,9 +140,9 @@ func (a *App) JourneyOptions(edges []universe.EdgeVO) ([]JourneyOption, bool) {
 	if hasReverseUniverse {
 		options = append(options, JourneyOption{Kind: JourneyUniverseBack, Description: "Return to the previous bubble universe (universe back)"})
 	}
-	options = append(options, JourneyOption{Kind: JourneyStructure, Description: fmt.Sprintf("%s (mathematics, %.0f — structure)", a.session.NextMathematicsID(), universe.MathematicalShiftCost)})
+	options = append(options, JourneyOption{Kind: JourneyMathematical, Description: fmt.Sprintf("%s (mathematics, %.0f — mathematical)", a.session.NextMathematicsID(), universe.MathematicalShiftCost)})
 	if hasReverseMathematics {
-		options = append(options, JourneyOption{Kind: JourneyStructureBack, Description: "Return to the previous mathematical structure (structure back)"})
+		options = append(options, JourneyOption{Kind: JourneyMathematicalBack, Description: "Return to the previous mathematical structure (mathematical back)"})
 	}
 	if hasReverseObserver {
 		options = append(options, JourneyOption{Kind: JourneyObserveBack, Description: "Return to the previous observer perspective (observe back)"})
@@ -175,10 +175,10 @@ func (a *App) ExecuteJourney(number int) string {
 		return a.Universe()
 	case JourneyUniverseBack:
 		return a.UniverseBack()
-	case JourneyStructure:
-		return a.Structure()
-	case JourneyStructureBack:
-		return a.StructureBack()
+	case JourneyMathematical:
+		return a.Mathematical()
+	case JourneyMathematicalBack:
+		return a.MathematicalBack()
 	case JourneySimulate:
 		return a.Simulate()
 	case JourneySimulateBack:

@@ -46,7 +46,7 @@ func (a *App) Travel(target string) string {
 				return fmt.Sprintf("%s is a bubble universe — use 'universe' to enter it", target)
 			}
 			if norm == a.session.NextMathematicsID() {
-				return fmt.Sprintf("%s is a mathematical structure — use 'structure' to enter it", target)
+				return fmt.Sprintf("%s is a mathematical structure — use 'mathematical' to enter it", target)
 			}
 			if norm == a.session.NextSimulationID() {
 				return fmt.Sprintf("%s is a nested simulation — use 'simulate' to enter it", target)
@@ -184,32 +184,32 @@ func (a *App) UniverseBack() string {
 	return a.formatUniverseResult(result)
 }
 
-// Structure shifts the session to the next mathematical structure of the current location.
-func (a *App) Structure() string {
-	if msg, ok := a.afford("shift structure", universe.MathematicalShiftCost); !ok {
+// Mathematical shifts the session to the next mathematical structure of the current location.
+func (a *App) Mathematical() string {
+	if msg, ok := a.afford("shift mathematical", universe.MathematicalShiftCost); !ok {
 		return msg
 	}
-	cmd := &commands.StructureCommand{Universe: a.univ, Session: a.session}
+	cmd := &commands.MathematicalCommand{Universe: a.univ, Session: a.session}
 	result, err := cmd.Execute()
 	if result == nil {
 		return fmt.Sprintf("Mathematical structure shift failed: %v", err)
 	}
 	a.markDirty()
-	return a.maybeGenerateEscape(result.Location, universe.MathematicalShiftCost, a.formatStructureResult(result))
+	return a.maybeGenerateEscape(result.Location, universe.MathematicalShiftCost, a.formatMathematicalResult(result))
 }
 
-// StructureBack returns the session to the previous mathematical structure.
-func (a *App) StructureBack() string {
-	if msg, ok := a.afford("shift structure back", universe.MathematicalShiftCost); !ok {
+// MathematicalBack returns the session to the previous mathematical structure.
+func (a *App) MathematicalBack() string {
+	if msg, ok := a.afford("shift mathematical back", universe.MathematicalShiftCost); !ok {
 		return msg
 	}
-	cmd := &commands.StructureCommand{Universe: a.univ, Session: a.session, Back: true}
+	cmd := &commands.MathematicalCommand{Universe: a.univ, Session: a.session, Back: true}
 	result, err := cmd.Execute()
 	if result == nil {
 		return fmt.Sprintf("Cannot return to previous mathematical structure: %v", err)
 	}
 	a.markDirty()
-	return a.formatStructureResult(result)
+	return a.formatMathematicalResult(result)
 }
 
 // Simulate enters the next nested simulation layer of the current location.

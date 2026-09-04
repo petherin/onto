@@ -149,7 +149,7 @@ The application layer in `internal/application/` contains use cases, not busines
 - `ShiftCommand` — calls `BranchQuantum`, moves the session, accumulates quantum shift cost, saves.
 - `JumpCommand` — calls `BranchTimeline`, moves the session, accumulates timeline shift cost, saves.
 - `UniverseCommand` — calls `BranchUniverse`, moves the session, accumulates bubble-universe shift cost, saves.
-- `StructureCommand` — calls `BranchMathematics`, moves the session, accumulates mathematical-structure shift cost, saves.
+- `MathematicalCommand` — calls `BranchMathematics`, moves the session, accumulates mathematical-structure shift cost, saves.
 - `SimulateCommand` — calls `BranchSimulation`, moves the session, accumulates simulation entry/exit cost, saves.
 - `DriftCommand` — calls `BranchConsensus`, moves the session, accumulates consensus-transition cost, saves.
 - `ObserveCommand` — calls `BranchObserver`, moves the session, accumulates observer-shift cost, saves.

@@ -291,7 +291,7 @@ func (s *Entity) MathematicsLevel() int {
 	return s.currentCoordinate.MathematicsLevel()
 }
 
-// NextMathematicsID returns the location ID that 'structure' would move to
+// NextMathematicsID returns the location ID that 'mathematical' would move to
 // from the current position, canonicalized (see NextQuantumID).
 func (s *Entity) NextMathematicsID() string {
 	return universe.CanonicalIDWithMathematics(s.currentLocation, s.MathematicsLevel()+1)

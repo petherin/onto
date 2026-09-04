@@ -42,7 +42,7 @@ func (a *App) suggestDestination(target string) string {
 
 var allCommands = []string{
 	"help", "where", "look", "ls", "route", "travel", "home", "cost",
-	"shift", "jump", "universe", "structure", "simulate", "drift", "align",
+	"shift", "jump", "universe", "mathematical", "simulate", "drift", "align",
 	"observe", "time", "save", "exit",
 }
 

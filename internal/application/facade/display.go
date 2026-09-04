@@ -122,7 +122,7 @@ func (a *App) formatUniverseResult(r *commands.UniverseResult) string {
 	)
 }
 
-func (a *App) formatStructureResult(r *commands.StructureResult) string {
+func (a *App) formatMathematicalResult(r *commands.MathematicalResult) string {
 	verb := "Mathematical structure entered"
 	if r.Reversed {
 		verb = "Mathematical structure exited"

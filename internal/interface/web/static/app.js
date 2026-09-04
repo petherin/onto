@@ -1745,7 +1745,7 @@ window.addEventListener("keydown", (e) => {
   const el = document.getElementById("legend-shells");
   if (!el) return;
   const rows = [
-    { kind: "math", label: "structure", level: "IV" },
+    { kind: "math", label: "mathematical", level: "IV" },
     { kind: "universe", label: "universe", level: "II" },
     { kind: "timeline", label: "timeline", level: "I" },
   ];

@@ -8,14 +8,14 @@ import (
 	"github.com/petherin/onto/internal/domain/universe"
 )
 
-// Sentinel errors for StructureCommand. Callers may use errors.Is for precise handling.
+// Sentinel errors for MathematicalCommand. Callers may use errors.Is for precise handling.
 var (
 	ErrAlreadyAtBaseMathematics = errors.New("already at base mathematical structure (Classical) — cannot go back further")
 	ErrNoMathematicsPathBack    = errors.New("no mathematical-structure path back from here")
 )
 
-// StructureResult is the value returned by a successful StructureCommand execution.
-type StructureResult struct {
+// MathematicalResult is the value returned by a successful MathematicalCommand execution.
+type MathematicalResult struct {
 	NextMathematics string
 	Location        universe.LocationEntity
 	Edges           []universe.EdgeVO
@@ -23,34 +23,34 @@ type StructureResult struct {
 	Reversed        bool // true when shifting back to a lower mathematical level
 }
 
-// StructureCommand moves the session to the next (or previous) mathematical
+// MathematicalCommand moves the session to the next (or previous) mathematical
 // structure of the current location, creating the branch if it does not yet exist.
-type StructureCommand struct {
+type MathematicalCommand struct {
 	Universe *universe.Aggregate
 	Session  *exploration.Entity
 	Back     bool // if true, traverse the reverse math edge instead of creating a new branch
 }
 
-// Execute runs the command. It delegates to structureForward or structureBack
+// Execute runs the command. It delegates to mathematicalForward or mathematicalBack
 // depending on the Back flag.
-func (c *StructureCommand) Execute() (*StructureResult, error) {
+func (c *MathematicalCommand) Execute() (*MathematicalResult, error) {
 	if c.Back {
-		return c.structureBack()
+		return c.mathematicalBack()
 	}
-	return c.structureForward()
+	return c.mathematicalForward()
 }
 
-func (c *StructureCommand) structureForward() (*StructureResult, error) {
+func (c *MathematicalCommand) mathematicalForward() (*MathematicalResult, error) {
 	nextM := fmt.Sprintf("M%d", c.Session.MathematicsLevel()+1)
 	destID := c.Session.NextMathematicsID()
 	currentName := locationName(c.Universe, c.Session.Location())
 	if err := universe.BranchMathematics(c.Universe, c.Session.Location(), c.Session.Coordinate(), currentName, destID, nextM); err != nil {
 		return nil, err
 	}
-	return c.completeStructure(destID, nextM, false)
+	return c.completeMathematical(destID, nextM, false)
 }
 
-func (c *StructureCommand) structureBack() (*StructureResult, error) {
+func (c *MathematicalCommand) mathematicalBack() (*MathematicalResult, error) {
 	if c.Session.MathematicsLevel() == 0 {
 		return nil, ErrAlreadyAtBaseMathematics
 	}
@@ -63,14 +63,14 @@ func (c *StructureCommand) structureBack() (*StructureResult, error) {
 	if !ok {
 		return nil, ErrNoMathematicsPathBack
 	}
-	return c.completeStructure(dest.ID, dest.Coordinate.Mathematics, true)
+	return c.completeMathematical(dest.ID, dest.Coordinate.Mathematics, true)
 }
 
-func (c *StructureCommand) completeStructure(destID, nextMathematics string, reversed bool) (*StructureResult, error) {
+func (c *MathematicalCommand) completeMathematical(destID, nextMathematics string, reversed bool) (*MathematicalResult, error) {
 	loc, _ := c.Universe.GetLocation(destID)
 	c.Session.TransitionTo(loc, universe.MathematicalShiftCost, universe.MathematicalShift, reversed)
 
-	result := &StructureResult{
+	result := &MathematicalResult{
 		NextMathematics: nextMathematics,
 		Location:        loc,
 		Edges:           c.Universe.EdgesFrom(destID),

@@ -309,7 +309,7 @@ export const TRANSITIONS = [
   { mode: "quantum",    axis: "Quantum",     label: "quantum",    command: "shift",     cost: "20 / hop",       costValue: 20,
     what: "A neighbouring quantum branch: almost identical, but something is subtly different (Everett many-worlds).",
     refs: [{ label: "Many-worlds interpretation", url: "https://en.wikipedia.org/wiki/Many-worlds_interpretation" }] },
-  { mode: "math",       axis: "Mathematics", label: "structure",  command: "structure", cost: "50,000 / hop",   costValue: 50000,
+  { mode: "maths",       axis: "Mathematics", label: "mathematical", command: "mathematical", cost: "50,000 / hop",   costValue: 50000,
     what: "A different mathematical structure — dimensions, logic, or physical law need not match (Tegmark Level IV).",
     refs: [{ label: "Mathematical universe hypothesis", url: "https://en.wikipedia.org/wiki/Mathematical_universe_hypothesis" }] },
   { mode: "simulation", axis: "Simulation",  label: "simulation", command: "simulate",  cost: "10 in · 50 out", costValue: 10,

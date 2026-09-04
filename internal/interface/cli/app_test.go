@@ -179,30 +179,30 @@ func TestAppUniverseAndBack(t *testing.T) {
 	assert.Equal(t, "home", app.app.SessionEntity().Location())
 }
 
-func TestAppStructure_CreatesMathematicsBranch(t *testing.T) {
+func TestAppMathematical_CreatesMathematicsBranch(t *testing.T) {
 	app := newTestApp(t)
-	output := app.Execute("structure")
+	output := app.Execute("mathematical")
 
 	assert.Contains(t, output, "M1")
 	assert.Contains(t, output, "Mathematical structure entered")
 }
 
-func TestAppStructure_UpdatesLocation(t *testing.T) {
+func TestAppMathematical_UpdatesLocation(t *testing.T) {
 	app := newTestApp(t)
-	app.Execute("structure")
+	app.Execute("mathematical")
 	output := app.Execute("where")
 
 	assert.Contains(t, output, "home-m1")
 	assert.Contains(t, output, "Mathematics: M1")
 }
 
-func TestAppStructureAndBack(t *testing.T) {
+func TestAppMathematicalAndBack(t *testing.T) {
 	app := newTestApp(t)
 
-	structureOutput := app.Execute("structure")
-	assert.Contains(t, structureOutput, "Mathematical structure entered: M1")
+	mathematicalOutput := app.Execute("mathematical")
+	assert.Contains(t, mathematicalOutput, "Mathematical structure entered: M1")
 
-	backOutput := app.Execute("structure back")
+	backOutput := app.Execute("mathematical back")
 	assert.Contains(t, backOutput, "Mathematical structure exited: Classical")
 	assert.Equal(t, "home", app.app.SessionEntity().Location())
 }
@@ -329,13 +329,13 @@ func TestGoHome_UnwindsUniverseTransition(t *testing.T) {
 
 func TestGoHome_UnwindsMathematicsTransition(t *testing.T) {
 	app := newTestApp(t)
-	app.Execute("structure")
+	app.Execute("mathematical")
 
 	plan := app.GoHome()
-	assert.Contains(t, plan, "structure back")
+	assert.Contains(t, plan, "mathematical back")
 
 	result := app.GoHomeConfirm()
-	assert.Contains(t, result, "structure back")
+	assert.Contains(t, result, "mathematical back")
 	assert.Equal(t, "home", app.app.SessionEntity().Location())
 	assert.Equal(t, 0, app.app.SessionEntity().MathematicsLevel())
 }
@@ -635,13 +635,13 @@ func TestTravel_ToUniverseBranchID_SuggestsUniverse(t *testing.T) {
 	assert.Contains(t, output, "universe")
 }
 
-func TestTravel_ToMathematicsBranchID_SuggestsStructure(t *testing.T) {
+func TestTravel_ToMathematicsBranchID_SuggestsMathematical(t *testing.T) {
 	t.Setenv("ONTO_DATA_FILE", filepath.Join(t.TempDir(), "locations.json"))
 	app := newTestApp(t)
 	// home-m1 doesn't exist yet; it's the next mathematical structure.
 	output := app.Execute("travel home-m1")
 
-	assert.Contains(t, output, "structure")
+	assert.Contains(t, output, "use 'mathematical'")
 }
 
 func TestTravel_ToSimulationBranchID_SuggestsSimulate(t *testing.T) {
@@ -690,14 +690,14 @@ func TestUniverse_BranchHasContextualPhysicalDestinations(t *testing.T) {
 	assert.Contains(t, output, "Station (U1)")
 }
 
-func TestStructure_BranchHasContextualPhysicalDestinations(t *testing.T) {
+func TestMathematical_BranchHasContextualPhysicalDestinations(t *testing.T) {
 	app := newTestApp(t)
-	app.Execute("structure")
+	app.Execute("mathematical")
 	output := app.Execute("ls")
 
 	assert.Contains(t, output, "walk")
 	assert.Contains(t, output, "Station (M1)")
-	assert.Contains(t, output, "— structure)")
+	assert.Contains(t, output, "— mathematical)")
 }
 
 func TestSimulate_BranchHasContextualPhysicalDestinations(t *testing.T) {

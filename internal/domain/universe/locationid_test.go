@@ -37,12 +37,12 @@ func TestCanonicalIDs_OrderIndependent(t *testing.T) {
 			b:    CanonicalIDWithUniverse(CanonicalIDWithTimeline("home", 1), 1),
 		},
 		{
-			name: "structure then universe vs universe then structure",
+			name: "mathematical then universe vs universe then mathematical",
 			a:    CanonicalIDWithUniverse(CanonicalIDWithMathematics("home", 1), 1),
 			b:    CanonicalIDWithMathematics(CanonicalIDWithUniverse("home", 1), 1),
 		},
 		{
-			name: "structure then shift vs shift then structure",
+			name: "mathematical then shift vs shift then mathematical",
 			a:    CanonicalIDWithQuantum(CanonicalIDWithMathematics("home", 1), 1),
 			b:    CanonicalIDWithMathematics(CanonicalIDWithQuantum("home", 1), 1),
 		},
