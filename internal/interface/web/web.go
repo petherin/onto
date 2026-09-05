@@ -59,12 +59,19 @@ func (s *Server) Handler() http.Handler {
 	if err != nil {
 		log.Fatalf("web: embed static: %v", err)
 	}
+	// The API routes live on their own mux so the "/" file server can't shadow
+	// them: method-in-pattern routing lets ServeMux answer a wrong-method /api
+	// request with 405, but only when no catch-all (the file server) also
+	// matches the path — hence the dedicated sub-mux mounted at "/api/".
+	api := http.NewServeMux()
+	api.HandleFunc("GET /api/state", s.handleState)
+	api.HandleFunc("POST /api/execute", s.handleExecute)
+	api.HandleFunc("POST /api/save", s.handleSave)
+	api.HandleFunc("POST /api/reset", s.handleReset)
+
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.FS(sub)))
-	mux.HandleFunc("/api/state", s.handleState)
-	mux.HandleFunc("/api/execute", s.handleExecute)
-	mux.HandleFunc("/api/save", s.handleSave)
-	mux.HandleFunc("/api/reset", s.handleReset)
+	mux.Handle("/api/", api)
 	return corsMiddleware(mux)
 }
 
@@ -121,19 +128,7 @@ func (s *Server) handleState(w http.ResponseWriter, _ *http.Request) {
 	s.writeState(w, "")
 }
 
-// requirePost writes a 405 and returns false when the request is not a POST.
-func requirePost(w http.ResponseWriter, r *http.Request) bool {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST required", http.StatusMethodNotAllowed)
-		return false
-	}
-	return true
-}
-
 func (s *Server) handleExecute(w http.ResponseWriter, r *http.Request) {
-	if !requirePost(w, r) {
-		return
-	}
 	var body struct {
 		Command string `json:"command"`
 	}
@@ -146,10 +141,7 @@ func (s *Server) handleExecute(w http.ResponseWriter, r *http.Request) {
 	s.writeState(w, s.execute(body.Command))
 }
 
-func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
-	if !requirePost(w, r) {
-		return
-	}
+func (s *Server) handleSave(w http.ResponseWriter, _ *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.app.SaveIfDirty(); err != nil {
@@ -162,10 +154,7 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 // handleReset performs a full server-side reset back to the starting map,
 // discarding every branch reality transitions created. It also clears any
 // pending home confirmation, since the session is being returned to base.
-func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
-	if !requirePost(w, r) {
-		return
-	}
+func (s *Server) handleReset(w http.ResponseWriter, _ *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.awaitingHomeConfirm = false
