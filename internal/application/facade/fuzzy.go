@@ -65,8 +65,8 @@ func (a *App) suggestCommand(input string) string {
 	return ""
 }
 
-// AllCommandNames returns every top-level command name. Exported for the CLI
-// tab-completer.
+// AllCommandNames returns every top-level command name. It is a
+// presentation-neutral list; the CLI tab-completer is one consumer.
 func AllCommandNames() []string {
 	return allCommands
 }

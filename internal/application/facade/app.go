@@ -18,26 +18,28 @@ import (
 const AppVersion = "Onto Explorer v0.1"
 
 // SessionEntity returns the underlying exploration session.
-// Intended for test introspection and web state access.
+// Intended for test introspection.
 func (a *App) SessionEntity() *exploration.Entity { return a.session }
 
 // Aggregate returns the underlying universe aggregate.
-// Intended for test introspection and web state access.
+// Intended for test introspection.
 func (a *App) Aggregate() *universe.Aggregate { return a.univ }
 
 // IsDirty reports whether unsaved mutations exist.
 func (a *App) IsDirty() bool { return a.dirty }
 
-// Prompt returns the context-aware CLI prompt string.
-func (a *App) Prompt() string {
+// LocationLabel returns the current location's short onto address without the
+// "onto://" scheme (for example "Leeds/Home" or "Q1/Leeds/Home"). It is a
+// presentation-neutral label: the CLI wraps it in its "[…] > " prompt and the
+// web sends it to the browser as-is.
+func (a *App) LocationLabel() string {
 	addr := a.session.Coordinate().ShortOntoAddress()
-	addr = addr[len("onto://"):]
-	return fmt.Sprintf("[%s] > ", addr)
+	return addr[len("onto://"):]
 }
 
 // PhysicalDestinationIDs returns the IDs of locations reachable by physical
-// travel from the current location, in the same physical reality slice.
-// Used by the CLI tab-completer.
+// travel from the current location, in the same physical reality slice. It is
+// a presentation-neutral query; the CLI tab-completer is one consumer.
 func (a *App) PhysicalDestinationIDs() []string {
 	current := a.session.Coordinate()
 	var ids []string

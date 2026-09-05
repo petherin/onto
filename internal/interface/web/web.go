@@ -42,7 +42,6 @@ type Server struct {
 // stateDTO is the JSON payload returned to the browser after every request.
 type stateDTO struct {
 	Version             string                 `json:"version"`
-	Prompt              string                 `json:"prompt"`
 	Look                string                 `json:"look"`
 	Response            string                 `json:"response"`
 	Dirty               bool                   `json:"dirty"`
@@ -209,7 +208,6 @@ func (s *Server) execute(line string) string {
 func (s *Server) writeState(w http.ResponseWriter, response string) {
 	dto := stateDTO{
 		Version:             facade.AppVersion,
-		Prompt:              s.app.Prompt(),
 		Look:                s.app.Look(),
 		Response:            response,
 		Dirty:               s.app.IsDirty(),

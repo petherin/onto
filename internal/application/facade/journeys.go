@@ -38,7 +38,8 @@ type JourneyOption struct {
 }
 
 // JourneyOptions builds the ordered list of possible journeys from a set of
-// outgoing edges. Exported so the CLI completer and REPL can reuse it. It is two
+// outgoing edges. It backs the journey menu and numbered-journey dispatch, and
+// is exported for test introspection. It is two
 // flat switches over the fixed set of transition axes — detect which reverse
 // affordances exist, then emit options cheapest-first — so funlen is silenced;
 // collapsing the per-axis cases would need level accessors that do not exist and

@@ -27,8 +27,8 @@ const MaxStars = 3
 // next objective (in a multi-step chain) or, on the last, the win banner with
 // its rating. doneBefore/reachedBefore/wonBefore capture the completed-objective
 // count, current-objective-reached flag, and win state before the action.
-// Delivery mechanisms that move the session outside Execute (e.g. the two-step
-// home confirmation) call this too.
+// It is also appended by GoHomeConfirm, which moves the session outside Execute
+// (the two-step home confirmation).
 func (a *App) goalBanner(doneBefore int, reachedBefore, wonBefore bool) string {
 	var b strings.Builder
 	doneNow := a.session.ObjectiveIndex()

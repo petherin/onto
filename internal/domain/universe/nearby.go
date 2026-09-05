@@ -159,8 +159,8 @@ func HasPhysicalExit(u *Aggregate, id string) bool {
 // move: cheap transitions (an observer shift at 2 σ) rarely pay off, while
 // expensive ones (a mathematical-structure jump at 50000 σ) almost always do —
 // so the traveller gambles more σ for better odds of escaping. Costs span a
-// wide range, so the cost→probability mapping is logarithmic (see edgeWeight in
-// the web layer for the same reasoning), clamped to [EscapeCostMin, EscapeCostMax].
+// wide range, so the cost→probability mapping is logarithmic, clamped to
+// [EscapeCostMin, EscapeCostMax].
 const (
 	EscapeCostMin = ObserverShiftCost     // cheapest transition (2 σ) → EscapeProbMin
 	EscapeCostMax = MathematicalShiftCost // dearest transition (50000 σ) → EscapeProbMax
