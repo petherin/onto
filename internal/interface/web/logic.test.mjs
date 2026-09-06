@@ -21,6 +21,10 @@ import {
   TRAVEL_SOUND,
   sessionMoved,
   detectTransition,
+  transitionIntensity,
+  dramaSpec,
+  impactVoices,
+  SHATTER_MIN_INTENSITY,
   TRANSITIONS,
   TRANSITIONS_BY_COST,
   TRANSITION_LEGEND,
@@ -266,6 +270,67 @@ test("detectTransition prefers the most-exotic axis when several change", () => 
   // Universe is checked before Quantum, so it wins.
   const next = { Universe: "Alt", Quantum: "Q1" };
   assert.equal(detectTransition(base, next), "universe");
+});
+
+test("detectTransition names the mathematical axis with the shared 'math' mode", () => {
+  // Regression: the mode string detectTransition returns must match the key the
+  // style, effect, and sound tables use (all "math"), so a structure jump gets
+  // its own teal grid + crystal chord instead of falling back to the ripple and
+  // the default tone. The bug was a "maths" typo in the TRANSITIONS entry.
+  const base = { Mathematics: "Classical" };
+  const mode = detectTransition(base, { ...base, Mathematics: "NonEuclidean" });
+  assert.equal(mode, "math");
+  assert.equal(effectSpec(mode).kind, "grid");
+  assert.equal(soundSpec(mode).voices, SOUND_SPEC.math);
+  assert.notEqual(modeStyle(mode), DEFAULT_MODE_STYLE);
+});
+
+test("transitionIntensity rises with cost, is 0 for the cheapest, 1 for the dearest", () => {
+  // Log-scaled drama: the cheapest transition (observer, 2 σ) sits at 0 and the
+  // dearest (mathematical, 50,000 σ) at 1, with the rest strictly increasing by
+  // cost in between, so shake/storm/sound all track what a move costs.
+  assert.equal(transitionIntensity("observer"), 0);
+  assert.equal(transitionIntensity("math"), 1);
+  const ordered = ["observer", "consensus", "simulation", "quantum", "time", "timeline", "universe", "math"];
+  for (let k = 1; k < ordered.length; k++) {
+    assert.ok(
+      transitionIntensity(ordered[k]) > transitionIntensity(ordered[k - 1]),
+      `intensity should increase from ${ordered[k - 1]} to ${ordered[k]}`,
+    );
+  }
+  // Physical/unknown modes carry no cost, so they add no drama.
+  assert.equal(transitionIntensity("walk"), 0);
+  assert.equal(transitionIntensity(undefined), 0);
+});
+
+test("dramaSpec suppresses the number storm below the threshold and scales it above", () => {
+  // Cheap shifts keep their quiet character — a faint shake, no glyphs — while
+  // costly ones burst into a longer, wider storm with more, bigger numbers.
+  const cheap = dramaSpec(transitionIntensity("observer"));
+  assert.equal(cheap.shatter, false);
+  assert.equal(cheap.glyphs, 0);
+  assert.equal(cheap.shakeAmp, 0);
+
+  const big = dramaSpec(transitionIntensity("math"));
+  assert.equal(big.shatter, true);
+  assert.ok(big.glyphs > 0, "a structure jump throws glyphs");
+  assert.ok(big.shakeAmp > cheap.shakeAmp, "a dearer move shakes harder");
+  assert.ok(big.duration > dramaSpec(SHATTER_MIN_INTENSITY).duration, "and runs longer");
+
+  // Intensity is clamped to [0,1], so out-of-range inputs never blow up the storm.
+  assert.equal(dramaSpec(-5).intensity, 0);
+  assert.equal(dramaSpec(9).intensity, 1);
+});
+
+test("impactVoices adds a scaled low-end wallop in the ordinary voice schema", () => {
+  // The extra impact must be renderable by the same player path as any voice
+  // (type + gain + attack + release), and hit harder for a dearer move.
+  const soft = impactVoices(0.4);
+  const hard = impactVoices(1);
+  for (const v of [...soft, ...hard]) {
+    assert.ok(typeof v.type === "string" && v.gain > 0 && v.attack >= 0 && v.release > 0);
+  }
+  assert.ok(hard[0].gain > soft[0].gain, "the sub boom is louder for a bigger move");
 });
 
 test("AXIS_MODE derives from TRANSITIONS in its most-exotic detection order", () => {

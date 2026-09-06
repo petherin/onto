@@ -11,6 +11,10 @@ import {
   TRANSITION_LEGEND,
   TRANSITIONS_BY_COST,
   detectTransition,
+  transitionIntensity,
+  dramaSpec,
+  impactVoices,
+  SHATTER_MIN_INTENSITY,
   requiredTransition,
   physicalRoute,
   routeTotals,
@@ -278,8 +282,9 @@ function apply(s) {
   renderConfirm(s);
   const mode = detectTransition(prev, s.session);
   if (mode) {
-    triggerEffect(mode);
-    playSound(mode);
+    const intensity = transitionIntensity(mode);
+    triggerEffect(mode, intensity);
+    playSound(mode, intensity);
     // Halo whatever locations this transition just revealed, in the transition's
     // own colour, so the eye is drawn to what changed. Physical moves can add
     // nodes too, but only a reality transition arms the halo.
@@ -647,9 +652,45 @@ function toScreen(n) { return project(n, view, canvas.clientWidth, canvas.client
 // the edges and the legend.
 const effects = [];
 
-function triggerEffect(mode) {
+// triggerEffect queues a transition's animation. Every transition plays its own
+// character-matched effect (effectSpec), and a costly one — scaled by its σ cost
+// via transitionIntensity/dramaSpec — also shakes the screen, harder the dearer
+// the move, so cheap shifts get a near-zero shake and keep their quiet character.
+// The number-storm overlay that bursts the old structure apart and reassembles
+// it as the new one is the mathematical-structure jump's signature alone: it
+// fires only for mode "math" (at full intensity), so other big moves (timeline,
+// universe) still shake with cost but don't borrow the numbers — their own
+// dramatic flourishes are still to be designed.
+function triggerEffect(mode, intensity = 0) {
+  const now = performance.now();
   const { kind, duration } = effectSpec(mode);
-  effects.push({ mode, kind, duration, start: performance.now() });
+  effects.push({ mode, kind, duration, start: now });
+  const drama = dramaSpec(intensity);
+  triggerShake(drama.shakeAmp, drama.shakeDuration);
+  if (mode === "math" && drama.shatter) {
+    effects.push({ mode, kind: "shatter", duration: drama.duration, start: now, drama, particles: null });
+  }
+}
+
+// ── Screen shake ─────────────────────────────────────────────────────────────
+// A costly transition rattles the canvas. triggerShake arms a decaying jitter
+// scaled by the move's intensity (dramaSpec); shakeOffset returns the current
+// frame's offset (or null once spent) for draw() to translate the whole scene
+// by. The amplitude eases out (squared decay) so the world settles rather than
+// stopping dead. A near-zero amplitude (a cheap shift) arms nothing.
+let shake = null;
+
+function triggerShake(amp, duration) {
+  if (amp <= 0.1) return;
+  shake = { start: performance.now(), duration, amp };
+}
+
+function shakeOffset() {
+  if (!shake) return null;
+  const p = (performance.now() - shake.start) / shake.duration;
+  if (p >= 1) { shake = null; return null; }
+  const a = shake.amp * (1 - p) * (1 - p);
+  return { x: (Math.random() * 2 - 1) * a, y: (Math.random() * 2 - 1) * a };
 }
 
 // ── Transition sound ─────────────────────────────────────────────────────────
@@ -669,15 +710,27 @@ function triggerEffect(mode) {
 // a film score. Both buses pass through a gentle WaveShaper (analog-style warmth)
 // and a DynamicsCompressor (glue + peak taming) before the destination.
 // MASTER_GAIN keeps the mix gentle so a move never startles.
+//
+// One exception to the all-synthesised rule: the mathematical-structure jump
+// also layers a single real recorded explosion (a CC0 sample, see
+// MATH_EXPLOSION_URL) under its crystal chord, so the dearest move detonates.
 const MASTER_GAIN = 0.12;
 const REVERB_SECONDS = 3.4;   // impulse length — how long the tail rings
 const REVERB_DECAY = 2.2;     // higher = faster decay (steeper tail)
 const REVERB_WET = 0.38;      // reverb send level relative to the dry bus
 const REVERB_PREDELAY = 0.03; // gap before the tail — pushes the space back
+// The mathematical-structure jump layers a real recorded explosion under its
+// synthesised crystal chord — the one audio asset in the app: a CC0 "weird
+// explosion" (freesound.org/s/336009, public domain, no attribution required),
+// embedded and served with the SPA. MATH_EXPLOSION_GAIN is its level relative to
+// MASTER_GAIN, before the intensity lift in playSound.
+const MATH_EXPLOSION_URL = "sounds/math-explosion.mp3";
+const MATH_EXPLOSION_GAIN = 5.0;
 let audioCtx = null;
 let dryBus = null;    // voices → here (dry) → saturation
 let wetSend = null;   // voices → here → pre-delay → convolver → saturation
 let noiseBuffer = null; // shared white-noise source buffer for noise voices
+let mathExplosionBuffer = null; // decoded math-only explosion sample (loadMathExplosion)
 let muted = localStorage.getItem("onto.muted") === "1";
 
 // makeImpulse builds a stereo impulse response as exponentially-decaying white
@@ -760,7 +813,38 @@ function ensureAudio() {
   wetSend.gain.value = REVERB_WET;
   wetSend.connect(preDelay).connect(reverb).connect(shaper);
   noiseBuffer = makeNoise(audioCtx);
+  loadMathExplosion();
   return true;
+}
+
+// loadMathExplosion fetches and decodes the one real audio asset in the app — a
+// CC0 "weird explosion" layered under the mathematical-structure cue (playSound).
+// It's fired once from ensureAudio and cached, so the sample is decoded before a
+// transition fires; a failure just leaves the synthesised cue to play alone. The
+// URL is relative to the SPA, so it resolves against the static bundle's origin
+// (never ONTO_API_BASE) whether same-origin or split-deployed.
+async function loadMathExplosion() {
+  if (mathExplosionBuffer) return;
+  try {
+    const res = await fetch(MATH_EXPLOSION_URL);
+    mathExplosionBuffer = await audioCtx.decodeAudioData(await res.arrayBuffer());
+  } catch (err) {
+    console.error("math explosion sample load failed", err);
+  }
+}
+
+// playSample fires a decoded audio buffer through the same dry + reverb buses
+// every synthesised voice uses, so a recorded sample sits in the same scored
+// space (saturation, glue compression, and the shared tail) as the rest of the cue.
+function playSample(buffer, gainValue, when) {
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  const gain = audioCtx.createGain();
+  gain.gain.value = gainValue * MASTER_GAIN;
+  src.connect(gain);
+  gain.connect(dryBus);
+  gain.connect(wetSend);
+  src.start(when);
 }
 
 // applyRing ring-modulates a voice: the signal passes through a gain node whose
@@ -826,13 +910,21 @@ function applyLFO(v, source, filter, envOut, t0, t2) {
   return trem;
 }
 
-function playSound(mode) {
+function playSound(mode, intensity = 0) {
   if (muted) return;
   try {
     if (!ensureAudio()) return;
     if (audioCtx.state === "suspended") audioCtx.resume();
     const now = audioCtx.currentTime;
-    for (const v of soundSpec(mode).voices) {
+    // Big moves hit harder: a costly transition (transitionIntensity) both lifts
+    // every voice's level and, past the shatter threshold, adds a low-end impact
+    // (impactVoices) under the character cue, so the sound scales with the σ cost
+    // the same way the shake and the number storm do.
+    const i = Math.max(0, Math.min(1, intensity));
+    const gainScale = 0.75 + i * 0.6;
+    const spec = soundSpec(mode);
+    const voices = i >= SHATTER_MIN_INTENSITY ? [...spec.voices, ...impactVoices(i)] : spec.voices;
+    for (const v of voices) {
       const t0 = now + (v.delay || 0);
       const t1 = t0 + v.attack;
       const t2 = t1 + v.release;
@@ -880,7 +972,7 @@ function playSound(mode) {
       // Linear attack up to the voice's peak, then an exponential decay to near
       // silence (exponential ramps can't reach exactly 0).
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(v.gain * MASTER_GAIN, t1);
+      gain.gain.linearRampToValueAtTime(v.gain * MASTER_GAIN * gainScale, t1);
       gain.gain.exponentialRampToValueAtTime(0.0001, t2);
       node.connect(gain);
       let out = gain;
@@ -897,6 +989,14 @@ function playSound(mode) {
       out.connect(wetSend);
       source.start(t0);
       source.stop(t2 + 0.05);
+    }
+    // The mathematical-structure jump's signature: a real recorded explosion
+    // fired at the top of the cue, beneath the synthesised crystal chord, so the
+    // dearest move actually detonates instead of only chiming. Math-only, scaled
+    // by the same intensity lift as the voices, and skipped silently if the
+    // sample hasn't finished decoding yet.
+    if (mode === "math" && mathExplosionBuffer) {
+      playSample(mathExplosionBuffer, MATH_EXPLOSION_GAIN * gainScale, now);
     }
   } catch (err) {
     console.error("sound failed", err);
@@ -1183,6 +1283,11 @@ function draw() {
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // Screen shake: a costly transition rattles the whole scene (triggerShake).
+  // Applied as a decaying translate after the clear, so every layer — shells,
+  // edges, nodes, effects, and the pivot — shudders together and settles.
+  const sh = shakeOffset();
+  if (sh) ctx.translate(sh.x, sh.y);
   const cur = state && state.session ? state.session.Location : null;
   syncPivotToCurrent(cur);
 
@@ -1337,13 +1442,68 @@ function drawEffects(curId) {
     if (t >= 1) { effects.splice(i, 1); continue; }
     const render = EFFECT_RENDERERS[e.kind] || EFFECT_RENDERERS.ripple;
     ctx.save();
-    render(t, modeStyle(e.mode).rgb, origin, w, h);
+    render(t, modeStyle(e.mode).rgb, origin, w, h, e);
     ctx.restore();
   }
 }
 
 // Each renderer draws one transition for progress t in [0,1). They run inside a
 // ctx.save()/restore() so they can set alpha, line styles, and clips freely.
+//
+// buildShatter creates the one-off cloud of glyphs the mathematical-structure
+// jump shatters into: each glyph gets a random outward direction and distance
+// (scaled by the move's spread), a spin, a size (bigger at full intensity, which
+// is where the math jump runs), a short numeric-or-symbolic token, and a target
+// node on the new structure — sampled from the live graph with a small
+// offset — to reassemble onto. A per-glyph launch delay staggers the burst so
+// the explosion ripples out rather than leaving all at once. With no nodes yet
+// it falls back to the origin, so the storm still resolves to where you are.
+function buildShatter(drama) {
+  const ids = [...nodes.keys()];
+  const out = [];
+  for (let k = 0; k < drama.glyphs; k++) {
+    out.push({
+      angle: Math.random() * Math.PI * 2,
+      dist: drama.spread * (0.35 + Math.random() * 0.65),
+      spin: (Math.random() * 2 - 1) * Math.PI * 2,
+      size: 14 + Math.random() * (14 + drama.intensity * 30),
+      delay: Math.random() * 0.12,
+      glyph: shatterGlyph(),
+      nodeId: ids.length ? ids[Math.floor(Math.random() * ids.length)] : null,
+      offX: (Math.random() * 2 - 1) * 10,
+      offY: (Math.random() * 2 - 1) * 10,
+    });
+  }
+  return out;
+}
+
+// SHATTER_SYMBOLS is the palette of esoteric mathematical notation the structure
+// shatters into alongside the digits — integrals and contour integrals, del and
+// partials, n-ary sums/products, set and logic operators, tensor/direct sums,
+// aleph and beth numbers, the Weierstrass ℘, blackboard-bold number sets, Greek,
+// and a few arcane relations (bowtie, multimap, pitchfork). All are BMP code
+// points (single UTF-16 units) so plain string indexing samples them cleanly,
+// and the renderer uses a symbol-capable font fallback so none render as tofu.
+const SHATTER_SYMBOLS =
+  "∫∮∯∇∂∑∏∐√∞∅∈∋⊂⊃∪∩⋃⋂∀∃∴∵≡≅≈⊕⊗⊙⊢⊨⋀⋁⨁⨂⨆⨅⨌⟨⟩↦⇒⇔ℵℶℷ℘ℝℂℤℕℚλπφψΩΓΔΘΛΞΣΦΨ≺≻⋈⋔⊸⅋";
+
+// shatterGlyph returns one token the structure shatters into: about half the time
+// an esoteric mathematical symbol (occasionally a short cluster), otherwise a
+// short run of digits, so raw numbers and notation spill out together rather than
+// a uniform digit rain.
+function shatterGlyph() {
+  if (Math.random() < 0.5) {
+    const n = Math.random() < 0.3 ? 2 : 1;
+    let s = "";
+    for (let i = 0; i < n; i++) s += SHATTER_SYMBOLS[Math.floor(Math.random() * SHATTER_SYMBOLS.length)];
+    return s;
+  }
+  const len = 1 + Math.floor(Math.random() * 3);
+  let s = "";
+  for (let i = 0; i < len; i++) s += Math.floor(Math.random() * 10);
+  return s;
+}
+
 const EFFECT_RENDERERS = {
   // Plain travel and unknown modes: staggered expanding rings from the origin.
   ripple(t, rgb, o) {
@@ -1482,6 +1642,57 @@ const EFFECT_RENDERERS = {
     for (let x = 0; x <= w; x += gap) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
     for (let y = 0; y <= h; y += gap) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
     ctx.stroke();
+  },
+
+  // The mathematical-structure jump's signature (armed for mode "math" only in
+  // triggerEffect): the old structure detonates into a storm of numbers that
+  // shoots out from where you are — fast, on an ease-out burst so it explodes
+  // then coasts — before reassembling onto the new structure's node positions.
+  // Particles are built once (stored on the effect) then re-targeted to the live
+  // nodes every frame, so they land on the new structure even as the camera
+  // reframes and the layout settles. Each glyph draws a short motion-blur trail
+  // (a few dimmer copies at earlier times) so the explosion and the gather both
+  // streak, and a per-glyph launch delay ripples the blast outward.
+  shatter(t, rgb, o, w, h, e) {
+    if (!e.particles) e.particles = buildShatter(e.drama);
+    const easeOut = (x) => 1 - Math.pow(1 - x, 3);          // fast then coasting
+    const smooth = (x) => x * x * (3 - 2 * x);
+    // posAt places a glyph at animation time tt: an ease-out fling apart for the
+    // first half, then a smooth draw-back to its target node over the second.
+    const posAt = (p, tt) => {
+      const lt = Math.max(0, Math.min(1, (tt - p.delay) / (1 - p.delay)));
+      const burst = easeOut(Math.min(1, lt / 0.5));
+      const gather = smooth(Math.max(0, (lt - 0.45) / 0.55));
+      const ex = o.x + Math.cos(p.angle) * p.dist * burst;
+      const ey = o.y + Math.sin(p.angle) * p.dist * burst;
+      const tgt = p.nodeId && nodes.has(p.nodeId) ? toScreen(nodes.get(p.nodeId)) : o;
+      return {
+        x: ex + (tgt.x + p.offX - ex) * gather,
+        y: ey + (tgt.y + p.offY - ey) * gather,
+        gather,
+      };
+    };
+    const fadeIn = Math.min(1, t / 0.1);
+    const fadeOut = 1 - Math.max(0, (t - 0.9) / 0.1);
+    const trails = [0, 0.035, 0.07];   // trailing copies at earlier times
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const p of e.particles) {
+      // ui-monospace keeps the digits crisp; the symbol fonts cover any esoteric
+      // glyph the mono face lacks (per-glyph fallback), so notation never tofus.
+      ctx.font = `${p.size}px ui-monospace, "Apple Symbols", "Segoe UI Symbol", "STIX Two Math", monospace`;
+      for (let ti = trails.length - 1; ti >= 0; ti--) {
+        const { x, y, gather } = posAt(p, t - trails[ti]);
+        const alpha = fadeIn * fadeOut * (1 - gather * 0.8) * (1 - ti * 0.32);
+        if (alpha <= 0) continue;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(p.spin * (t - trails[ti]));
+        ctx.fillStyle = `rgba(${rgb},${alpha})`;
+        ctx.fillText(p.glyph, 0, 0);
+        ctx.restore();
+      }
+    }
   },
 };
 

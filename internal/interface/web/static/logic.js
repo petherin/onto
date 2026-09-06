@@ -212,6 +212,9 @@ export const SOUND_SPEC = {
   // The underlying mathematical structure flashes into view: a noise swell lifts
   // into a struck-crystal bell chord made inharmonic by FM — sub root, root,
   // fifth, and a shimmering ring-modulated octave — ringing long into the reverb.
+  // The player (playSound) also detonates a real recorded CC0 explosion under
+  // this chord for the math jump alone, so the dearest move blows apart before
+  // the crystal reassembles — the one recorded asset among the synthesised cues.
   math: [
     { type: "noise", gain: 0.14, attack: 0.4, release: 0.5, filter: { type: "highpass", freq: 2000, freqEnd: 7000, q: 0.7 } },
     { type: "sine", freq: 261,  gain: 0.4,  attack: 0.02, release: 1.8, fm: { ratio: 1.41, depth: 90 }, delay: 0.3 },
@@ -309,7 +312,7 @@ export const TRANSITIONS = [
   { mode: "quantum",    axis: "Quantum",     label: "quantum",    command: "shift",     cost: "20 / hop",       costValue: 20,
     what: "A neighbouring quantum branch: almost identical, but something is subtly different (Everett many-worlds).",
     refs: [{ label: "Many-worlds interpretation", url: "https://en.wikipedia.org/wiki/Many-worlds_interpretation" }] },
-  { mode: "maths",       axis: "Mathematics", label: "mathematical", command: "mathematical", cost: "50,000 / hop",   costValue: 50000,
+  { mode: "math",        axis: "Mathematics", label: "mathematical", command: "mathematical", cost: "50,000 / hop",   costValue: 50000,
     what: "A different mathematical structure — dimensions, logic, or physical law need not match (Tegmark Level IV).",
     refs: [{ label: "Mathematical universe hypothesis", url: "https://en.wikipedia.org/wiki/Mathematical_universe_hypothesis" }] },
   { mode: "simulation", axis: "Simulation",  label: "simulation", command: "simulate",  cost: "10 in · 50 out", costValue: 10,
@@ -342,6 +345,70 @@ export const TRANSITION_LEGEND = TRANSITIONS_BY_COST.map((t) => ({
   label: t.label,
   command: t.command,
 }));
+
+// ── Cost-scaled transition drama ─────────────────────────────────────────────
+// A transition's σ cost (TRANSITIONS.costValue) spans orders of magnitude, from
+// an observer shift (2) to a mathematical-structure jump (50,000).
+// transitionIntensity maps that cost onto a 0–1 "drama" scale on the same log
+// curve the edges use (edgeWeight), so how hard a move hits — screen shake, the
+// number-storm overlay, and the sound — tracks what it costs. Modes with no cost
+// (physical travel, unknown) read as 0, so they get no extra drama.
+export const TRANSITION_COST = Object.fromEntries(
+  TRANSITIONS.map((t) => [t.mode, t.costValue]),
+);
+export const INTENSITY_COST_MIN = 2;      // cheapest transition (observer)
+export const INTENSITY_COST_MAX = 50000;  // dearest transition (mathematical)
+export function transitionIntensity(mode) {
+  const c = TRANSITION_COST[mode];
+  if (!c || c <= INTENSITY_COST_MIN) return 0;
+  const capped = Math.min(INTENSITY_COST_MAX, c);
+  return Math.log(capped / INTENSITY_COST_MIN) / Math.log(INTENSITY_COST_MAX / INTENSITY_COST_MIN);
+}
+
+// dramaSpec turns an intensity in [0,1] into the concrete animation parameters
+// for a transition: how far the screen shakes and for how long, and — for the
+// number storm — how many numeric glyphs the structure shatters into, how far
+// they fly, and how long the burst-and-reassemble runs. Shake scales with cost
+// for every transition, so a dearer move rattles the scene harder. The glyph
+// storm is only the mathematical-structure jump's signature, though: the caller
+// (triggerEffect) fires it for mode "math" alone, and math runs at full
+// intensity, so its glyph fields sit at their maximum. dramaSpec still reports
+// the storm eligibility (shatter) once the move is costly enough
+// (SHATTER_MIN_INTENSITY); other big moves (timeline, universe) keep the
+// cost-scaled shake and their own character effect, with distinct flourishes
+// still to be designed rather than borrowing the numbers.
+export const SHATTER_MIN_INTENSITY = 0.35;
+export const SHAKE_MAX_AMPLITUDE = 26;    // px at full intensity
+export const SHATTER_MIN_GLYPHS = 24;     // glyphs at the shatter threshold
+export const SHATTER_MAX_GLYPHS = 220;    // glyphs at full intensity (math showcase)
+export const SHATTER_MIN_DURATION = 900;  // ms
+export const SHATTER_MAX_DURATION = 2200; // ms
+export function dramaSpec(intensity) {
+  const i = Math.max(0, Math.min(1, intensity));
+  const shatter = i >= SHATTER_MIN_INTENSITY;
+  return {
+    intensity: i,
+    shakeAmp: i * SHAKE_MAX_AMPLITUDE,
+    shakeDuration: 420 + i * 900,
+    shatter,
+    glyphs: shatter ? Math.round(SHATTER_MIN_GLYPHS + i * (SHATTER_MAX_GLYPHS - SHATTER_MIN_GLYPHS)) : 0,
+    duration: SHATTER_MIN_DURATION + i * (SHATTER_MAX_DURATION - SHATTER_MIN_DURATION),
+    spread: 200 + i * 820,   // px the number cloud flings out to
+  };
+}
+
+// impactVoices is the extra low-end wallop a costly move gets on top of its
+// character cue (playSound stacks it in past SHATTER_MIN_INTENSITY): a deep,
+// driven sub boom and a short noise crack, both scaled by intensity, so a dear
+// transition lands with a physical thud under the number storm. It reuses the
+// ordinary voice schema, so the player renders it with no special case.
+export function impactVoices(intensity) {
+  const i = Math.max(0, Math.min(1, intensity));
+  return [
+    { type: "sine", freq: 90, freqEnd: 32, gain: 0.5 + i * 0.5, attack: 0.005, release: 0.9 + i * 0.8, drive: 0.4 + i * 0.3 },
+    { type: "noise", gain: 0.18 + i * 0.22, attack: 0.005, release: 0.5 + i * 0.4, drive: 0.4, filter: { type: "highpass", freq: 1200, freqEnd: 4000, q: 0.7 } },
+  ];
+}
 
 // [axis, mode] pairs for detectTransition, derived from TRANSITIONS. A
 // transition is detected by diffing a reality axis between snapshots, so the
